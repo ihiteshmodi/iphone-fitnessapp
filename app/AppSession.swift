@@ -15,6 +15,11 @@ final class AppSession: ObservableObject {
     @Published private(set) var phase: Phase = .loading
     @Published private(set) var revision = 0
     @Published private(set) var lastExport: ISODate?
+    /// What the first screen shows when there is no database yet: any database file already in the app folder,
+    /// the folder itself, and the names of the files in it, so a file copied in by hand is never invisible.
+    @Published private(set) var foundDatabases: [URL] = []
+    @Published private(set) var folderListing: [String] = []
+    private(set) var folderPath = ""
     private(set) var services: Services?
 
     let clock: AppClock = SystemClock()
@@ -25,7 +30,9 @@ final class AppSession: ObservableObject {
     init() {
         lastExport = UserDefaults.standard.string(forKey: Self.lastExportKey).flatMap { ISODate($0) }
         do {
-            fileService = DatabaseFileService(location: try AppDatabaseLocation.documents())
+            let location = try AppDatabaseLocation.documents()
+            folderPath = location.directory.path
+            fileService = DatabaseFileService(location: location)
         } catch {
             phase = .failed("Cannot create the app data folder: \(error.localizedDescription)")
         }
@@ -39,6 +46,9 @@ final class AppSession: ObservableObject {
         }
         open()
     }
+
+    /// Looks at the app folder again, for a file that was copied in while the app was open.
+    func recheck() { open() }
 
     /// Call after any write so screens refresh.
     func didChange() { revision += 1 }
@@ -92,6 +102,8 @@ final class AppSession: ObservableObject {
                 phase = .ready
             } else {
                 services = nil
+                foundDatabases = fileService.foundDatabases()
+                folderListing = fileService.folderListing()
                 phase = .needsImport
             }
             revision += 1
