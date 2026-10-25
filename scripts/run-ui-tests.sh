@@ -32,7 +32,7 @@ trap 'stop_everything; exit 130' INT TERM
 trap 'xcrun simctl shutdown all >/dev/null 2>&1' EXIT
 
 classes=(WorkoutFlowUITests BodyProgressUITests MorePlanDataUITests)
-[ $# -gt 0 ] && classes=("$1")
+[ $# -gt 0 ] && classes=("$@")
 
 total=0
 for name in "${classes[@]}"; do total=$((total + $(grep -cE '^\s*func test' "appUITests/$name.swift"))); done

@@ -71,7 +71,7 @@ final class BodyProgressUITests: XCTestCase {
     }
 
     private func openTab(_ name: String) {
-        let tab = app.tabBars.buttons[name]
+        let tab = app.tabButton(name)
         XCTAssertTrue(tab.waitForExistence(timeout: 10))
         tab.tap()
     }

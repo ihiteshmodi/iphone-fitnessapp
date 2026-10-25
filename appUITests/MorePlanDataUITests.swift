@@ -9,7 +9,7 @@ final class MorePlanDataUITests: XCTestCase {
     }
 
     private func openMoreTab(_ app: XCUIApplication) {
-        let tab = app.tabBars.buttons["More"]
+        let tab = app.tabButton("More")
         XCTAssertTrue(tab.waitForExistence(timeout: 20))
         tab.tap()
     }
