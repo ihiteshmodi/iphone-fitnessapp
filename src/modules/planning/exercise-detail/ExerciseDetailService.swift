@@ -1,0 +1,117 @@
+import Foundation
+
+public struct DetailTarget: Equatable {
+    public let sets: Int
+    public let minReps: Double
+    public let maxReps: Int
+    public let workingWeight: Double?
+    public let warmup75: Double?
+    public let warmup90: Double?
+    /// nil while deload is on.
+    public let recommendation: TargetRecommendation?
+}
+
+/// What the "Add set" form starts with.
+public struct SetFormPrefill: Equatable {
+    public let weightKg: Double?
+    public let reps: Int
+}
+
+public struct ExerciseDetail: Equatable {
+    public let exercise: Exercise
+    public let hasHistory: Bool
+    public let isDeload: Bool
+    public let target: DetailTarget
+    /// Newest session strictly before today.
+    public let lastSession: ExerciseSession?
+    /// Today's aim, e.g. "Increase reps: beat 9 reps at 54 kg".
+    public let aim: String
+    /// Last 6 sessions (today included), oldest first, for the chart.
+    public let sessions: [ExerciseSession]
+    public let trend: ExerciseTrend
+    /// Up to 10 sessions strictly before today, newest first.
+    public let history: [ExerciseSession]
+    public let todaySets: [PerformedSet]
+    public let targetSets: Int
+    public let prefill: SetFormPrefill
+}
+
+public final class ExerciseDetailService {
+    private let db: Database
+    private let clock: AppClock
+
+    public init(_ db: Database, clock: AppClock) {
+        self.db = db
+        self.clock = clock
+    }
+
+    public func detail(exerciseId: Int, dayId: Int) throws -> ExerciseDetail {
+        let settings = try SettingsRepository(db).load()
+        guard let entry = try PlanReader(db: db).entry(dayId: dayId, exerciseId: exerciseId) else {
+            throw ValidationError("Exercise is not planned on this day")
+        }
+
+        let history = SetHistoryReader(db: db)
+        let today = clock.today()
+        let allSets = try history.sets(exerciseId: exerciseId, since: settings.historyStartDate)
+        let sets = ProgressSets.filter(allSets, ignoreDeload: settings.ignoreDeloadSessions)
+        let heaviest = HeaviestSet.of(sets)
+        let target = WorkoutTargetCalculator.target(heaviest: heaviest, minReps: entry.minReps, maxReps: entry.maxReps,
+                                                    deload: settings.deload)
+
+        let sessions = SessionHistory.sessions(from: sets)
+        let lastSession = sessions.filter { $0.date < today }.last
+        // The history list is a log, so it keeps deload sessions (their sets carry the deload flag).
+        let loggedBefore = SessionHistory.sessions(from: allSets).filter { $0.date < today }
+
+        return ExerciseDetail(
+            exercise: entry.exercise,
+            hasHistory: heaviest != nil,
+            isDeload: settings.deload.enabled,
+            target: DetailTarget(sets: entry.sets, minReps: target.minReps, maxReps: target.maxReps,
+                                 workingWeight: target.workingWeight, warmup75: target.warmup75, warmup90: target.warmup90,
+                                 recommendation: target.recommendation),
+            lastSession: lastSession,
+            aim: Self.aim(target: target, lastSession: lastSession),
+            sessions: Array(sessions.suffix(Self.chartSessions)),
+            trend: ExerciseTrend.classify(sessions.map(\.estimatedOneRepMax)),
+            history: Array(loggedBefore.reversed().prefix(Self.historySessions)),
+            todaySets: try history.sets(exerciseId: exerciseId, on: today),
+            targetSets: entry.sets,
+            prefill: SetFormPrefill(weightKg: target.workingWeight, reps: entry.maxReps))
+    }
+
+    /// Saves the how-to text in the library, so every day that uses the exercise shows it.
+    public func updateInstructions(exerciseId: Int, instructions: String?) throws {
+        let library = ExerciseRepository(db)
+        guard let existing = try library.exercise(id: exerciseId) else { throw ValidationError("Exercise not found") }
+        try library.update(id: exerciseId, name: existing.name, muscle: existing.muscle, instructions: instructions)
+    }
+
+    static let chartSessions = 6
+    static let historySessions = 10
+
+    private static func aim(target: WorkoutTarget, lastSession: ExerciseSession?) -> String {
+        guard let weight = target.workingWeight else { return "No history yet" }
+        let kg = "\(format(weight)) kg"
+        guard let recommendation = target.recommendation else {
+            return "Deload: \(format(target.minReps)) to \(target.maxReps) reps at \(kg)"
+        }
+        switch recommendation {
+        case .noHistory:
+            return "No history yet"
+        case .increaseWeight:
+            return "Increase weight"
+        case .increaseReps:
+            let lastReps = lastSession?.sets.filter { pyRound($0.weightKg, 2) == weight }.map(\.reps).max()
+            return "Increase reps: beat \(lastReps ?? target.repsAtMax ?? 0) reps at \(kg)"
+        case .bringToMaintenance:
+            return "Bring to maintenance: reach \(format(target.minReps)) reps at \(kg)"
+        }
+    }
+
+    /// 54.0 -> "54", 43.2 -> "43.2".
+    private static func format(_ value: Double) -> String {
+        String(format: "%g", value)
+    }
+}
