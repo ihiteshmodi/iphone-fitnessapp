@@ -17,6 +17,7 @@ private struct ExerciseDetailContent: View {
     @StateObject private var vm: ExerciseDetailViewModel
     @State private var showingAddSet = false
     @State private var showingHowToEditor = false
+    @State private var showingMuscleEditor = false
 
     init(services: Services, exerciseId: Int, dayId: Int) {
         _vm = StateObject(wrappedValue: ExerciseDetailViewModel(services: services, exerciseId: exerciseId, dayId: dayId))
@@ -28,10 +29,9 @@ private struct ExerciseDetailContent: View {
                 VStack(spacing: 12) {
                     header
                     doToday
-                    lastSessionAndAim
-                    howTo
                     progress
-                    history
+                    howTo
+                    musclesWorked
                     logSets
                 }
                 .padding(.horizontal, 16)
@@ -47,8 +47,17 @@ private struct ExerciseDetailContent: View {
         .sheet(isPresented: $showingHowToEditor) {
             DetailHowToEditor(vm: vm, onSaved: { session.didChange() })
         }
+        .sheet(isPresented: $showingMuscleEditor) {
+            if let muscles = vm.muscles {
+                MuscleEditorSheet(
+                    exerciseName: vm.name,
+                    muscles: muscles,
+                    onSave: { assignments in if vm.saveMuscles(assignments) { session.didChange() } },
+                    onReset: { if vm.resetMuscles() { session.didChange() } })
+            }
+        }
         // The sheets show their own errors; two alerts bound to one message would fight.
-        .errorAlert(showingAddSet || showingHowToEditor ? .constant(nil) : $vm.errorMessage)
+        .errorAlert(showingAddSet || showingHowToEditor || showingMuscleEditor ? .constant(nil) : $vm.errorMessage)
     }
 
     // MARK: 1. Header
@@ -68,20 +77,38 @@ private struct ExerciseDetailContent: View {
         }
     }
 
-    // MARK: 2. Do today
+    // MARK: 2. Do today (weight, aim, warm-ups)
 
     private var doToday: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionLabel("Do today")
+            HStack(alignment: .center) {
+                SectionLabel("Do today")
+                Spacer()
+                if let aim = vm.aimSummary {
+                    Pill(text: aim.pill, tone: vm.aimTone).accessibilityIdentifier("aim-pill")
+                }
+            }
             if let weight = vm.workingWeightText {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(weight).font(.system(size: 44, weight: .bold)).foregroundColor(Theme.text)
-                    Text("kg").font(.system(size: 18)).foregroundColor(Theme.muted)
+                HStack(alignment: .bottom, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(weight).font(.system(size: 44, weight: .bold)).foregroundColor(Theme.text)
+                            Text("kg").font(.system(size: 18)).foregroundColor(Theme.muted)
+                        }
+                        if let hint = vm.aimSummary?.hint {
+                            Text(hint).font(.system(size: 13)).foregroundColor(Theme.green).accessibilityIdentifier("aim-hint")
+                        }
+                    }
                     Spacer()
-                    if let warmups = vm.warmupsText {
+                    if !vm.warmups.isEmpty {
                         VStack(alignment: .trailing, spacing: 3) {
                             SectionLabel("Warm-ups")
-                            Text(warmups).font(.system(size: 15, weight: .bold)).foregroundColor(Theme.text)
+                            ForEach(vm.warmups) { warmup in
+                                HStack(spacing: 6) {
+                                    Text(warmup.percent).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.muted)
+                                    Text(warmup.kg).font(.system(size: 15, weight: .bold)).foregroundColor(Theme.text)
+                                }
+                            }
                         }
                     }
                 }
@@ -93,31 +120,24 @@ private struct ExerciseDetailContent: View {
         .card(padding: 16)
     }
 
-    // MARK: 3. Last session + aim
+    // MARK: 3. Best set per session
 
-    private var lastSessionAndAim: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(vm.lastSessionTitle)
-                if vm.lastSessionChips.isEmpty {
-                    Text("No earlier session").font(.system(size: 13)).foregroundColor(Theme.muted)
-                } else {
-                    DetailFlowLayout {
-                        ForEach(Array(vm.lastSessionChips.enumerated()), id: \.offset) { _, chip in SetChip(text: chip) }
-                    }
-                }
+    private var progress: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionLabel("Best set per session")
+                Spacer()
+                Text("kg above · reps below").font(.system(size: 11, weight: .medium)).foregroundColor(Theme.green)
             }
-            .card()
-            .frame(maxHeight: .infinity, alignment: .top)
-
-            VStack(alignment: .leading, spacing: 8) {
-                SectionLabel("Aim")
-                Text(vm.aim).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+            if vm.sessionPoints.isEmpty {
+                Text("Your sessions will be charted here.").font(.system(size: 13)).foregroundColor(Theme.muted)
+                    .padding(.vertical, 12)
+            } else {
+                SessionLineChart(points: vm.sessionPoints, height: 160)
             }
-            .card(highlighted: true)
-            .frame(maxHeight: .infinity, alignment: .top)
+            Text(vm.trendText).font(.system(size: 12)).foregroundColor(Theme.muted)
         }
-        .fixedSize(horizontal: false, vertical: true)
+        .card()
     }
 
     // MARK: 4. How to
@@ -146,48 +166,17 @@ private struct ExerciseDetailContent: View {
         .card()
     }
 
-    // MARK: 5. Progress
+    // MARK: 5. Muscles worked
 
-    private var progress: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                SectionLabel("Progress · best set per session")
-                Spacer()
-                Text("● kg  reps above").font(.system(size: 11, weight: .medium)).foregroundColor(Theme.green)
-            }
-            if vm.chartPoints.isEmpty {
-                Text("Your sessions will be charted here.").font(.system(size: 13)).foregroundColor(Theme.muted)
-                    .padding(.vertical, 12)
-            } else {
-                TrendChart(points: vm.chartPoints, height: 150)
-            }
-            Text(vm.trendText).font(.system(size: 12)).foregroundColor(Theme.muted)
-        }
-        .card()
-    }
-
-    // MARK: 6. History
-
-    private var history: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("History")
-            if vm.historyRows.isEmpty {
-                Text("No earlier sessions yet.").font(.system(size: 13)).foregroundColor(Theme.muted)
-            }
-            ForEach(vm.historyRows) { row in
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(row.date).font(.system(size: 13, weight: .bold)).foregroundColor(Theme.text)
-                        .frame(width: 52, alignment: .leading)
-                    Text(row.sets).font(.system(size: 13)).foregroundColor(Theme.muted)
-                    Spacer(minLength: 0)
-                    if row.isDeload { Pill(text: "Deload", tone: .amber) }
-                }
+    private var musclesWorked: some View {
+        Group {
+            if let muscles = vm.muscles {
+                MusclesWorkedCard(muscles: muscles, onEdit: { showingMuscleEditor = true })
             }
         }
-        .card()
     }
 
-    // MARK: 7. Log sets (always last)
+    // MARK: 6. Log sets (always last)
 
     private var logSets: some View {
         VStack(alignment: .leading, spacing: 10) {

@@ -16,6 +16,7 @@ final class Services: ObservableObject {
     let measurements: MeasurementService
     let volume: MuscleVolumeService
     let settings: SettingsRepository
+    let muscles: ExerciseMuscleService
 
     init(db: Database, clock: AppClock) {
         self.db = db
@@ -31,5 +32,6 @@ final class Services: ObservableObject {
         measurements = MeasurementService(db, clock: clock)
         volume = MuscleVolumeService(db)
         settings = SettingsRepository(db)
+        muscles = ExerciseMuscleService(db)
     }
 }
