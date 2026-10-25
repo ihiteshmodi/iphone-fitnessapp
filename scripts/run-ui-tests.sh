@@ -76,6 +76,9 @@ handle_line() {  # prints finished tests above the progress line
       failed)  done_count=$((done_count + 1)); failed_count=$((failed_count + 1)); failed_names+=" $test"; current_test=""
                printf '\r\033[K  ✗ %s (%ss)\n' "$test" "$secs" ;;
     esac
+  elif [[ "$line" =~ Executed\ [0-9]+\ tests? ]]; then
+    # xcodebuild sometimes hangs after printing the final result; the main loop stops it shortly after this.
+    tests_finished_at=$(date +%s)
   elif [[ "$line" == *"error:"* ]]; then
     printf '\r\033[K  ! %s\n' "$(printf '%s' "$line" | cut -c1-160)"
   fi
@@ -89,7 +92,7 @@ for name in "${classes[@]}"; do
   log="$LOGS/$name.log"
   rm -rf "$LOGS/$name.xcresult"; : >"$log"
   printf '\n== %s   started %s   (full log: %s)\n' "$name" "$(date +%H:%M:%S)" "$log"
-  phase="building"; current_test=""
+  phase="building"; current_test=""; tests_finished_at=0; stopped_after_finish=0
 
   nice -n 10 xcodebuild test -project FitnessApp.xcodeproj -scheme FitnessApp \
     -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath .derived \
@@ -115,6 +118,13 @@ for name in "${classes[@]}"; do
 
     draw $((now - overall_start)) $((now - last_growth))
 
+    if [ "$tests_finished_at" -gt 0 ] && [ $((now - tests_finished_at)) -ge 15 ]; then
+      printf '\r\033[K  tests finished; stopping xcodebuild, which can hang on exit\n'
+      stopped_after_finish=1
+      kill "$build_pid" 2>/dev/null
+      break
+    fi
+
     if [ $((now - class_start)) -ge "$CLASS_LIMIT_SECONDS" ]; then
       printf '\r\033[K  TIMED OUT after %ss, stopping this class\n' "$CLASS_LIMIT_SECONDS"
       kill "$build_pid" 2>/dev/null
@@ -130,6 +140,8 @@ for name in "${classes[@]}"; do
   if [ "$total_lines" -gt "$seen" ]; then
     while IFS= read -r line; do handle_line "$line"; done < <(tail -n +"$((seen + 1))" "$log")
   fi
+  # A run we stopped ourselves after the tests finished is judged by the test results, not by the killed exit code.
+  [ "$stopped_after_finish" -eq 1 ] && code=0
   [ "$code" -ne 0 ] && status=1
   printf '\r\033[K== %s finished in %s, exit code %s\n' "$name" "$(clock $(($(date +%s) - class_start)))" "$code"
 done
