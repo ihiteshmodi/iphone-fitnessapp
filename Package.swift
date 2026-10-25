@@ -27,6 +27,7 @@ let package = Package(
                 "planning/edit-plan/edit-plan.feature",
                 "planning/exercise-detail/exercise-detail.feature",
                 "planning/exercise-library/exercise-library.feature",
+                "planning/muscle-anatomy/muscle-anatomy.feature",
                 "planning/view-workout/view-workout.feature",
                 "progress/measurement-progress/measurement-progress.feature",
                 "progress/muscle-volume/muscle-volume.feature",

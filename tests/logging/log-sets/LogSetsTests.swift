@@ -23,6 +23,18 @@ final class LogSetsTests: XCTestCase {
         XCTAssertEqual(stored.map(\.reps), [10, 9, 12])
     }
 
+    /// The Add set sheet starts with the working weight but lets you type any weight, for example a 2.5 kg step up.
+    func testAnyDecimalWeightCanBeLoggedAndBecomesTheNextWorkingWeight() throws {
+        let planned = try PlannedExercise.make(db, name: "Triceps Pushdown", muscle: "Triceps")
+        try db.addSet(exercise: planned.exerciseId, on: "2026-10-01", weight: 45, reps: 10)
+
+        try log.logSet(.existing(id: planned.exerciseId), weightKg: 47.5, reps: 8, on: "2026-10-20")
+
+        XCTAssertEqual(try log.sets(on: date("2026-10-20")).map(\.weightKg), [47.5])
+        let next = try WorkoutService(db, clock: planningClock()).workout(dayId: planned.dayId).exercises.first
+        XCTAssertEqual(next?.workingWeight, 47.5)
+    }
+
     func testLoggingAnExerciseMissingFromTheLibraryAddsIt() throws {
         try log.logSet(.named("Cable Crunch", muscle: "Abs"), weightKg: 30, reps: 15, on: "2026-10-23")
 

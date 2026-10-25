@@ -34,6 +34,15 @@ CREATE TABLE plan_entries (
     UNIQUE (day_id, exercise_id)
 );
 
+-- Muscles the user chose for one exercise. No rows for an exercise means "automatic": the app works them out from
+-- the exercise's name and group. `part` is a MusclePart key (see src/modules/planning/muscle-anatomy).
+CREATE TABLE exercise_muscles (
+    exercise_id INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    part        TEXT NOT NULL,
+    role        TEXT NOT NULL CHECK (role IN ('primary', 'secondary')),
+    PRIMARY KEY (exercise_id, part)
+);
+
 CREATE TABLE set_logs (
     id             INTEGER PRIMARY KEY,
     performed_on   TEXT NOT NULL CHECK (performed_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
@@ -92,4 +101,4 @@ INSERT INTO settings (key, value) VALUES
     ('protein_g_per_lb', '1.2'),
     ('fat_percent_of_calories', '25');
 
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;

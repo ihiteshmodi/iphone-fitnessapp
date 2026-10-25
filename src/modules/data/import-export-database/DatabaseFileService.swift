@@ -74,6 +74,15 @@ public struct DatabaseFileService {
                 try db.execute("ALTER TABLE set_logs ADD COLUMN is_deload INTEGER NOT NULL DEFAULT 0 CHECK (is_deload IN (0, 1))")
             }
             try db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('ignore_deload_sessions', '1')")
+            // Version 3: muscles the user chose per exercise (no rows = automatic).
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS exercise_muscles (
+                    exercise_id INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+                    part        TEXT NOT NULL,
+                    role        TEXT NOT NULL CHECK (role IN ('primary', 'secondary')),
+                    PRIMARY KEY (exercise_id, part)
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }
