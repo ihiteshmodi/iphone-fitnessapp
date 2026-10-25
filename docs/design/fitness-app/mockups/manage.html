@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fitness app mockups: plan, library and editing (sample data)</title>
+<link rel="stylesheet" href="mockup.css">
+<script src="mockup.js"></script>
+</head>
+<body>
+<h1>Fitness app: plan, library and editing screens</h1>
+<div class="sub">Sample data, not live. Scroll inside a phone with the mouse wheel or trackpad.</div>
+<div class="nav"><a href="index.html">Core screens</a><a href="manage.html">Plan, library and editing screens</a></div>
+
+<div class="row">
+
+  <!-- 6. EDIT PLAN -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="back">‹ More</div>
+        <div class="title"><small>Plan</small>Edit plan</div>
+        <div class="seg small"><div class="on">Name by numbers</div><div>Name by weekdays</div></div>
+
+        <div class="card day section">
+          <div class="dh"><div><div class="dn">Day 1</div><div class="dm">Legs + Shoulders · 17 exercises</div></div><span class="pill green" style="font-size:11px">Mon</span></div>
+        </div>
+        <div class="card day">
+          <div class="dh"><div><div class="dn">Day 2</div><div class="dm">Push · 16 exercises</div></div><span class="pill green" style="font-size:11px">Wed</span></div>
+        </div>
+        <div class="card day">
+          <div class="dh"><div><div class="dn">Day 3</div><div class="dm">Pull + Chest · 16 exercises</div></div><span class="pill green" style="font-size:11px">Fri</span></div>
+          <div class="pe"><span class="grip">⋮⋮</span><div class="nm">Triceps Press<span>3 sets · 6–10 reps</span></div><span class="ed">Edit</span></div>
+          <div class="pe"><span class="grip">⋮⋮</span><div class="nm">Triceps Pushdown<span>3 sets · 6–10 reps</span></div><span class="ed">Edit</span></div>
+          <div class="pe"><span class="grip">⋮⋮</span><div class="nm">Lat Pulldown<span>3 sets · 6–10 reps</span></div><span class="ed">Edit</span></div>
+          <div class="pe"><span class="grip">⋮⋮</span><div class="nm">Chest Dips Machine<span>3 sets · 6–10 reps</span></div><span class="ed">Edit</span></div>
+          <div class="pe"><span class="grip">⋮⋮</span><div class="nm">Preacher Curls<span>3 sets · 6–10 reps</span></div><span class="ed">Edit</span></div>
+          <div class="btn ghost sm">+ Add exercise</div>
+          <div style="text-align:center;color:var(--red);font-size:13px;margin-top:12px">Delete Day 3 (history is kept)</div>
+        </div>
+        <div class="card day" style="border-style:dashed;text-align:center;color:var(--green);font-weight:700;padding:16px">+ Add day</div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Progress</div><div class="tab on"><i></i>More</div>
+      </div>
+    </div>
+    <div class="cap">6 · Edit plan. Add or delete days, give a day a weekday and a title, drag to reorder, add exercises.</div>
+  </div>
+
+  <!-- 7. ADD EXERCISE SHEET -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content" style="overflow:hidden">
+        <div class="back">‹ More</div>
+        <div class="title"><small>Plan</small>Edit plan</div>
+      </div>
+      <div class="dim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="head"><div style="font-size:19px;font-weight:700">Add to Day 3</div><div class="link">Cancel</div></div>
+        <div class="search">⌕  Search the exercise library</div>
+        <div class="chips"><div class="on">All</div><div>Chest</div><div>Back</div><div>Biceps</div><div>Triceps</div></div>
+        <div class="pick create"><div class="tick">+</div><div class="nm">Create a new exercise</div></div>
+        <div class="pick"><div class="tick"></div><div class="nm">Cable Crunch<span>Abs · has how-to</span></div></div>
+        <div class="pick"><div class="tick on"></div><div class="nm">Cable Fly (low to high)<span>Chest · has how-to</span></div></div>
+        <div class="pick"><div class="tick"></div><div class="nm">Chest Fly Machine<span>Chest · has how-to</span></div></div>
+        <div class="pick"><div class="tick"></div><div class="nm">Incline Dumbbell Press<span>Chest · no how-to yet</span></div></div>
+        <div class="card section">
+          <div class="label">Cable Fly (low to high)</div>
+          <div class="list">
+            <div class="li">Sets<div class="stepper"><b>−</b><em>3</em><b>+</b></div></div>
+            <div class="li">Min reps<div class="stepper"><b>−</b><em>8</em><b>+</b></div></div>
+            <div class="li">Max reps<div class="stepper"><b>−</b><em>16</em><b>+</b></div></div>
+          </div>
+        </div>
+        <div class="btn">Add to Day 3</div>
+      </div>
+    </div>
+    <div class="cap">7 · Add exercise. Pick from the existing library (search and muscle filters) or create a new one.</div>
+  </div>
+
+  <!-- 8. NEW EXERCISE FORM -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="head"><div class="link">Cancel</div><div style="font-weight:700">New exercise</div><div class="link">Save</div></div>
+        <div class="field section"><div class="label">Name</div><div class="v">Landmine Press</div></div>
+        <div class="field"><div class="label">Muscle</div>
+          <div class="chips" style="margin:6px 0 0;flex-wrap:wrap"><div>Chest</div><div>Back</div><div class="on">Shoulders</div><div>Biceps</div><div>Triceps</div><div>Quads</div><div>Hamstrings</div><div>Glutes</div><div>Abs</div><div>+ New</div></div></div>
+        <div class="field area"><div class="label">How to (instructions)</div><div class="v">Stand in a split stance, bar at chest height, press up and across. Keep ribs down and squeeze the shoulder at the top.</div></div>
+        <div class="ph-line">The muscle decides which volume chart this exercise appears in. Instructions show on the exercise screen and can be edited any time.</div>
+        <div class="btn">Save exercise</div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Progress</div><div class="tab on"><i></i>More</div>
+      </div>
+    </div>
+    <div class="cap">8 · New or edit exercise: name, muscle and how-to.</div>
+  </div>
+
+  <!-- 9. LIBRARY -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="back">‹ More</div>
+        <div class="topbar"><div class="title"><small>259 exercises</small>Library</div><div class="link">+ New</div></div>
+        <div class="search">⌕  Search</div>
+        <div class="chips"><div class="on">All</div><div>Back</div><div>Chest</div><div>Quads</div><div>Biceps</div></div>
+        <div class="card list" style="padding:4px 14px">
+          <div class="li"><div>Barbell Bench Press<span class="sub2">Chest · 143 sets logged · no how-to</span></div><span>›</span></div>
+          <div class="li"><div>Cable Crunch<span class="sub2">Abs · how-to added</span></div><span>›</span></div>
+          <div class="li"><div>Chest Dips Machine<span class="sub2">Chest · on Day 3 · how-to added</span></div><span>›</span></div>
+          <div class="li"><div>Deadlift<span class="sub2">Back · no how-to</span></div><span>›</span></div>
+          <div class="li"><div>Lat Pulldown<span class="sub2">Back · on Day 2 · how-to added</span></div><span>›</span></div>
+          <div class="li"><div>Preacher Curls<span class="sub2">Biceps · on Day 3 · how-to added</span></div><span>›</span></div>
+          <div class="li"><div>Squats<span class="sub2">Quads · on Day 1 · how-to added</span></div><span>›</span></div>
+        </div>
+        <div class="ph-line">Exercises with history cannot be deleted. Remove them from days instead. Names are unique ignoring case.</div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Progress</div><div class="tab on"><i></i>More</div>
+      </div>
+    </div>
+    <div class="cap">9 · Exercise library. Add, rename, change muscle and instructions.</div>
+  </div>
+
+  <!-- 10. MEASUREMENT DETAIL -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="back">‹ Progress</div>
+        <div class="title"><small>Body site</small>Left Calf</div>
+        <div class="card section" style="display:flex;align-items:center;gap:16px">
+          <div data-ring="0.91" data-size="104" data-stroke="11" data-label="1.31" data-sub="in to gain"></div>
+          <div style="flex:1">
+            <div class="label">Current</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><div class="big" style="font-size:24px">14.00<span class="unit">in</span></div><span class="link" style="font-size:12px">Edit</span></div>
+            <div class="label" style="margin-top:8px">Target</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><div class="big" style="font-size:24px;color:var(--green)">15.31<span class="unit">in</span></div><span class="link" style="font-size:12px">Edit</span></div>
+          </div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">History</div><div class="label" style="color:var(--green)">- - target 15.31</div></div>
+          <div id="mchart" style="margin-top:6px"></div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">Readings</div><div class="link" style="font-size:12px">+ Log reading</div></div>
+          <div class="hist" style="margin-top:6px"><b>18 Oct</b><span>14.00 in  <b style="color:var(--green)">✎</b></span></div>
+          <div class="hist"><b>4 Oct</b><span>13.90 in  <b style="color:var(--green)">✎</b></span></div>
+          <div class="hist"><b>20 Sep</b><span>13.80 in  <b style="color:var(--green)">✎</b></span></div>
+          <div class="hist"><b>6 Sep</b><span>13.70 in  <b style="color:var(--green)">✎</b></span></div>
+        </div>
+        <div class="btn ghost" style="color:var(--red)">Remove this site</div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab on"><i></i>Progress</div><div class="tab"><i></i>More</div>
+      </div>
+    </div>
+    <div class="cap">10 · Measurement detail (opened from a ring). Change current and target, log or fix readings.</div>
+  </div>
+
+  <!-- 11. CALORIES & MACRO RULES -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content" style="overflow:hidden">
+        <div class="title"><small>Last 7 days</small>Body</div>
+      </div>
+      <div class="dim"></div>
+      <div class="sheet" style="top:230px">
+        <div class="grab"></div>
+        <div class="head"><div style="font-size:19px;font-weight:700">Calories and macro rules</div><div class="link">Done</div></div>
+        <div class="field"><div class="label">Calories eaten per day (this week)</div><div class="v">2,948.5</div></div>
+        <div class="field"><div class="label">Goal multiplier</div>
+          <div class="seg small" style="margin:6px 0 0"><div>Cut 0.85</div><div class="on">Maintain 1.00</div><div>Bulk 1.10</div></div></div>
+        <div class="row2">
+          <div class="field"><div class="label">Protein g per lb</div><div class="v">1.2</div></div>
+          <div class="field"><div class="label">Fat % of calories</div><div class="v">25</div></div>
+        </div>
+        <div class="ph-line">Carbs fill what is left. Macros are shown when the multiplier is below 1 (cutting), as in your notebook.</div>
+        <div class="btn">Save</div>
+      </div>
+    </div>
+    <div class="cap">11 · Edit calories and macro rules from the Body screen.</div>
+  </div>
+
+</div>
+
+<script>
+  window.drawCharts = function () {
+    lineChart("mchart",
+      [{ vals: [13.7, 13.8, 13.9, 14.0], color: G, labels: ["13.70", "13.80", "13.90", "14.00"], area: true },
+       { vals: [15.31, 15.31, 15.31, 15.31], color: "#8af0bd", dash: true, hollow: true }],
+      330, 150, { area: true, xlabels: ["6 Sep", "20 Sep", "4 Oct", "18 Oct"], padY: 0.3 });
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fitness app mockups: core flow (sample data)</title>
+<link rel="stylesheet" href="mockup.css">
+<script src="mockup.js"></script>
+</head>
+<body>
+<h1>Fitness app: core screens</h1>
+<div class="sub">Sample data, not live. Scroll inside a phone with the mouse wheel or trackpad.</div>
+<div class="nav"><a href="index.html">Core screens</a><a href="manage.html">Plan, library and editing screens</a></div>
+
+<div class="row">
+
+  <!-- 1. WORKOUT LIST -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="topbar">
+          <div class="title"><small>Saturday, 25 Oct</small>Workout</div>
+          <div class="link">Edit day</div>
+        </div>
+        <div class="seg"><div>Day 1</div><div>Day 2</div><div class="on">Day 3</div><div class="add">+</div></div>
+        <div class="card hero">
+          <div data-ring="0.375" data-size="92" data-stroke="9" data-label="6/16" data-sub="done"></div>
+          <div>
+            <div class="label">Day 3</div>
+            <div class="big" style="font-size:22px">Pull + Chest</div>
+            <div class="stats">
+              <div class="stat"><b>16</b><span>exercises</span></div>
+              <div class="stat"><b>44</b><span>sets</span></div>
+              <div class="stat"><b style="color:var(--green)">13</b><span>to progress</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card ex">
+          <div data-ring="0.6667" data-size="44" data-stroke="5" data-label="2/3"></div>
+          <div class="info"><div class="name">Chest Dips Machine</div><div class="meta">Chest · 3 × 6–10</div></div>
+          <svg data-spark="48,50,50,52,52,54" width="54" height="26"></svg>
+          <div class="right"><div class="kg">54<span class="unit">kg</span></div><span class="chip green">Increase reps</span></div>
+        </div>
+        <div class="card ex">
+          <div data-ring="1" data-size="44" data-stroke="5" data-label="3/3"></div>
+          <div class="info"><div class="name">Triceps Pushdown</div><div class="meta">Triceps · 3 × 6–10</div></div>
+          <svg data-spark="40,40,42.5,42.5,45,45" width="54" height="26"></svg>
+          <div class="right"><div class="kg">45<span class="unit">kg</span></div><span class="chip green">Increase weight</span></div>
+        </div>
+        <div class="card ex">
+          <div data-ring="0" data-size="44" data-stroke="5" data-label="0/3"></div>
+          <div class="info"><div class="name">Lat Pulldown</div><div class="meta">Back · 3 × 6–10</div></div>
+          <svg data-spark="36,36,36,36,36,36" width="54" height="26"></svg>
+          <div class="right"><div class="kg">36<span class="unit">kg</span></div><span class="chip amber">Flat</span></div>
+        </div>
+        <div class="card ex">
+          <div data-ring="0" data-size="44" data-stroke="5" data-label="0/3"></div>
+          <div class="info"><div class="name">Preacher Curls</div><div class="meta">Biceps · 3 × 6–10</div></div>
+          <svg data-spark="27.5,27.5,25,25,25,25" width="54" height="26"></svg>
+          <div class="right"><div class="kg">25<span class="unit">kg</span></div><span class="chip red">Declining</span></div>
+        </div>
+        <div class="card ex">
+          <div data-ring="0" data-size="44" data-stroke="5" data-label="0/3"></div>
+          <div class="info"><div class="name">Seated rows mid back</div><div class="meta">Back · 3 × 6–10</div></div>
+          <svg data-spark="35,37.5,37.5,40,40,40" width="54" height="26"></svg>
+          <div class="right"><div class="kg">40<span class="unit">kg</span></div><span class="chip green">Increase reps</span></div>
+        </div>
+        <div class="card ex">
+          <div data-ring="0" data-size="44" data-stroke="5" data-label="0/3"></div>
+          <div class="info"><div class="name">DB Hammer Curls</div><div class="meta">Biceps · 3 × 6–10</div></div>
+          <svg data-spark="10,10,12.5,12.5,12.5,12.5" width="54" height="26"></svg>
+          <div class="right"><div class="kg">12.5<span class="unit">kg</span></div><span class="chip green">Increase reps</span></div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab on"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Progress</div><div class="tab"><i></i>More</div>
+      </div>
+    </div>
+    <div class="cap">1 · Workout. "+" adds a day. "Edit day" jumps to plan editing for this day.</div>
+  </div>
+
+  <!-- 2. EXERCISE DETAIL -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="back">‹ Day 3</div>
+        <div class="topbar" style="align-items:flex-start">
+          <div class="title" style="font-size:24px"><small>Chest · 3 sets · 6–10 reps</small>Chest Dips Machine</div>
+          <span class="pill green">▲ Improving</span>
+        </div>
+
+        <div class="card section">
+          <div class="label">Do today</div>
+          <div style="display:flex;align-items:baseline;gap:8px"><div class="big" style="font-size:44px">54</div><div class="unit" style="font-size:18px">kg</div>
+            <div style="margin-left:auto;text-align:right"><div class="label">Warm-ups</div><div style="font-weight:700;margin-top:3px">40.5 · 48.6 kg</div></div></div>
+        </div>
+
+        <div class="row2 section">
+          <div class="card"><div class="label">Last session · 18 Oct</div>
+            <div class="setchips"><span>54 × 9</span><span>54 × 8</span><span>54 × 8</span></div></div>
+          <div class="card aim"><div class="label">Aim</div><div class="t">Increase reps: beat 9 at 54 kg</div></div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">How to</div><div class="link" style="font-size:12px">Edit</div></div>
+          <div class="instr">Handle inner, squeeze very hard, should feel in the entire lower pec. Go ahead till you touch the bar entirely to ground. READ CAREFULLY: move back on contract, ahead on stretch!</div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">Progress · best set per session</div><div class="label" style="color:var(--green)">● kg  ○ reps</div></div>
+          <div id="chart" style="margin-top:6px"></div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">Estimated 1RM up <b style="color:var(--green)">+4.2%</b> over the last 6 sessions</div>
+        </div>
+
+        <div class="card section">
+          <div class="label">History</div>
+          <div class="hist" style="margin-top:6px"><b>18 Oct</b><span>54 × 9 · 54 × 8 · 54 × 8</span></div>
+          <div class="hist"><b>10 Oct</b><span>52 × 10 · 52 × 9 · 52 × 8</span></div>
+          <div class="hist"><b>3 Oct</b><span>52 × 9 · 52 × 8 · 52 × 8</span></div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">Log sets · today</div><div class="label" style="color:var(--green)">2 of 3</div></div>
+          <div class="setrow"><div class="n done">1</div><div class="v">54 kg <span>× 9 reps</span></div><span style="color:var(--green)">✓</span></div>
+          <div class="setrow"><div class="n done">2</div><div class="v">54 kg <span>× 8 reps</span></div><span style="color:var(--green)">✓</span></div>
+          <div class="setrow"><div class="n">3</div><div class="v" style="color:var(--muted)">54 kg <span>× 10 reps</span></div><span style="color:var(--muted)">tap to log</span></div>
+          <div class="btn">+ Add set</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab on"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Progress</div><div class="tab"><i></i>More</div>
+      </div>
+    </div>
+    <div class="cap">2 · Exercise detail. Everything needed to train is at the top; logging is the last thing on the page.</div>
+  </div>
+
+  <!-- 3. BODY -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="title"><small>Last 7 days</small>Body</div>
+        <div class="card section" style="display:flex;align-items:center;gap:16px">
+          <div data-ring="0.97" data-size="120" data-stroke="12" data-label="2,949" data-sub="eaten / day"></div>
+          <div>
+            <span class="pill amber">Cut</span>
+            <div class="label" style="margin-top:10px">Maintenance</div>
+            <div class="big" style="font-size:24px">3,037<span class="unit">kcal</span></div>
+            <div class="label" style="margin-top:6px;text-transform:none;color:var(--green)">New target 3,037</div>
+          </div>
+        </div>
+        <div class="row2 section">
+          <div class="btn ghost sm" style="margin:0">✎ Calories eaten</div>
+          <div class="btn ghost sm" style="margin:0">✎ Macro rules</div>
+        </div>
+
+        <div class="row2 section">
+          <div class="card"><div class="label">This week</div><div class="big" style="font-size:24px">63.86<span class="unit">kg</span></div></div>
+          <div class="card"><div class="label">Last week</div><div class="big" style="font-size:24px">63.94<span class="unit">kg</span></div></div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">Body weight · 14 days</div><div class="link" style="font-size:12px">+ Log</div></div>
+          <div id="wchart" style="margin-top:6px"></div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">Cutting macros · 2,429 kcal</div><div class="link" style="font-size:12px">Edit rules</div></div>
+          <div class="macro"><div class="top">Protein <span>168.6 g</span></div><div class="bar"><i style="width:72%"></i></div></div>
+          <div class="macro"><div class="top">Carbs <span>286.9 g</span></div><div class="bar"><i style="width:84%"></i></div></div>
+          <div class="macro"><div class="top">Fat <span>67.5 g</span></div><div class="bar"><i style="width:40%"></i></div></div>
+          <div class="ph-line">Rules: protein 1.2 g per lb · fat 25% of calories</div>
+        </div>
+
+        <div class="card section">
+          <div class="label">Recent weigh-ins</div>
+          <div class="hist" style="margin-top:6px"><b>23 Oct</b><span>63.8 kg  <b style="color:var(--green)">✎</b></span></div>
+          <div class="hist"><b>22 Oct</b><span>63.9 kg  <b style="color:var(--green)">✎</b></span></div>
+          <div class="hist"><b>21 Oct</b><span>63.7 kg  <b style="color:var(--green)">✎</b></span></div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i></i>Workout</div><div class="tab on"><i></i>Body</div><div class="tab"><i></i>Progress</div><div class="tab"><i></i>More</div>
+      </div>
+    </div>
+    <div class="cap">3 · Body. Calories, macro rules and every weigh-in are editable.</div>
+  </div>
+
+  <!-- 4. PROGRESS -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="topbar">
+          <div class="title"><small>Tap a ring to change current or target</small>Progress</div>
+        </div>
+        <div class="grid section">
+          <div class="card m"><div data-ring="0.91" data-size="46" data-stroke="5"></div><div><div class="t">Left Calf</div><div class="s">14.00 → 15.31 in</div><div class="s" style="color:var(--green)">1.31 to gain</div></div></div>
+          <div class="card m"><div data-ring="0.95" data-size="46" data-stroke="5"></div><div><div class="t">Right Thigh</div><div class="s">21.80 → 22.58 in</div><div class="s" style="color:var(--green)">0.78 to gain</div></div></div>
+          <div class="card m"><div data-ring="0.96" data-size="46" data-stroke="5"></div><div><div class="t">Bicep (R)</div><div class="s">14.60 → 15.31 in</div><div class="s" style="color:var(--green)">0.71 to gain</div></div></div>
+          <div class="card m"><div data-ring="0.87" data-size="46" data-stroke="5" data-color="#f5c542"></div><div><div class="t">Waist</div><div class="s">30.20 → 28.00 in</div><div class="s" style="color:var(--amber)">2.20 to lose</div></div></div>
+          <div class="card m"><div data-ring="1" data-size="46" data-stroke="5"></div><div><div class="t">Neck</div><div class="s">13.80 → 13.80 in</div><div class="s" style="color:var(--green)">At target</div></div></div>
+          <div class="card m"><div data-ring="0.99" data-size="46" data-stroke="5"></div><div><div class="t">Chest</div><div class="s">39.80 → 39.81 in</div><div class="s" style="color:var(--green)">0.01 to gain</div></div></div>
+        </div>
+        <div class="btn ghost sm">+ Add a body site</div>
+
+        <div class="label" style="margin-top:16px">Volume by muscle</div>
+        <div class="chips"><div>Chest</div><div class="on">Triceps</div><div>Back</div><div>Biceps</div><div>Quads</div></div>
+        <div class="card"><div id="vchart"></div>
+          <div style="display:flex;gap:14px;font-size:11px;color:var(--muted);margin-top:6px"><span style="color:var(--green)">● Triceps Pushdown</span><span style="color:#8af0bd">● Triceps Press</span><span style="color:#2a8a5c">● DB Overhead</span></div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab on"><i></i>Progress</div><div class="tab"><i></i>More</div>
+      </div>
+    </div>
+    <div class="cap">4 · Progress. Each ring shows current → target. Tap one to edit (see the measurement screen on the next page).</div>
+  </div>
+
+  <!-- 5. MORE -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="title"><small>Settings</small>More</div>
+
+        <div class="card section">
+          <div class="label">Backup</div>
+          <div style="font-size:15px;margin-top:8px">Last export <b>18 Oct</b> · <span style="color:var(--amber)">7 days ago</span></div>
+          <div class="btn">Export database (.sqlite)</div>
+          <div class="btn ghost">Import database</div>
+          <div class="ph-line">Export, then save to Google Drive from the share sheet. Weekly.</div>
+        </div>
+
+        <div class="card section list">
+          <div class="label">Deload week</div>
+          <div class="li" style="margin-top:4px"><div>Deload on<span class="sub2">Only changes workout targets</span></div><div class="toggle"></div></div>
+          <div class="li">Weight multiplier<div class="stepper"><b>−</b><em>1.00</em><b>+</b></div></div>
+          <div class="li">Min reps multiplier<div class="stepper"><b>−</b><em>0.75</em><b>+</b></div></div>
+        </div>
+
+        <div class="card section list">
+          <div class="label">Progress history</div>
+          <div class="li" style="margin-top:4px"><div>Count history from<span class="sub2">Applies to everything: working weights, recommendations, trends and charts</span></div><span style="color:var(--green);font-weight:600">31 Aug 2026 ›</span></div>
+        </div>
+
+        <div class="card section list">
+          <div class="label">Plan</div>
+          <div class="li" style="margin-top:4px">Edit plan<span>3 days ›</span></div>
+          <div class="li">Name days by
+            <div class="seg small" style="margin:0;width:170px"><div class="on">Numbers</div><div>Weekdays</div></div></div>
+          <div class="li">Exercise library<span>259 exercises ›</span></div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Progress</div><div class="tab on"><i></i>More</div>
+      </div>
+    </div>
+    <div class="cap">5 · More. Deload and history start are now separate settings; days can be named by number or weekday.</div>
+  </div>
+
+</div>
+
+<script>
+  window.drawCharts = function () {
+    lineChart("chart",
+      [{ vals: [48, 50, 50, 52, 52, 54], color: G, labels: ["48", "50", "50", "52", "52", "54"], area: true },
+       { vals: [48.5, 48.5, 51, 51, 52.8, 52.8], color: "#8af0bd", hollow: true, dash: true, labels: ["10", "8", "9", "10", "8", "9"] }],
+      330, 170, { area: true, xlabels: SESSIONS, padY: 4 });
+    lineChart("wchart",
+      [{ vals: [64.2, 64.1, 64.0, 64.1, 63.9, 64.0, 63.9, 63.8, 63.9, 63.8, 63.9, 63.7, 63.9, 63.8], color: G }],
+      330, 120, { area: true, xlabels: [], padY: 0.3 });
+    lineChart("vchart",
+      [{ vals: [900, 930, 960, 930, 1020, 1080], color: G },
+       { vals: [680, 720, 720, 780, 760, 800], color: "#8af0bd" },
+       { vals: [420, 450, 420, 480, 500, 480], color: "#2a8a5c" }],
+      330, 170, { area: true, xlabels: SESSIONS, padY: 60 });
+  };
+</script>
+</body>
+</html>
