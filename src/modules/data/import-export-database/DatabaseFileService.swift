@@ -106,6 +106,11 @@ public struct DatabaseFileService {
                     WHERE site IN ('Waist', 'Waist (belly button)', 'Body Fat (belly button)')
                     """)
             }
+            // Version 6: warm-up sets per planned exercise. Existing sets stay main sets, with no warm-ups.
+            let entryColumns = try db.query("PRAGMA table_info(plan_entries)").map { $0.text("name") }
+            if !entryColumns.contains("warmup_sets") {
+                try db.execute("ALTER TABLE plan_entries ADD COLUMN warmup_sets INTEGER NOT NULL DEFAULT 0 CHECK (warmup_sets BETWEEN 0 AND 3)")
+            }
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

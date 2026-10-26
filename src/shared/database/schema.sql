@@ -30,6 +30,8 @@ CREATE TABLE plan_entries (
     min_reps    INTEGER NOT NULL CHECK (min_reps >= 0),
     max_reps    INTEGER NOT NULL,
     rep_type    TEXT,
+    -- sets = main sets (logged and counted). warmup_sets are reference only: shown with weights, never logged.
+    warmup_sets INTEGER NOT NULL DEFAULT 0 CHECK (warmup_sets BETWEEN 0 AND 3),
     CHECK (min_reps <= max_reps),
     UNIQUE (day_id, exercise_id)
 );
@@ -111,4 +113,4 @@ INSERT INTO settings (key, value) VALUES
     ('protein_g_per_lb', '1.2'),
     ('fat_percent_of_calories', '25');
 
-PRAGMA user_version = 5;
+PRAGMA user_version = 6;

@@ -124,8 +124,7 @@ final class ExerciseDetailViewModel: ObservableObject {
     }
 
     var warmups: [Warmup] {
-        guard let target = detail?.target, let w75 = target.warmup75, let w90 = target.warmup90 else { return [] }
-        return zip(WarmupLabels.percentages, [w75, w90]).map { Warmup(percent: "\($0)%", kg: "\(Format.number($1)) kg") }
+        (detail?.target.warmups ?? []).map { Warmup(percent: "\($0.percent)%", kg: "\(Format.number($0.weightKg)) kg") }
     }
 
     // MARK: Aim, how to

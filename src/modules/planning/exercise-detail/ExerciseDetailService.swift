@@ -1,7 +1,36 @@
 import Foundation
 
+/// One warm-up: a share of the working weight to lift lightly before the main set.
+public struct WarmupStep: Equatable {
+    public let percent: Int
+    public let weightKg: Double
+
+    public init(percent: Int, weightKg: Double) {
+        self.percent = percent
+        self.weightKg = weightKg
+    }
+}
+
+public enum WarmupPlan {
+    /// 1 warm-up: 75%. 2: 75% and 90%. 3: 60%, 75% and 90%. Weights rounded to 2 decimals.
+    public static func steps(count: Int, workingWeight: Double?) -> [WarmupStep] {
+        guard let workingWeight else { return [] }
+        let percents: [Int]
+        switch count {
+        case 1: percents = [75]
+        case 2: percents = [75, 90]
+        case 3: percents = [60, 75, 90]
+        default: percents = []
+        }
+        return percents.map { WarmupStep(percent: $0, weightKg: pyRound(workingWeight * Double($0) / 100, 2)) }
+    }
+}
+
 public struct DetailTarget: Equatable {
     public let sets: Int
+    /// Warm-up sets planned for this exercise (reference only).
+    public let warmupSets: Int
+    public let warmups: [WarmupStep]
     public let minReps: Double
     public let maxReps: Double
     public let workingWeight: Double?
@@ -103,7 +132,8 @@ public final class ExerciseDetailService {
             exercise: entry.exercise,
             hasHistory: heaviest != nil,
             isDeload: settings.deload.enabled,
-            target: DetailTarget(sets: entry.sets, minReps: target.minReps, maxReps: target.maxReps,
+            target: DetailTarget(sets: entry.sets, warmupSets: entry.warmupSets,
+                                 warmups: WarmupPlan.steps(count: entry.warmupSets, workingWeight: target.workingWeight), minReps: target.minReps, maxReps: target.maxReps,
                                  workingWeight: target.workingWeight, warmup75: target.warmup75, warmup90: target.warmup90,
                                  recommendation: target.recommendation),
             lastSession: lastSession,

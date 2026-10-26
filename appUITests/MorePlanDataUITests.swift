@@ -61,6 +61,34 @@ final class MorePlanDataUITests: XCTestCase {
         XCTAssertTrue(picker.buttons["Numbers"].isSelected)
     }
 
+    func testEditPlanHasMainSetsAndWarmupSetsAndWarmupsAppearOnTheExerciseScreen() {
+        let app = launchApp()
+        openMoreTab(app)
+        app.buttons["edit-plan-row"].tap()
+        let day3 = app.buttons["plan-day-3"]
+        XCTAssertTrue(day3.waitForExistence(timeout: 10))
+        day3.tap()
+        let edit = app.buttons["edit-entry-button"].firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+
+        XCTAssertTrue(app.staticTexts["Main sets"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Warm-up sets"].exists)
+        XCTAssertEqual(app.staticTexts["stepper-value-Warm-up sets"].label, "0", "existing exercises start with no warm-ups")
+        app.buttons["Increase Warm-up sets"].tap()
+        app.buttons["Increase Warm-up sets"].tap()
+        XCTAssertEqual(app.staticTexts["stepper-value-Warm-up sets"].label, "2")
+        app.buttons["save-entry-button"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '2 warm-up'")).firstMatch.waitForExistence(timeout: 5))
+
+        // Put the shared test database back.
+        app.buttons["edit-entry-button"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Decrease Warm-up sets"].waitForExistence(timeout: 5))
+        app.buttons["Decrease Warm-up sets"].tap()
+        app.buttons["Decrease Warm-up sets"].tap()
+        app.buttons["save-entry-button"].tap()
+    }
+
     func testWeekdayNamingShowsTheChosenWeekdayOnTheWorkoutTab() {
         let app = launchApp()
         openMoreTab(app)

@@ -27,7 +27,8 @@ final class PlanAddExerciseModel: ObservableObject {
         guard let services = link.services, let selected else { return false }
         do {
             try services.planEditor.addExercise(dayId: day.id, exerciseId: selected.id,
-                                                sets: scheme.sets, minReps: scheme.minReps, maxReps: scheme.maxReps)
+                                                sets: scheme.sets, minReps: scheme.minReps, maxReps: scheme.maxReps,
+                                                warmupSets: scheme.warmupSets)
             link.didChange()
             return true
         } catch {

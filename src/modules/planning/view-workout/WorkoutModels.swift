@@ -44,7 +44,10 @@ public struct WorkoutExercise: Equatable, Identifiable {
     public let name: String
     public let muscle: String?
     public let instructions: String?
+    /// Main sets: logged and counted.
     public let sets: Int
+    /// Warm-up sets: reference only, never logged.
+    public let warmupSets: Int
     /// Double because deload scales it (6 becomes 4.5). Display only.
     public let minReps: Double
     /// The value stored in the plan. The plan editor edits this, never the scaled `minReps`.

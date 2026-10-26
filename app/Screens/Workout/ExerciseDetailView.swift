@@ -191,6 +191,7 @@ private struct ExerciseDetailContent: View {
                 Spacer()
                 Text(vm.todayCountText).font(.system(size: 11, weight: .medium)).foregroundColor(Theme.green)
             }
+            if !vm.warmups.isEmpty { warmupReference }
             ForEach(Array(vm.todaySets.enumerated()), id: \.element.id) { index, set in
                 todayRow(number: index + 1, set: set)
             }
@@ -203,6 +204,29 @@ private struct ExerciseDetailContent: View {
                 .accessibilityIdentifier("add-set-button")
         }
         .card()
+    }
+
+    /// The planned warm-ups: weights to follow, not logged and not counted in the 0/1 above.
+    private var warmupReference: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel("Warm up first · not logged")
+            ForEach(vm.warmups) { warmup in
+                HStack(spacing: 12) {
+                    Text("W")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Theme.muted)
+                        .frame(width: 28, height: 28)
+                        .overlay(Circle().strokeBorder(Theme.line, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))
+                    Text("\(warmup.kg) · \(warmup.percent)").font(.system(size: 14)).foregroundColor(Theme.muted)
+                    Spacer()
+                    Text("reference").font(.system(size: 11)).foregroundColor(Theme.muted)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("warmup-\(warmup.percent)")
+            }
+            Divider().overlay(Theme.line)
+            SectionLabel("Main set")
+        }
     }
 
     private func numberCircle(_ number: Int, done: Bool) -> some View {

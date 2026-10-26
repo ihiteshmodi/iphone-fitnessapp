@@ -54,7 +54,7 @@ final class PlanViewModel: ObservableObject {
     private static func entries(of day: PlanDay, services: Services) throws -> [PlanEntry] {
         try services.workout.workout(dayId: day.id).exercises.map { exercise in
             PlanEntry(id: exercise.planEntryId, dayId: day.id, name: exercise.name,
-                      scheme: PlanRepScheme(sets: exercise.sets, minReps: exercise.plannedMinReps, maxReps: exercise.plannedMaxReps))
+                      scheme: PlanRepScheme(sets: exercise.sets, warmupSets: exercise.warmupSets, minReps: exercise.plannedMinReps, maxReps: exercise.plannedMaxReps))
         }
     }
 
@@ -104,7 +104,8 @@ final class PlanViewModel: ObservableObject {
     }
 
     func updateEntry(_ entry: PlanEntry, scheme: PlanRepScheme) {
-        perform { try $0.planEditor.updateEntry(entryId: entry.id, sets: scheme.sets, minReps: scheme.minReps, maxReps: scheme.maxReps) }
+        perform { try $0.planEditor.updateEntry(entryId: entry.id, sets: scheme.sets, minReps: scheme.minReps, maxReps: scheme.maxReps,
+                                                           warmupSets: scheme.warmupSets) }
     }
 
     func removeEntry(_ entry: PlanEntry) {

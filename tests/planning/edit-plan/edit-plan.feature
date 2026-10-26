@@ -67,3 +67,36 @@ Feature: Edit the plan: days and their exercises
     Given "Lat Pulldown" is on Day 2
     When I add "Lat Pulldown" to Day 2
     Then it is rejected with "Already on this day"
+
+  Scenario: Main sets and warm-up sets are separate numbers
+    Given "Leg Extensions" is planned with 1 main set and 2 warm-up sets
+    Then the workout list shows 0/1 for it
+    And only the main set can be logged
+    And the exercise screen lists the two warm-ups as reference at 75% and 90% of the working weight
+
+  Scenario Outline: Warm-up weights depend on how many warm-up sets there are
+    Given "Leg Extensions" has a working weight of 60 kg and <count> warm-up sets
+    Then the warm-ups shown are <weights>
+
+    Examples:
+      | count | weights                    |
+      | 0     | none                       |
+      | 1     | 75% = 45 kg                |
+      | 2     | 75% = 45 kg, 90% = 54 kg   |
+      | 3     | 60% = 36 kg, 75% = 45 kg, 90% = 54 kg |
+
+  Scenario: Existing exercises start with no warm-up sets
+    Given a plan saved before warm-up sets existed
+    When the app opens it
+    Then every exercise keeps its sets as main sets and has 0 warm-up sets
+
+  Scenario Outline: Warm-up sets must be between 0 and 3
+    When I save an exercise with <count> warm-up sets
+    Then <result>
+
+    Examples:
+      | count | result                                              |
+      | 0     | it is saved                                         |
+      | 3     | it is saved                                         |
+      | -1    | it is rejected with "Warm-up sets must be between 0 and 3" |
+      | 4     | it is rejected with "Warm-up sets must be between 0 and 3" |
