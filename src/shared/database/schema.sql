@@ -72,10 +72,12 @@ CREATE TABLE body_measurements (
 );
 CREATE INDEX idx_body_measurements_site_date ON body_measurements (site, measured_on);
 
+-- direction: grow means at or above the target is achieved (shoulders, arms); reduce means at or below is (waist).
 CREATE TABLE measurement_targets (
     site   TEXT PRIMARY KEY COLLATE NOCASE,
     inches REAL NOT NULL CHECK (inches > 0),
-    set_on TEXT
+    set_on TEXT,
+    direction TEXT NOT NULL DEFAULT 'grow' CHECK (direction IN ('grow', 'reduce'))
 );
 
 CREATE TABLE calorie_entries (
@@ -109,4 +111,4 @@ INSERT INTO settings (key, value) VALUES
     ('protein_g_per_lb', '1.2'),
     ('fat_percent_of_calories', '25');
 
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;

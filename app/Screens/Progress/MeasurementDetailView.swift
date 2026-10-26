@@ -43,6 +43,8 @@ final class MeasurementDetailViewModel: ObservableObject {
 
     func setTarget(inches: Double) throws { try services.measurements.setTarget(site: site, inches: inches) }
 
+    func setDirection(_ direction: MeasurementDirection) throws { try services.measurements.setDirection(site: site, direction) }
+
     /// "Current" is whatever the newest reading says, so editing it logs a new reading.
     func logReading(inches: Double, on date: ISODate) throws { try services.measurements.logReading(site: site, inches: inches, on: date) }
 
@@ -139,9 +141,30 @@ private struct MeasurementDetailContent: View {
                          editIdentifier: "measurement-current-edit-button") { sheet = .editCurrent }
                 valueRow(label: "Target", value: MeasurementText.inches(detail.target), tint: Theme.green,
                          editIdentifier: "measurement-target-edit-button") { sheet = .editTarget }
+                if detail.target != nil { directionPicker(detail) }
             }
         }
         .card()
+    }
+
+    /// Grow sites (shoulders, arms) are fine above their target; reduce sites (waist) are not.
+    private func directionPicker(_ detail: MeasurementDetail) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SectionLabel("Goal")
+            Picker("Goal", selection: Binding(get: { detail.direction }, set: { direction in
+                do {
+                    try model.setDirection(direction)
+                    session.didChange()
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
+            })) {
+                Text("Grow").tag(MeasurementDirection.grow)
+                Text("Reduce").tag(MeasurementDirection.reduce)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("measurement-direction-picker")
+        }
     }
 
     private func valueRow(label: String, value: String, tint: Color, editIdentifier: String, edit: @escaping () -> Void) -> some View {

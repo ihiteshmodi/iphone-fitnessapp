@@ -10,6 +10,7 @@ enum MeasurementText {
         case .atTarget: return "At target"
         case .toGain(let inches): return "\(Format.fixed(inches)) to gain"
         case .toLose(let inches): return "\(Format.fixed(inches)) to lose"
+        case .ahead(let inches): return "\(Format.fixed(inches)) ahead of target"
         }
     }
 
@@ -17,7 +18,7 @@ enum MeasurementText {
         switch status {
         case .toLose: return Theme.amber
         case .noReading, .noTarget: return Theme.muted
-        case .atTarget, .toGain: return Theme.green
+        case .atTarget, .toGain, .ahead: return Theme.green
         }
     }
 
@@ -28,7 +29,7 @@ enum MeasurementText {
 
     static func ringLabel(_ status: MeasurementStatus) -> String {
         switch status {
-        case .toGain(let inches), .toLose(let inches): return Format.fixed(inches)
+        case .toGain(let inches), .toLose(let inches), .ahead(let inches): return Format.fixed(inches)
         case .atTarget: return "0.00"
         case .noReading, .noTarget: return "–"
         }
@@ -38,6 +39,7 @@ enum MeasurementText {
         switch status {
         case .toGain: return "in to gain"
         case .toLose: return "in to lose"
+        case .ahead: return "in ahead"
         case .atTarget: return "at target"
         case .noReading: return "no reading"
         case .noTarget: return "no target"

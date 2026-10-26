@@ -97,6 +97,15 @@ public struct DatabaseFileService {
                 INSERT OR IGNORE INTO calorie_defaults (effective_from, calories, multiplier)
                 SELECT logged_on, calories, multiplier FROM calorie_entries ORDER BY logged_on DESC LIMIT 1
                 """)
+            // Version 5: each measured site grows or reduces. Waist-type sites are the ones where less is better.
+            let targetColumns = try db.query("PRAGMA table_info(measurement_targets)").map { $0.text("name") }
+            if !targetColumns.contains("direction") {
+                try db.execute("ALTER TABLE measurement_targets ADD COLUMN direction TEXT NOT NULL DEFAULT 'grow' CHECK (direction IN ('grow', 'reduce'))")
+                try db.execute("""
+                    UPDATE measurement_targets SET direction = 'reduce'
+                    WHERE site IN ('Waist', 'Waist (belly button)', 'Body Fat (belly button)')
+                    """)
+            }
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

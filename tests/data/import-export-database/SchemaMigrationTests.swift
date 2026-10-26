@@ -11,6 +11,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         try db.execute("DELETE FROM settings WHERE key = 'ignore_deload_sessions'")
         try db.execute("DROP TABLE exercise_muscles")
         try db.execute("DROP TABLE calorie_defaults")
+        try db.execute("ALTER TABLE measurement_targets DROP COLUMN direction")
         try db.runScript("PRAGMA user_version = 1")
         try FileManager.default.copyItem(at: url, to: location.databaseURL)
     }
@@ -21,6 +22,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         let db = try Database(path: url.path)
         try db.execute("DROP TABLE exercise_muscles")
         try db.execute("DROP TABLE calorie_defaults")
+        try db.execute("ALTER TABLE measurement_targets DROP COLUMN direction")
         try db.runScript("PRAGMA user_version = 2")
         try FileManager.default.copyItem(at: url, to: location.databaseURL)
     }
@@ -30,6 +32,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         let url = try makeFitnessDatabase(named: "v3.sqlite")
         let db = try Database(path: url.path)
         try db.execute("DROP TABLE calorie_defaults")
+        try db.execute("ALTER TABLE measurement_targets DROP COLUMN direction")
         for entry in calories {
             try db.execute("INSERT INTO calorie_entries (logged_on, calories, multiplier) VALUES (?, ?, ?)",
                            [.text(entry.day), .double(entry.kcal), .double(entry.multiplier)])
@@ -38,12 +41,39 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         try FileManager.default.copyItem(at: url, to: location.databaseURL)
     }
 
+    /// The database before measurement directions existed: version 4, with some targets.
+    private func installVersion4Database(targets: [(site: String, inches: Double)]) throws {
+        let url = try makeFitnessDatabase(named: "v4.sqlite")
+        let db = try Database(path: url.path)
+        try db.execute("ALTER TABLE measurement_targets DROP COLUMN direction")
+        for target in targets {
+            try db.execute("INSERT INTO measurement_targets (site, inches) VALUES (?, ?)", [.text(target.site), .double(target.inches)])
+        }
+        try db.runScript("PRAGMA user_version = 4")
+        try FileManager.default.copyItem(at: url, to: location.databaseURL)
+    }
+
+    func testOpeningAVersion4DatabaseMarksTheWaistSitesAsReduceAndTheRestAsGrow() throws {
+        try installVersion4Database(targets: [("Waist", 28), ("waist (belly button)", 30), ("Body Fat (belly Button)", 4.9),
+                                              ("Shoulders", 45.3), ("Left Calf", 15.31)])
+
+        let db = try XCTUnwrap(try service.openLiveDatabase())
+
+        let directions = Dictionary(uniqueKeysWithValues: try db.query("SELECT site, direction FROM measurement_targets").map { ($0.text("site"), $0.text("direction")) })
+        XCTAssertEqual(directions["Waist"], "reduce")
+        XCTAssertEqual(directions["waist (belly button)"], "reduce")
+        XCTAssertEqual(directions["Body Fat (belly Button)"], "reduce")
+        XCTAssertEqual(directions["Shoulders"], "grow")
+        XCTAssertEqual(directions["Left Calf"], "grow")
+        XCTAssertEqual(db.userVersion, 5)
+    }
+
     func testOpeningAVersion3DatabaseTurnsTheNewestTypedCaloriesIntoTheFirstDefault() throws {
         try installVersion3Database(calories: [("2026-10-20", 2800, 1), ("2026-10-23", 2948.5, 0.9)])
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
 
-        XCTAssertEqual(db.userVersion, 4)
+        XCTAssertEqual(db.userVersion, 5)
         XCTAssertEqual(try CalorieService(db).defaults(), [CalorieDefault(effectiveFrom: date("2026-10-23"), calories: 2948.5, multiplier: 0.9)])
         XCTAssertEqual(try db.query("SELECT COUNT(*) AS n FROM calorie_entries").first?.int("n"), 2, "typed days are kept")
     }
@@ -65,7 +95,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
 
-        XCTAssertEqual(db.userVersion, 4)
+        XCTAssertEqual(db.userVersion, 5)
         XCTAssertEqual(try columns(of: "exercise_muscles", in: db), ["exercise_id", "part", "role"])
         XCTAssertEqual(try db.query("SELECT COUNT(*) AS n FROM exercise_muscles").first?.int("n"), 0)
         XCTAssertEqual(try db.query("SELECT name FROM exercises").map { $0.text("name") }, ["Squat"], "existing data is untouched")
@@ -84,7 +114,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
 
-        XCTAssertEqual(db.userVersion, 4)
+        XCTAssertEqual(db.userVersion, 5)
         XCTAssertTrue(try columns(of: "set_logs", in: db).contains("is_deload"))
         XCTAssertTrue(try SettingsRepository(db).load().ignoreDeloadSessions)
         XCTAssertFalse(try columns(of: "exercise_muscles", in: db).isEmpty, "a version 1 file gets every later step too")
@@ -110,7 +140,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         let again = try XCTUnwrap(try service.openLiveDatabase())
 
         XCTAssertFalse(try SettingsRepository(again).load().ignoreDeloadSessions)
-        XCTAssertEqual(again.userVersion, 4)
+        XCTAssertEqual(again.userVersion, 5)
     }
 
     func testAnOldVersionNumberOnAnAlreadyCurrentSchemaDoesNotFail() throws {
@@ -119,7 +149,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
 
-        XCTAssertEqual(db.userVersion, 4)
+        XCTAssertEqual(db.userVersion, 5)
     }
 
     func testImportingAVersion1FileThenOpeningItWorks() throws {
@@ -130,7 +160,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         try service.importDatabase(from: picked, clock: clock)
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
-        XCTAssertEqual(db.userVersion, 4)
+        XCTAssertEqual(db.userVersion, 5)
     }
 }
 

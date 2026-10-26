@@ -21,6 +21,7 @@ SCHEMA_PATH = PROJECT_ROOT / "src" / "shared" / "database" / "schema.sql"
 MASTER_SHEET = "Master Sheet"
 PLAN_SHEET = "V5Fullbody_JMK"
 LIBRARY_SHEET = "Exercise to muslce & instructio"
+REDUCE_SITES = ("Waist", "Waist (belly button)", "Body Fat (belly button)")
 
 TABLES = [
     "exercises", "plan_days", "plan_entries", "set_logs", "body_weights",
@@ -308,6 +309,11 @@ def insert_all(conn, report, library, plan_rows, master):
     conn.executemany(
         "INSERT INTO measurement_targets (site, inches, set_on) VALUES (?, ?, ?)",
         [(site, inches, d) for d, _, site, inches in master.targets.values()],
+    )
+    # Sites where less is better; every other site is a "grow" site (the column default).
+    conn.executemany(
+        "UPDATE measurement_targets SET direction = 'reduce' WHERE site = ?",
+        [(site,) for site in REDUCE_SITES],
     )
 
 
