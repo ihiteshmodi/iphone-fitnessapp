@@ -61,6 +61,30 @@ final class MorePlanDataUITests: XCTestCase {
         XCTAssertTrue(picker.buttons["Numbers"].isSelected)
     }
 
+    func testWeekdayNamingShowsTheChosenWeekdayOnTheWorkoutTab() {
+        let app = launchApp()
+        openMoreTab(app)
+        app.buttons["edit-plan-row"].tap()
+
+        let mode = app.segmentedControls["plan-day-label-mode-picker"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 10))
+        mode.buttons["Name by weekdays"].tap()
+        let weekday = app.buttons["weekday-picker-1"]
+        XCTAssertTrue(weekday.waitForExistence(timeout: 5), "the weekday picker is visible without opening the day")
+        weekday.tap()
+        app.buttons["Monday"].tap()
+
+        app.tabButton("Workout").tap()
+        XCTAssertTrue(app.buttons["day-1"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["day-1"].label.contains("Mon"), "day 1 is named by its weekday")
+
+        // The More tab keeps Edit plan open; put the shared test database back.
+        openMoreTab(app)
+        let mode2 = app.segmentedControls["plan-day-label-mode-picker"]
+        if !mode2.waitForExistence(timeout: 3) { app.buttons["edit-plan-row"].tap() }
+        mode2.buttons["Name by numbers"].tap()
+    }
+
     func testCreateExerciseFromPlanAndFindItInLibrary() {
         let app = launchApp()
         openMoreTab(app)
@@ -82,7 +106,8 @@ final class MorePlanDataUITests: XCTestCase {
         XCTAssertTrue(nameField.waitForExistence(timeout: 5))
         nameField.tap()
         nameField.typeText("Landmine Press\n")
-        app.buttons["Shoulders"].tap()
+        // A Shoulders button also exists behind the sheet; the sheet's is the last one.
+        app.buttons.matching(identifier: "Shoulders").allElementsBoundByIndex.last?.tap()
         app.buttons["save-exercise-button"].tap()
 
         let addedRow = app.staticTexts["Landmine Press"]

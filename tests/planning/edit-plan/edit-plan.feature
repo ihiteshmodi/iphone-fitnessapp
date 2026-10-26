@@ -32,6 +32,11 @@ Feature: Edit the plan: days and their exercises
     When I choose to name days by "weekday"
     Then Day 4 still shows as "Day 4"
 
+  Scenario: The weekday can be set without opening the day
+    Given I name days by "weekday" and Day 1 has no weekday yet
+    When I open Edit plan
+    Then Day 1 shows a "Set a weekday" menu in its header area, and choosing Monday renames it "Mon"
+
   Scenario: Change sets and rep range of a planned exercise
     Given Day 2 contains "Lat Pulldown" with 3 sets and reps 6 to 10
     When I change it to 4 sets and reps 8 to 12

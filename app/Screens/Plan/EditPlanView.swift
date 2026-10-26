@@ -27,6 +27,11 @@ struct EditPlanView: View {
                 .accessibilityIdentifier("plan-day-label-mode-picker")
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
+            } footer: {
+                if model.labelMode == .weekday {
+                    Text("Pick a weekday for each day below. A day without one keeps its number (Day 1, Day 2…).")
+                        .foregroundColor(Theme.muted)
+                }
             }
             ForEach(model.days) { day in
                 daySection(day)
@@ -87,6 +92,8 @@ struct EditPlanView: View {
                 .buttonStyle(.plain)
                 .listRowBackground(Theme.card)
                 .accessibilityIdentifier("plan-day-\(day.position)")
+            // With weekday naming the weekday is the main setting, so it must not hide inside a collapsed day.
+            if model.labelMode == .weekday { weekdayRow(day).listRowBackground(Theme.card) }
             if model.isExpanded(day) {
                 let entries = model.entries[day.id] ?? []
                 ForEach(entries) { entry in
@@ -103,7 +110,7 @@ struct EditPlanView: View {
                 .listRowBackground(Theme.card)
                 .accessibilityIdentifier("add-exercise-button")
 
-                weekdayRow(day).listRowBackground(Theme.card)
+                if model.labelMode == .number { weekdayRow(day).listRowBackground(Theme.card) }
                 PlanDayTitleField(day: day) { model.setTitle($0, for: day) }
                     .listRowBackground(Theme.card)
 
@@ -159,7 +166,7 @@ struct EditPlanView: View {
             Text("Weekday").font(.system(size: 15)).foregroundColor(Theme.text)
             Spacer()
             Picker("Weekday", selection: Binding(get: { day.weekday ?? 0 }, set: { model.setWeekday($0 == 0 ? nil : $0, for: day) })) {
-                Text("None").tag(0)
+                Text(model.labelMode == .weekday ? "Set a weekday" : "None").tag(0)
                 ForEach(1...7, id: \.self) { Text(PlanViewModel.weekdayNames[$0 - 1]).tag($0) }
             }
             .pickerStyle(.menu)
