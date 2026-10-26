@@ -33,6 +33,7 @@ let package = Package(
                 "planning/muscle-anatomy/muscle-anatomy.feature",
                 "planning/view-workout/view-workout.feature",
                 "progress/measurement-progress/measurement-progress.feature",
+                "progress/measurement-tolerance/measurement-tolerance.feature",
                 "progress/muscle-volume/muscle-volume.feature",
                 "settings/app-settings/app-settings.feature",
             ]

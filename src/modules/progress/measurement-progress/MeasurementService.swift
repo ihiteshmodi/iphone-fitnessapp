@@ -18,9 +18,38 @@ public enum MeasurementDirection: String, Equatable {
     case reduce
 }
 
+/// How far from its target a site is, in the direction that matters.
+public enum MeasurementAttention: Equatable {
+    /// At the target, ahead of it, or short of it by no more than the tolerance.
+    case onTrack
+    /// Short of the target by more than the tolerance, up to `MeasurementGoal.offTargetPercent`.
+    case watch
+    /// Short of the target by more than `MeasurementGoal.offTargetPercent`.
+    case off
+}
+
 /// Pure direction-aware goal maths. The notebook subtracted in one direction only, which showed shrink goals as negative
 /// and growth sites above their target as "to lose".
 public enum MeasurementGoal {
+    /// Further than this from the target, in the wrong direction, is "off" (red) whatever the tolerance.
+    public static let offTargetPercent = 10.0
+
+    /// Current against target in percent of the target: positive above it, negative below it. One decimal.
+    public static func percentFromTarget(current: Double?, target: Double?) -> Double? {
+        guard let current, let target, target > 0 else { return nil }
+        let percent = pyRound((current - target) / target * 100, 1)
+        return percent == 0 ? 0 : percent
+    }
+
+    /// Colour band: only the wrong direction counts (a grow site above target, a reduce site below it, are on track).
+    public static func attention(current: Double?, target: Double?, direction: MeasurementDirection, tolerancePercent: Double) -> MeasurementAttention? {
+        guard let current, let target, target > 0 else { return nil }
+        let wrongWay = direction == .grow ? target - current : current - target
+        let percent = pyRound(max(wrongWay, 0) / target * 100, 2)
+        if percent <= tolerancePercent { return .onTrack }
+        return percent > max(offTargetPercent, tolerancePercent) ? .off : .watch
+    }
+
     public static func status(current: Double?, target: Double?, direction: MeasurementDirection) -> MeasurementStatus {
         guard let current else { return .noReading }
         guard let target else { return .noTarget }
@@ -71,6 +100,9 @@ public struct MeasurementProgress: Equatable, Identifiable {
     public let direction: MeasurementDirection
     public let status: MeasurementStatus
     public let fraction: Double
+    /// Current against target in percent of the target (positive above it); nil without a reading.
+    public let percentFromTarget: Double?
+    public let attention: MeasurementAttention?
 }
 
 public struct MeasurementDetail: Equatable {
@@ -80,6 +112,8 @@ public struct MeasurementDetail: Equatable {
     public let direction: MeasurementDirection
     public let status: MeasurementStatus
     public let fraction: Double
+    public let percentFromTarget: Double?
+    public let attention: MeasurementAttention?
     /// Oldest first, ready for a line chart.
     public let history: [MeasurementReading]
 }
@@ -96,6 +130,7 @@ public final class MeasurementService {
     /// Sites that have a target, the ones with the most still to do first; sites without a reading come last.
     public func progress() throws -> [MeasurementProgress] {
         let targets = try db.query("SELECT site, inches, direction FROM measurement_targets")
+        let tolerance = try SettingsRepository(db).load().measurementTolerancePercent
         let rows = try targets.map { row -> (progress: MeasurementProgress, distance: Double?) in
             let site = row.text("site")
             let target = row.double("inches")
@@ -103,7 +138,10 @@ public final class MeasurementService {
             let current = try readings(site: site).last?.inches
             let status = MeasurementGoal.status(current: current, target: target, direction: direction)
             let progress = MeasurementProgress(site: site, current: current, target: target, direction: direction, status: status,
-                                               fraction: MeasurementGoal.fraction(current: current, target: target, direction: direction))
+                                               fraction: MeasurementGoal.fraction(current: current, target: target, direction: direction),
+                                               percentFromTarget: MeasurementGoal.percentFromTarget(current: current, target: target),
+                                               attention: MeasurementGoal.attention(current: current, target: target, direction: direction,
+                                                                                    tolerancePercent: tolerance))
             return (progress, MeasurementGoal.remaining(status))
         }
         return rows.sorted { lhs, rhs in
@@ -130,9 +168,13 @@ public final class MeasurementService {
         let target = row?.double("inches")
         let direction = row.flatMap { MeasurementDirection(rawValue: $0.text("direction")) } ?? .grow
         let current = history.last?.inches
+        let tolerance = try SettingsRepository(db).load().measurementTolerancePercent
         return MeasurementDetail(site: name, current: current, target: target, direction: direction,
                                  status: MeasurementGoal.status(current: current, target: target, direction: direction),
-                                 fraction: MeasurementGoal.fraction(current: current, target: target, direction: direction), history: history)
+                                 fraction: MeasurementGoal.fraction(current: current, target: target, direction: direction),
+                                 percentFromTarget: MeasurementGoal.percentFromTarget(current: current, target: target),
+                                 attention: MeasurementGoal.attention(current: current, target: target, direction: direction, tolerancePercent: tolerance),
+                                 history: history)
     }
 
     /// Switches a tracked site between "grow" and "reduce". The site needs a target.

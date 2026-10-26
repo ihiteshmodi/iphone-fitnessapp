@@ -14,17 +14,25 @@ enum MeasurementText {
         }
     }
 
-    static func color(_ status: MeasurementStatus) -> Color {
-        switch status {
-        case .toLose: return Theme.amber
-        case .noReading, .noTarget: return Theme.muted
-        case .atTarget, .toGain, .ahead: return Theme.green
+    /// Green when on track (including ahead of a growth target), amber when worth watching, red when far off.
+    static func color(_ attention: MeasurementAttention?) -> Color {
+        switch attention {
+        case .onTrack: return Theme.green
+        case .watch: return Theme.amber
+        case .off: return Theme.red
+        case nil: return Theme.muted
         }
     }
 
-    static func ringColor(_ status: MeasurementStatus) -> Color {
-        if case .toLose = status { return Theme.amber }
-        return Theme.green
+    static func ringColor(_ attention: MeasurementAttention?) -> Color {
+        attention == nil ? Theme.green : color(attention)
+    }
+
+    /// "+7.9%" above the target, "−8.6%" below it.
+    static func percentText(_ percent: Double?) -> String? {
+        guard let percent else { return nil }
+        if percent == 0 { return "0%" }
+        return "\(percent > 0 ? "+" : "−")\(Format.number(abs(percent), maxDecimals: 1))%"
     }
 
     static func ringLabel(_ status: MeasurementStatus) -> String {
@@ -66,6 +74,8 @@ final class ProgressViewModel: ObservableObject {
     @Published private(set) var volumeSeries: [ExerciseVolumeSeries] = []
     @Published private(set) var loadError: String?
 
+    @Published private(set) var tolerancePercent = 3.0
+
     private let services: Services
     private static let palette = [Theme.green, Theme.greenSoft, Theme.greenDeep]
 
@@ -76,6 +86,7 @@ final class ProgressViewModel: ObservableObject {
     func load() {
         do {
             rings = try services.measurements.progress()
+            tolerancePercent = try services.settings.load().measurementTolerancePercent
             muscles = try services.volume.muscles()
             if let selected = selectedMuscle, muscles.contains(selected) {
                 selectedMuscle = selected
@@ -97,6 +108,14 @@ final class ProgressViewModel: ObservableObject {
         } catch {
             loadError = error.localizedDescription
         }
+    }
+
+    func setTolerance(_ percent: Double) throws {
+        try services.settings.setMeasurementTolerancePercent(percent)
+    }
+
+    var toleranceCaption: String {
+        "Within ±\(Format.number(tolerancePercent, maxDecimals: 1))% of a target counts as on track. Amber beyond that, red beyond \(Format.number(max(MeasurementGoal.offTargetPercent, tolerancePercent), maxDecimals: 1))%."
     }
 
     func addSite(nameText: String, firstReadingText: String, targetText: String) throws {

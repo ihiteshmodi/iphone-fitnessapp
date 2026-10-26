@@ -63,16 +63,23 @@ struct RootView: View {
 }
 
 struct MainTabs: View {
+    // Simulator tests can start on another tab (launch argument -UITestInitialTab 2); ignored in normal use.
+    @State private var selection = UserDefaults.standard.integer(forKey: "UITestInitialTab")
+
     var body: some View {
-        TabView {
+        TabView(selection: $selection) {
             WorkoutTabView()
                 .tabItem { Label("Workout", systemImage: "dumbbell.fill") }
+                .tag(0)
             BodyTabView()
                 .tabItem { Label("Body", systemImage: "scalemass.fill") }
+                .tag(1)
             ProgressTabView()
                 .tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
+                .tag(2)
             MoreTabView()
                 .tabItem { Label("More", systemImage: "ellipsis.circle.fill") }
+                .tag(3)
         }
     }
 }

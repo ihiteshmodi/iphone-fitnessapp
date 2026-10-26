@@ -135,12 +135,18 @@ private struct MeasurementDetailContent: View {
         HStack(spacing: 16) {
             RingView(progress: detail.fraction, size: 104, lineWidth: 11,
                      label: MeasurementText.ringLabel(detail.status), subLabel: MeasurementText.ringCaption(detail.status),
-                     color: MeasurementText.ringColor(detail.status))
+                     color: MeasurementText.ringColor(detail.attention))
             VStack(alignment: .leading, spacing: 8) {
                 valueRow(label: "Current", value: MeasurementText.inches(detail.current), tint: Theme.text,
                          editIdentifier: "measurement-current-edit-button") { sheet = .editCurrent }
                 valueRow(label: "Target", value: MeasurementText.inches(detail.target), tint: Theme.green,
                          editIdentifier: "measurement-target-edit-button") { sheet = .editTarget }
+                if let percent = MeasurementText.percentText(detail.percentFromTarget) {
+                    Text("\(percent) from target")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(MeasurementText.color(detail.attention))
+                        .accessibilityIdentifier("measurement-percent")
+                }
                 if detail.target != nil { directionPicker(detail) }
             }
         }

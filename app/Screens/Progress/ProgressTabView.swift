@@ -14,6 +14,7 @@ private struct ProgressScreen: View {
     @EnvironmentObject private var session: AppSession
     @StateObject private var model: ProgressViewModel
     @State private var addingSite = false
+    @State private var editingTolerance = false
 
     private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
@@ -29,6 +30,7 @@ private struct ProgressScreen: View {
                     if let loadError = model.loadError {
                         Text(loadError).font(.system(size: 13)).foregroundColor(Theme.red).card()
                     }
+                    toleranceRow
                     ringGrid
                     Button("+ Add a body site") { addingSite = true }
                         .buttonStyle(PrimaryButtonStyle(ghost: true))
@@ -47,6 +49,25 @@ private struct ProgressScreen: View {
         .task(id: session.revision) { model.load() }
         .sheet(isPresented: $addingSite) {
             ProgressAddSiteSheet(model: model, onSaved: { session.didChange() })
+        }
+        .sheet(isPresented: $editingTolerance) {
+            BodyValueEntrySheet(title: "Tolerance", fieldLabel: "Tolerance", unit: "%", initialText: Format.number(model.tolerancePercent, maxDecimals: 1),
+                                today: model.today) { percent, _ in
+                try model.setTolerance(percent)
+                session.didChange()
+            }
+        }
+    }
+
+    /// The tolerance that decides when a ring turns amber or red.
+    private var toleranceRow: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(model.toleranceCaption).font(.system(size: 12)).foregroundColor(Theme.muted)
+            Spacer(minLength: 0)
+            Button("±\(Format.number(model.tolerancePercent, maxDecimals: 1))%") { editingTolerance = true }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Theme.green)
+                .accessibilityIdentifier("tolerance-button")
         }
     }
 
@@ -81,13 +102,19 @@ private struct ProgressRingCard: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            RingView(progress: ring.fraction, size: 46, lineWidth: 5, color: MeasurementText.ringColor(ring.status))
+            RingView(progress: ring.fraction, size: 46, lineWidth: 5, color: MeasurementText.ringColor(ring.attention))
             VStack(alignment: .leading, spacing: 2) {
                 Text(ring.site).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text).lineLimit(2)
                 Text("\(MeasurementText.inches(ring.current)) → \(MeasurementText.inches(ring.target)) in")
                     .font(.system(size: 11)).foregroundColor(Theme.muted).lineLimit(1).minimumScaleFactor(0.8)
                 Text(MeasurementText.statusLine(ring.status))
-                    .font(.system(size: 11)).foregroundColor(MeasurementText.color(ring.status))
+                    .font(.system(size: 11)).foregroundColor(MeasurementText.color(ring.attention))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                if let percent = MeasurementText.percentText(ring.percentFromTarget) {
+                    Text(percent)
+                        .font(.system(size: 11, weight: .semibold)).foregroundColor(MeasurementText.color(ring.attention))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
             }
             Spacer(minLength: 0)
         }

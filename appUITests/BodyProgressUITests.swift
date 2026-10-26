@@ -43,6 +43,30 @@ final class BodyProgressUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1.50"].waitForExistence(timeout: 5))
     }
 
+    func testRingsShowThePercentFromTargetAndTheToleranceCanBeChanged() {
+        openTab("Progress")
+        let calf = app.buttons["measurement-ring-Left Calf"]
+        XCTAssertTrue(calf.waitForExistence(timeout: 15))
+        XCTAssertTrue(calf.label.contains("−8.6%"), "Left Calf label was: \(calf.label)")
+
+        let tolerance = app.buttons["tolerance-button"]
+        XCTAssertTrue(tolerance.exists)
+        XCTAssertTrue(tolerance.label.contains("3"), "the default tolerance is 3%")
+        tolerance.tap()
+        let field = app.textFields["value-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        replaceText(in: field, with: "5")
+        app.buttons["sheet-save-button"].tap()
+
+        XCTAssertTrue(app.buttons["tolerance-button"].label.contains("5"))
+        // Put the shared test database back.
+        app.buttons["tolerance-button"].tap()
+        let again = app.textFields["value-field"]
+        XCTAssertTrue(again.waitForExistence(timeout: 5))
+        replaceText(in: again, with: "3")
+        app.buttons["sheet-save-button"].tap()
+    }
+
     func testVolumeChipSelectsMuscle() {
         openTab("Progress")
         let chips = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'volume-chip-'"))
@@ -101,6 +125,13 @@ final class BodyProgressUITests: XCTestCase {
     }
 
     private func openTab(_ name: String) {
+        if name == "Progress" {
+            // Some simulator layouts (the iPhone Duo) open Body when Progress is tapped, so start on Progress instead.
+            app.terminate()
+            app.launchArguments = UITestSeed.launchArguments + ["-UITestInitialTab", "2"]
+            app.launch()
+            return
+        }
         let tab = app.tabButton(name)
         XCTAssertTrue(tab.waitForExistence(timeout: 10))
         tab.tap()
