@@ -19,6 +19,7 @@ struct MoreTabView: View {
                     backupCard
                     deloadCard
                     historyCard
+                    pastDataCard
                     planCard
                 }
                 .padding(.horizontal, 16)
@@ -170,6 +171,27 @@ struct MoreTabView: View {
             .padding(.top, 4)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("history-start-row")
+        }
+        .card()
+    }
+
+    // MARK: Past data
+
+    private var pastDataCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("Past data")
+            NavigationLink {
+                EditPastDataView()
+            } label: {
+                MoreRow(title: "Edit past data") { chevronValue("Any date") }
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityIdentifier("edit-past-data-row")
+            Text("Pick a day to fix its sets, weigh-in, calories or measurements.")
+                .font(.system(size: 12))
+                .foregroundColor(Theme.muted)
         }
         .card()
     }

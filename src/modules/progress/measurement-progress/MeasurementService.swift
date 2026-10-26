@@ -58,6 +58,11 @@ public struct MeasurementReading: Equatable, Identifiable {
     public let inches: Double
 }
 
+public struct SiteReading: Equatable {
+    public let site: String
+    public let reading: MeasurementReading
+}
+
 public struct MeasurementProgress: Equatable, Identifiable {
     public var id: String { site.lowercased() }
     public let site: String
@@ -199,6 +204,15 @@ public final class MeasurementService {
         try db.transaction {
             try db.execute("DELETE FROM measurement_targets WHERE site = ?", [.text(name)])
             if deleteAllReadings { try db.execute("DELETE FROM body_measurements WHERE site = ?", [.text(name)]) }
+        }
+    }
+
+    /// Every reading of every site taken on one day, so a wrong one can be found and fixed.
+    public func readings(on date: ISODate) throws -> [SiteReading] {
+        try db.query("SELECT id, site, measured_on, inches FROM body_measurements WHERE measured_on = ? ORDER BY site COLLATE NOCASE, id",
+                     [.text(date.string)]).compactMap { row in
+            guard let day = ISODate(row.text("measured_on")) else { return nil }
+            return SiteReading(site: row.text("site"), reading: MeasurementReading(id: row.int("id"), date: day, inches: row.double("inches")))
         }
     }
 
