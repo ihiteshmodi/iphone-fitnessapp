@@ -13,6 +13,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         try db.execute("DROP TABLE calorie_defaults")
         try db.execute("ALTER TABLE measurement_targets DROP COLUMN direction")
         try db.execute("ALTER TABLE plan_entries DROP COLUMN warmup_sets")
+        try db.execute("DROP TABLE form_checks")
         try db.runScript("PRAGMA user_version = 1")
         try FileManager.default.copyItem(at: url, to: location.databaseURL)
     }
@@ -25,6 +26,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         try db.execute("DROP TABLE calorie_defaults")
         try db.execute("ALTER TABLE measurement_targets DROP COLUMN direction")
         try db.execute("ALTER TABLE plan_entries DROP COLUMN warmup_sets")
+        try db.execute("DROP TABLE form_checks")
         try db.runScript("PRAGMA user_version = 2")
         try FileManager.default.copyItem(at: url, to: location.databaseURL)
     }
@@ -36,6 +38,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         try db.execute("DROP TABLE calorie_defaults")
         try db.execute("ALTER TABLE measurement_targets DROP COLUMN direction")
         try db.execute("ALTER TABLE plan_entries DROP COLUMN warmup_sets")
+        try db.execute("DROP TABLE form_checks")
         for entry in calories {
             try db.execute("INSERT INTO calorie_entries (logged_on, calories, multiplier) VALUES (?, ?, ?)",
                            [.text(entry.day), .double(entry.kcal), .double(entry.multiplier)])
@@ -50,6 +53,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         let db = try Database(path: url.path)
         try db.execute("ALTER TABLE measurement_targets DROP COLUMN direction")
         try db.execute("ALTER TABLE plan_entries DROP COLUMN warmup_sets")
+        try db.execute("DROP TABLE form_checks")
         for target in targets {
             try db.execute("INSERT INTO measurement_targets (site, inches) VALUES (?, ?)", [.text(target.site), .double(target.inches)])
         }
@@ -65,8 +69,23 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         let exercise = try db.addExercise("Leg Extensions")
         try db.addEntry(day: day, exercise: exercise, sets: 3, minReps: 8, maxReps: 16)
         try db.execute("ALTER TABLE plan_entries DROP COLUMN warmup_sets")
+        try db.execute("DROP TABLE form_checks")
         try db.runScript("PRAGMA user_version = 5")
         try FileManager.default.copyItem(at: url, to: location.databaseURL)
+    }
+
+    /// The database before the clean-form question existed: version 6.
+    func testOpeningAVersion6DatabaseAddsTheFormChecksTable() throws {
+        let url = try makeFitnessDatabase(named: "v6.sqlite")
+        let raw = try Database(path: url.path)
+        try raw.execute("DROP TABLE form_checks")
+        try raw.runScript("PRAGMA user_version = 6")
+        try FileManager.default.copyItem(at: url, to: location.databaseURL)
+
+        let db = try XCTUnwrap(try service.openLiveDatabase())
+
+        XCTAssertEqual(db.userVersion, Schema.currentVersion)
+        XCTAssertEqual(try db.count("form_checks"), 0)
     }
 
     func testOpeningAVersion5DatabaseKeepsEverySetCountAsMainSetsWithNoWarmups() throws {

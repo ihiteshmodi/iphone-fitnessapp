@@ -70,6 +70,10 @@ public struct ExerciseDetail: Equatable {
     public let todaySets: [PerformedSet]
     /// Best estimated 1RM among today's sets; nil before the first set today.
     public let todayOneRepMax: Double?
+    /// The answer to the clean-form question for today; nil until it is answered.
+    public let todayCleanForm: Bool?
+    /// Today reached the top of the rep range and the clean-form question has not been answered yet.
+    public let needsFormAnswer: Bool
     public let targetSets: Int
     public let prefill: SetFormPrefill
     /// The muscles this exercise trains (chosen by the user, or automatic).
@@ -131,6 +135,8 @@ public final class ExerciseDetailService {
         let loggedBefore = SessionHistory.sessions(from: allSets).filter { $0.date < today }
 
         let todaySets = try history.sets(exerciseId: exerciseId, on: today)
+        let todayCleanForm = try FormChecks(db).answer(exerciseId: exerciseId, on: today)
+        let reachedTopReps = !settings.deload.enabled && todaySets.contains { $0.reps >= entry.maxReps }
 
         return ExerciseDetail(
             exercise: entry.exercise,
@@ -147,6 +153,8 @@ public final class ExerciseDetailService {
             history: Array(loggedBefore.reversed().prefix(Self.historySessions)),
             todaySets: todaySets,
             todayOneRepMax: todaySets.map { OneRepMax.estimate(weightKg: $0.weightKg, reps: $0.reps) }.max(),
+            todayCleanForm: todayCleanForm,
+            needsFormAnswer: reachedTopReps && todayCleanForm == nil,
             targetSets: entry.sets,
             prefill: SetFormPrefill(weightKg: target.workingWeight, reps: RepRange.middle(min: target.minReps, max: target.maxReps)),
             muscles: try ExerciseMuscleService(db).muscles(exerciseId: exerciseId))

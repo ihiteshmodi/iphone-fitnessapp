@@ -111,6 +111,15 @@ public struct DatabaseFileService {
             if !entryColumns.contains("warmup_sets") {
                 try db.execute("ALTER TABLE plan_entries ADD COLUMN warmup_sets INTEGER NOT NULL DEFAULT 0 CHECK (warmup_sets BETWEEN 0 AND 3)")
             }
+            // Version 7: the clean-form answers.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS form_checks (
+                    exercise_id  INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+                    performed_on TEXT NOT NULL CHECK (performed_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    clean        INTEGER NOT NULL CHECK (clean IN (0, 1)),
+                    PRIMARY KEY (exercise_id, performed_on)
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

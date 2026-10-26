@@ -111,6 +111,37 @@ final class WorkoutFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["exercise-card-Chest Dips Machine"].waitForExistence(timeout: 5))
     }
 
+    func testReachingTheTopRepsAsksAboutFormOnceAndRemembersTheAnswer() throws {
+        let app = try launchApp()
+        app.buttons["day-3"].tap()
+        app.buttons["exercise-card-Chest Dips Machine"].tap()
+        let addSet = app.buttons["add-set-button"]
+        XCTAssertTrue(addSet.waitForExistence(timeout: 10))
+        for _ in 0..<6 where !addSet.isHittable { app.swipeUp() }
+        addSet.tap()
+        // The plan is 6 to 10 reps and the form starts at 8: two arrows reach the top of the range.
+        XCTAssertTrue(app.buttons["reps-field-plus"].waitForExistence(timeout: 5))
+        app.buttons["reps-field-plus"].tap()
+        app.buttons["reps-field-plus"].tap()
+        app.buttons["save-set-button"].tap()
+
+        let yes = app.buttons["form-yes"]
+        XCTAssertTrue(yes.waitForExistence(timeout: 10), "the clean-form question comes up")
+        XCTAssertTrue(app.staticTexts["Did every rep have a full contraction?"].exists)
+        yes.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["today-set-1"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["form-yes"].exists, "answered, so it is gone")
+
+        // A second top-reps set the same day does not ask again.
+        for _ in 0..<6 where !addSet.isHittable { app.swipeUp() }
+        addSet.tap()
+        app.buttons["reps-field-plus"].tap()
+        app.buttons["reps-field-plus"].tap()
+        app.buttons["save-set-button"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["today-set-2"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["form-yes"].waitForExistence(timeout: 2), "asked only once a day")
+    }
+
     func testRejectsZeroRepsWithoutSaving() throws {
         let app = try launchApp()
         app.buttons["day-3"].tap()

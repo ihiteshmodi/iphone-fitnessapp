@@ -20,6 +20,7 @@ private struct ExerciseDetailContent: View {
     @State private var expandedSessions: Set<String> = []
     @State private var showingHowToEditor = false
     @State private var showingMuscleEditor = false
+    @State private var showingFormQuestion = false
 
     init(services: Services, exerciseId: Int, dayId: Int) {
         _vm = StateObject(wrappedValue: ExerciseDetailViewModel(services: services, exerciseId: exerciseId, dayId: dayId))
@@ -46,6 +47,21 @@ private struct ExerciseDetailContent: View {
         .task(id: session.revision) { vm.load() }
         .sheet(isPresented: $showingAddSet) {
             DetailAddSetSheet(vm: vm, onSaved: { session.didChange() })
+        }
+        .sheet(isPresented: $showingFormQuestion) {
+            FormQuestionSheet(setText: vm.topSetText, oneRepMax: vm.oneRepMaxText) { clean in
+                if vm.answerForm(clean: clean) {
+                    showingFormQuestion = false
+                    session.didChange()
+                }
+            }
+        }
+        // Wait for the Add set sheet to finish closing before the question comes up.
+        .onChange(of: vm.needsFormAnswer && !showingAddSet && editingSet == nil) { due in
+            guard due else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                showingFormQuestion = vm.needsFormAnswer && !showingAddSet && editingSet == nil
+            }
         }
         .sheet(item: $editingSet) { set in
             DetailAddSetSheet(vm: vm, editing: set, onSaved: { session.didChange() })

@@ -83,6 +83,65 @@ struct DetailAddSetSheet: View {
     }
 }
 
+/// Asked once, right after a set reaches the top of the rep range. A PR needs a full contraction on every rep.
+struct FormQuestionSheet: View {
+    let setText: String
+    let oneRepMax: String?
+    let onAnswer: (Bool) -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Capsule().fill(Theme.line).frame(width: 38, height: 5).padding(.top, 4)
+            VStack(spacing: 3) {
+                Text("\(setText) saved").font(.system(size: 17, weight: .bold)).foregroundColor(Theme.text)
+                Text("That is the top of your rep range.").font(.system(size: 12)).foregroundColor(Theme.muted)
+            }
+            if let oneRepMax {
+                VStack(spacing: 2) {
+                    SectionLabel("Est. 1RM")
+                    Text(oneRepMax).font(.system(size: 26, weight: .bold)).foregroundColor(Theme.text)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Theme.card2)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+            Text("Did every rep have a full contraction?")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(Theme.text)
+                .multilineTextAlignment(.center)
+                .padding(.top, 4)
+            HStack(spacing: 10) {
+                answerButton("Yes, clean", caption: "counts as a PR", filled: true, clean: true, identifier: "form-yes")
+                answerButton("No, it was loose", caption: "not a PR", filled: false, clean: false, identifier: "form-no")
+            }
+            Text("Swinging the weight or cutting reps short is not a PR, even at max reps. Asked once for the whole exercise.")
+                .font(.system(size: 12)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 20)
+        .screenBackground()
+        .presentationDetents([.medium])
+        .interactiveDismissDisabled()
+    }
+
+    private func answerButton(_ title: String, caption: String, filled: Bool, clean: Bool, identifier: String) -> some View {
+        Button { onAnswer(clean) } label: {
+            VStack(spacing: 3) {
+                Text(title).font(.system(size: 15, weight: .bold))
+                Text(caption).font(.system(size: 11)).opacity(0.8)
+            }
+            .foregroundColor(filled ? Theme.onGreen : Theme.text)
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .background(filled ? Theme.green : Theme.card2)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(filled ? Color.clear : Theme.line, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
 /// A number with − and + around it. Tapping the number opens the keyboard, so typing still works.
 struct NumberStepperField: View {
     let title: String

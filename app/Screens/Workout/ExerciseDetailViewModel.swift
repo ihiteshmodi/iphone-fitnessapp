@@ -64,6 +64,19 @@ final class ExerciseDetailViewModel: ObservableObject {
         return (weight, reps)
     }
 
+    /// Today's answer to "did every rep have a full contraction?". True when it is due.
+    var needsFormAnswer: Bool { detail?.needsFormAnswer ?? false }
+
+    /// The best set today, for the question: "60 kg × 16".
+    var topSetText: String {
+        guard let set = todaySets.max(by: { ($0.reps, $0.weightKg) < ($1.reps, $1.weightKg) }) else { return "" }
+        return "\(Format.number(set.weightKg)) kg × \(set.reps)"
+    }
+
+    func answerForm(clean: Bool) -> Bool {
+        perform { try services.formChecks.setClean(clean, exerciseId: exerciseId, on: today) }
+    }
+
     func deleteSet(id: Int) -> Bool {
         do {
             try services.logSets.deleteSet(id: id)

@@ -12,7 +12,7 @@ def rows(conn, sql):
 
 def test_schema_is_applied_with_settings_and_version(build):
     conn, _ = build()
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
     settings = dict(rows(conn, "SELECT key, value FROM settings"))
     assert settings["history_start_date"] == "2026-08-31"
     assert settings["day_label_mode"] == "number"
