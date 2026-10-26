@@ -166,5 +166,5 @@ public enum Schema {
     }
 
     /// Bump together with `PRAGMA user_version` in schema.sql, and add a step to `DatabaseFileService.migrate`.
-    public static let currentVersion = 3
+    public static let currentVersion = 4
 }

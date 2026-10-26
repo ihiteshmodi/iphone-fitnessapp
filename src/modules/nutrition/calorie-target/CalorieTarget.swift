@@ -1,7 +1,27 @@
 import Foundation
 
+public enum EnergyBalance: String, Equatable {
+    case deficit = "Deficit"
+    case maintenance = "Maintenance"
+    case surplus = "Surplus"
+}
+
+/// What the multiplier says the lifter is aiming for.
+public enum PlannedMode: String, Equatable {
+    case cut = "Cut"
+    case maintain = "Maintain"
+    case bulk = "Bulk"
+
+    public init(multiplier: Double) {
+        if multiplier < 1 { self = .cut } else if multiplier > 1 { self = .bulk } else { self = .maintain }
+    }
+}
+
 /// Pure port of the notebook's `CalorieTracker.caloriesdata`: no database, no clock.
 public struct CalorieTarget: Equatable {
+    /// A weight change worth less than this many calories a day is treated as holding weight.
+    public static let maintenanceBandKcal = 100.0
+
     public enum Phase: String, Equatable {
         case cut = "Cut"
         case maintenanceOrBulk = "Maintenance / Bulk"
@@ -31,6 +51,10 @@ public struct CalorieTarget: Equatable {
     public let currentVersusTarget: Double
     /// Only present when the multiplier is below 1 (a cut).
     public let macros: Macros?
+    /// What the weight trend says happened: calories a day above (+) or below (-) maintenance, whole calories.
+    public let dailyBalanceKcal: Double
+    public let balance: EnergyBalance
+    public let plannedMode: PlannedMode
 
     public static func calculate(currentAverageKg: Double, pastAverageKg: Double, caloriesEaten: Double,
                                  multiplier: Double = 1, rules: MacroRules) -> CalorieTarget {
@@ -42,6 +66,8 @@ public struct CalorieTarget: Equatable {
         let dailyCalorieDiff = weeklyCalorieDiff / 7
         let maintenance = caloriesEaten - dailyCalorieDiff
         let adjustedTarget = Int(pyRound(maintenance * multiplier, 0))
+        let dailyBalance = pyRound(dailyCalorieDiff, 0)
+        let balance: EnergyBalance = abs(dailyCalorieDiff) <= maintenanceBandKcal ? .maintenance : (dailyCalorieDiff > 0 ? .surplus : .deficit)
 
         return CalorieTarget(
             currentAverageKg: currentAverageKg,
@@ -53,7 +79,10 @@ public struct CalorieTarget: Equatable {
             dailyDeficitOrSurplus: pyRound(abs(dailyCalorieDiff), 2),
             adjustedTarget: adjustedTarget,
             currentVersusTarget: pyRound(caloriesEaten - Double(adjustedTarget), 2),
-            macros: multiplier < 1 ? macros(adjustedTarget: Double(adjustedTarget), currentAverageKg: currentAverageKg, rules: rules) : nil
+            macros: multiplier < 1 ? macros(adjustedTarget: Double(adjustedTarget), currentAverageKg: currentAverageKg, rules: rules) : nil,
+            dailyBalanceKcal: dailyBalance == 0 ? 0 : dailyBalance,
+            balance: balance,
+            plannedMode: PlannedMode(multiplier: multiplier)
         )
     }
 

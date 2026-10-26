@@ -84,6 +84,14 @@ CREATE TABLE calorie_entries (
     multiplier REAL NOT NULL DEFAULT 1 CHECK (multiplier > 0)
 );
 
+-- The calories per day that apply from a date onward (and the goal multiplier chosen with them). A day without a row
+-- in calorie_entries uses the newest default whose effective_from is on or before it.
+CREATE TABLE calorie_defaults (
+    effective_from TEXT PRIMARY KEY CHECK (effective_from GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    calories       REAL NOT NULL CHECK (calories > 0),
+    multiplier     REAL NOT NULL DEFAULT 1 CHECK (multiplier > 0)
+);
+
 CREATE TABLE settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -101,4 +109,4 @@ INSERT INTO settings (key, value) VALUES
     ('protein_g_per_lb', '1.2'),
     ('fat_percent_of_calories', '25');
 
-PRAGMA user_version = 3;
+PRAGMA user_version = 4;

@@ -17,6 +17,35 @@ public struct CalorieAdvice: Equatable {
     public let target: CalorieTarget
 }
 
+/// Calories per day that apply from a date onward, with the goal multiplier chosen with them.
+public struct CalorieDefault: Equatable {
+    public let effectiveFrom: ISODate
+    public let calories: Double
+    public let multiplier: Double
+
+    public init(effectiveFrom: ISODate, calories: Double, multiplier: Double) {
+        self.effectiveFrom = effectiveFrom
+        self.calories = calories
+        self.multiplier = multiplier
+    }
+}
+
+public enum CalorieSource: Equatable {
+    /// Typed in for this one day.
+    case manual
+    /// Taken from the default in force that day.
+    case baseline
+    /// No entry and no default yet.
+    case none
+}
+
+public struct CalorieDay: Equatable, Identifiable {
+    public let date: ISODate
+    public let calories: Double?
+    public let source: CalorieSource
+    public var id: String { date.string }
+}
+
 /// Reads weigh-ins, calories eaten and macro rules, and hands them to the pure `CalorieTarget` calculator.
 public final class CalorieService {
     private let db: Database
@@ -43,11 +72,79 @@ public final class CalorieService {
         return WeeklyAverages(latestWeighIn: latest, currentAverageKg: current, pastAverageKg: past)
     }
 
-    /// Target from the most recent calorie entry.
+    /// Target from the week's average calories (the 7 days the weight average covers).
     public func currentAdvice() throws -> CalorieAdvice {
         let averages = try weeklyAverages()
-        guard let entry = try latestEntry() else { throw ValidationError("Log the calories you ate per day") }
-        return try advice(averages: averages, caloriesEaten: entry.calories, multiplier: entry.multiplier)
+        guard let eaten = try averageCalories(endingOn: averages.latestWeighIn, days: 7) else {
+            throw ValidationError("Log the calories you ate per day")
+        }
+        return try advice(averages: averages, caloriesEaten: eaten, multiplier: try multiplier(on: averages.latestWeighIn))
+    }
+
+    // MARK: Defaults and days
+
+    /// The new default counts from `date` onward (past, today or future); earlier days keep the value they had.
+    public func setDefault(calories: Double, multiplier: Double = 1, from date: ISODate) throws {
+        try validate(calories: calories, multiplier: multiplier)
+        try db.execute("""
+            INSERT INTO calorie_defaults (effective_from, calories, multiplier) VALUES (?, ?, ?)
+            ON CONFLICT(effective_from) DO UPDATE SET calories = excluded.calories, multiplier = excluded.multiplier
+            """, [.text(date.string), .double(calories), .double(multiplier)])
+    }
+
+    public func setDefault(calories: Double, multiplier: Double = 1, from date: String) throws {
+        guard let day = ISODate(date) else { throw ValidationError("Date is not valid") }
+        try setDefault(calories: calories, multiplier: multiplier, from: day)
+    }
+
+    /// Newest first.
+    public func defaults() throws -> [CalorieDefault] {
+        try db.query("SELECT effective_from, calories, multiplier FROM calorie_defaults ORDER BY effective_from DESC").compactMap { row in
+            guard let day = ISODate(row.text("effective_from")) else { return nil }
+            return CalorieDefault(effectiveFrom: day, calories: row.double("calories"), multiplier: row.double("multiplier"))
+        }
+    }
+
+    public func deleteDefault(from date: ISODate) throws {
+        try db.execute("DELETE FROM calorie_defaults WHERE effective_from = ?", [.text(date.string)])
+    }
+
+    /// What one day counts as: the value typed for that day, else the default in force, else nothing.
+    public func day(_ date: ISODate) throws -> CalorieDay {
+        if let typed = try db.query("SELECT calories FROM calorie_entries WHERE logged_on = ?", [.text(date.string)]).first {
+            return CalorieDay(date: date, calories: typed.double("calories"), source: .manual)
+        }
+        if let baseline = try defaultInForce(on: date) {
+            return CalorieDay(date: date, calories: baseline.calories, source: .baseline)
+        }
+        return CalorieDay(date: date, calories: nil, source: .none)
+    }
+
+    /// `count` days ending at `end`, newest first.
+    public func days(endingOn end: ISODate, count: Int) throws -> [CalorieDay] {
+        try (0..<max(count, 0)).map { try day(end.adding(days: -$0)) }
+    }
+
+    /// Mean of the days that have calories, over the `days` days ending at `end`; nil when none do.
+    public func averageCalories(endingOn end: ISODate, days count: Int) throws -> Double? {
+        let values = try days(endingOn: end, count: count).compactMap(\.calories)
+        return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
+    }
+
+    private func defaultInForce(on date: ISODate) throws -> CalorieDefault? {
+        try db.query("""
+            SELECT effective_from, calories, multiplier FROM calorie_defaults
+            WHERE effective_from <= ? ORDER BY effective_from DESC LIMIT 1
+            """, [.text(date.string)]).first.flatMap { row in
+            ISODate(row.text("effective_from")).map { CalorieDefault(effectiveFrom: $0, calories: row.double("calories"), multiplier: row.double("multiplier")) }
+        }
+    }
+
+    /// The goal multiplier in force on a day: the default's, else the one saved with the latest typed day, else 1.
+    private func multiplier(on date: ISODate) throws -> Double {
+        if let baseline = try defaultInForce(on: date) { return baseline.multiplier }
+        return try db.query("SELECT multiplier FROM calorie_entries WHERE logged_on <= ? ORDER BY logged_on DESC LIMIT 1",
+                            [.text(date.string)]).first?.double("multiplier") ?? 1
     }
 
     /// Target for calories typed on screen without saving them.

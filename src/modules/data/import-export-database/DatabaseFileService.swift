@@ -85,6 +85,18 @@ public struct DatabaseFileService {
                     PRIMARY KEY (exercise_id, part)
                 )
                 """)
+            // Version 4: calories per day that apply from a date. The newest calories ever typed become the first default.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS calorie_defaults (
+                    effective_from TEXT PRIMARY KEY CHECK (effective_from GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    calories       REAL NOT NULL CHECK (calories > 0),
+                    multiplier     REAL NOT NULL DEFAULT 1 CHECK (multiplier > 0)
+                )
+                """)
+            try db.execute("""
+                INSERT OR IGNORE INTO calorie_defaults (effective_from, calories, multiplier)
+                SELECT logged_on, calories, multiplier FROM calorie_entries ORDER BY logged_on DESC LIMIT 1
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }
