@@ -22,7 +22,9 @@ struct WorkoutDayScreen: View {
                         if vm.exercises.isEmpty {
                             emptyState
                         } else {
-                            ForEach(vm.exercises) { exercise in
+                            WorkoutFilterToggle(filter: $vm.filter, total: vm.exercises.count, remaining: vm.remainingCount)
+                            if vm.filter == .remaining && vm.isAllDone { allDoneState }
+                            ForEach(vm.visibleExercises) { exercise in
                                 if let dayId = vm.selectedDayId {
                                     NavigationLink(value: WorkoutExerciseRoute(exerciseId: exercise.exerciseId, dayId: dayId)) {
                                         WorkoutExerciseCard(vm: vm, exercise: exercise)
@@ -86,6 +88,20 @@ struct WorkoutDayScreen: View {
         .card(padding: 24)
     }
 
+    private var allDoneState: some View {
+        VStack(spacing: 8) {
+            Text("All done ✓").font(.system(size: 22, weight: .bold)).foregroundColor(Theme.text)
+            Text("Every exercise for today is logged. Nice work.").font(.system(size: 14)).foregroundColor(Theme.muted)
+            Button("Show all exercises") { vm.filter = .all }
+                .buttonStyle(PrimaryButtonStyle(ghost: true))
+                .padding(.top, 6)
+                .accessibilityIdentifier("show-all-exercises-button")
+        }
+        .frame(maxWidth: .infinity)
+        .card(padding: 24)
+        .accessibilityIdentifier("all-done-state")
+    }
+
     private func select(_ dayId: Int) {
         storedDayId = dayId
         vm.reload(preferredDayId: dayId)
@@ -95,6 +111,41 @@ struct WorkoutDayScreen: View {
         guard let id = vm.addDay() else { return }
         storedDayId = id
         session.didChange()
+    }
+}
+
+/// "All / Remaining" under the progress ring. Remaining hides what is already logged today.
+private struct WorkoutFilterToggle: View {
+    @Binding var filter: WorkoutFilter
+    let total: Int
+    let remaining: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            option("All", count: total, value: .all, identifier: "filter-all")
+            option("Remaining", count: remaining, value: .remaining, identifier: "filter-remaining")
+        }
+        .padding(3)
+        .background(Theme.card)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func option(_ title: String, count: Int, value: WorkoutFilter, identifier: String) -> some View {
+        let selected = filter == value
+        return Button { filter = value } label: {
+            HStack(spacing: 4) {
+                Text(title).font(.system(size: 13, weight: .semibold))
+                Text("\(count)").font(.system(size: 11)).opacity(0.75)
+            }
+            .foregroundColor(selected ? Theme.onGreen : Theme.muted)
+            .frame(maxWidth: .infinity, minHeight: 32)
+            .background(selected ? Theme.green : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 9))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

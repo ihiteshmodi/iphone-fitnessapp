@@ -63,10 +63,28 @@ public struct WorkoutExercise: Equatable, Identifiable {
     public let setsLoggedToday: Int
     /// Best-set weight of up to the last 6 sessions, oldest first.
     public let sparkline: [Double]
+
+    /// All its main sets are logged today.
+    public var isDone: Bool { setsLoggedToday >= sets }
+}
+
+/// Which exercises of a day the workout screen lists.
+public enum WorkoutFilter: Equatable {
+    case all
+    case remaining
 }
 
 public struct Workout: Equatable {
     public let day: PlanDay
     public let isDeload: Bool
     public let exercises: [WorkoutExercise]
+
+    public func exercises(_ filter: WorkoutFilter) -> [WorkoutExercise] {
+        filter == .all ? exercises : exercises.filter { !$0.isDone }
+    }
+
+    public var remainingCount: Int { exercises.filter { !$0.isDone }.count }
+
+    /// False for a day with no exercises, which has nothing to be done.
+    public var isAllDone: Bool { !exercises.isEmpty && remainingCount == 0 }
 }

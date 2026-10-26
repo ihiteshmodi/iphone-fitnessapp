@@ -8,6 +8,8 @@ final class WorkoutViewModel: ObservableObject {
     @Published private(set) var selectedDayId: Int?
     @Published private(set) var workout: Workout?
     @Published var errorMessage: String?
+    /// Kept only while the app is open: a fresh launch always starts on All.
+    @Published var filter: WorkoutFilter = .all
 
     private let services: Services
 
@@ -50,6 +52,9 @@ final class WorkoutViewModel: ObservableObject {
     // MARK: Hero
 
     var exercises: [WorkoutExercise] { workout?.exercises ?? [] }
+    var visibleExercises: [WorkoutExercise] { workout?.exercises(filter) ?? [] }
+    var remainingCount: Int { workout?.remainingCount ?? 0 }
+    var isAllDone: Bool { workout?.isAllDone ?? false }
     var isDeload: Bool { workout?.isDeload ?? false }
     var dayLabel: String { workout?.day.label ?? "" }
 
@@ -63,7 +68,7 @@ final class WorkoutViewModel: ObservableObject {
 
     var totalSets: Int { exercises.reduce(0) { $0 + $1.sets } }
 
-    var exercisesDone: Int { exercises.filter { $0.setsLoggedToday >= $0.sets }.count }
+    var exercisesDone: Int { exercises.filter(\.isDone).count }
 
     var toProgressCount: Int {
         exercises.filter { $0.recommendation == .increaseWeight || $0.recommendation == .increaseReps }.count
