@@ -56,18 +56,36 @@ public struct CalorieTarget: Equatable {
     public let balance: EnergyBalance
     public let plannedMode: PlannedMode
 
-    public static func calculate(currentAverageKg: Double, pastAverageKg: Double, caloriesEaten: Double,
-                                 multiplier: Double = 1, rules: MacroRules) -> CalorieTarget {
+    /// What the weight trend alone says, so it can be shown before any calories are logged.
+    public struct Balance: Equatable {
+        public let dailyKcal: Double
+        public let kind: EnergyBalance
+    }
+
+    public static func balance(currentAverageKg: Double, pastAverageKg: Double) -> Balance {
+        balance(dailyCalorieDiff: dailyCalorieDifference(currentAverageKg: currentAverageKg, pastAverageKg: pastAverageKg))
+    }
+
+    private static func dailyCalorieDifference(currentAverageKg: Double, pastAverageKg: Double) -> Double {
         let oneLbCalories = 3500.0
         let oneLbGrams = 454.0
+        let weeklyCalorieDiff = (oneLbCalories * (currentAverageKg - pastAverageKg) * 1000) / oneLbGrams
+        return weeklyCalorieDiff / 7
+    }
 
+    private static func balance(dailyCalorieDiff: Double) -> Balance {
+        let rounded = pyRound(dailyCalorieDiff, 0)
+        let kind: EnergyBalance = abs(dailyCalorieDiff) <= maintenanceBandKcal ? .maintenance : (dailyCalorieDiff > 0 ? .surplus : .deficit)
+        return Balance(dailyKcal: rounded == 0 ? 0 : rounded, kind: kind)
+    }
+
+    public static func calculate(currentAverageKg: Double, pastAverageKg: Double, caloriesEaten: Double,
+                                 multiplier: Double = 1, rules: MacroRules) -> CalorieTarget {
         let weightDiffKg = currentAverageKg - pastAverageKg
-        let weeklyCalorieDiff = (oneLbCalories * weightDiffKg * 1000) / oneLbGrams
-        let dailyCalorieDiff = weeklyCalorieDiff / 7
+        let dailyCalorieDiff = dailyCalorieDifference(currentAverageKg: currentAverageKg, pastAverageKg: pastAverageKg)
         let maintenance = caloriesEaten - dailyCalorieDiff
         let adjustedTarget = Int(pyRound(maintenance * multiplier, 0))
-        let dailyBalance = pyRound(dailyCalorieDiff, 0)
-        let balance: EnergyBalance = abs(dailyCalorieDiff) <= maintenanceBandKcal ? .maintenance : (dailyCalorieDiff > 0 ? .surplus : .deficit)
+        let actual = balance(dailyCalorieDiff: dailyCalorieDiff)
 
         return CalorieTarget(
             currentAverageKg: currentAverageKg,
@@ -80,8 +98,8 @@ public struct CalorieTarget: Equatable {
             adjustedTarget: adjustedTarget,
             currentVersusTarget: pyRound(caloriesEaten - Double(adjustedTarget), 2),
             macros: multiplier < 1 ? macros(adjustedTarget: Double(adjustedTarget), currentAverageKg: currentAverageKg, rules: rules) : nil,
-            dailyBalanceKcal: dailyBalance == 0 ? 0 : dailyBalance,
-            balance: balance,
+            dailyBalanceKcal: actual.dailyKcal,
+            balance: actual.kind,
             plannedMode: PlannedMode(multiplier: multiplier)
         )
     }

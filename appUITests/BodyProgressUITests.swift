@@ -70,6 +70,36 @@ final class BodyProgressUITests: XCTestCase {
         XCTAssertTrue(app.buttons["log-weight-button"].exists)
     }
 
+    func testEditingOneCalorieDayMarksItEditedAndTheBalanceCardShows() {
+        openTab("Body")
+        let edit = app.buttons["calories-edit-button"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 10))
+        edit.tap()
+        let calories = app.textFields["calories-field"]
+        XCTAssertTrue(calories.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.datePickers["default-start-date"].exists || app.buttons["default-start-date"].exists
+                      || app.otherElements["default-start-date"].exists, "the default has a start date")
+        replaceText(in: calories, with: "3000")
+        app.buttons["sheet-save-button"].tap()
+
+        let balance = app.staticTexts["balance-headline"]
+        for _ in 0..<4 where !balance.exists { app.swipeUp() }
+        XCTAssertTrue(balance.exists, "the 'what your weight says' card is on the Body screen")
+
+        let day = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'calorie-day-'")).firstMatch
+        for _ in 0..<6 where !(day.exists && day.isHittable) { app.swipeUp() }
+        XCTAssertTrue(day.exists)
+        day.tap()
+        let field = app.textFields["value-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        replaceText(in: field, with: "3200")
+        app.buttons["sheet-save-button"].tap()
+
+        let edited = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'calorie-day-' AND label CONTAINS 'Edited'")).firstMatch
+        XCTAssertTrue(edited.waitForExistence(timeout: 5), "the changed day is marked Edited")
+        XCTAssertTrue(edited.label.contains("3,200"))
+    }
+
     private func openTab(_ name: String) {
         let tab = app.tabButton(name)
         XCTAssertTrue(tab.waitForExistence(timeout: 10))

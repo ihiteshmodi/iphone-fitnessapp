@@ -22,12 +22,16 @@ struct BodyMacroRow: Identifiable {
 
 @MainActor
 final class BodyViewModel: ObservableObject {
-    @Published private(set) var latestEntry: CalorieEntry?
+    /// What the weekly maths used as calories per day: the average of the last 7 days' effective values.
+    @Published private(set) var averageEaten: Double?
     @Published private(set) var target: CalorieTarget?
     @Published private(set) var averages: WeeklyAverages?
     @Published private(set) var averagesNotice: String?
     /// Newest first.
     @Published private(set) var weights: [BodyWeightEntry] = []
+    /// The 7 days ending today, newest first.
+    @Published private(set) var calorieDays: [CalorieDay] = []
+    @Published private(set) var currentDefault: CalorieDefault?
     @Published private(set) var rules = MacroRules(proteinGramsPerLb: 1.2, fatPercent: 25)
     @Published private(set) var loadError: String?
 
@@ -39,9 +43,10 @@ final class BodyViewModel: ObservableObject {
 
     func load() {
         do {
-            latestEntry = try services.calories.latestEntry()
             rules = try services.nutrition.rules()
             weights = try services.logBody.recentWeights(limit: 14)
+            calorieDays = try services.calories.days(endingOn: today, count: 7)
+            currentDefault = try services.calories.defaults().first { $0.effectiveFrom <= today }
             loadError = nil
         } catch {
             loadError = error.localizedDescription
@@ -55,12 +60,14 @@ final class BodyViewModel: ObservableObject {
             averagesNotice = error.localizedDescription
         }
 
-        target = latestEntry == nil ? nil : (try? services.calories.currentAdvice())?.target
+        let advice = try? services.calories.currentAdvice()
+        target = advice?.target
+        averageEaten = advice?.target.caloriesEaten ?? (try? services.calories.averageCalories(endingOn: today, days: 7)) ?? nil
     }
 
     // MARK: Ring card
 
-    var eatenText: String { latestEntry.map { BodyNumbers.grouped($0.calories.rounded()) } ?? "–" }
+    var eatenText: String { averageEaten.map { BodyNumbers.grouped($0.rounded()) } ?? "–" }
 
     var ringProgress: Double {
         guard let target, target.maintenanceCalories > 0 else { return 0 }
@@ -75,8 +82,45 @@ final class BodyViewModel: ObservableObject {
     /// Explains why there is no target yet.
     var ringHint: String? {
         if target != nil { return nil }
-        if latestEntry == nil { return "Enter the calories you eat per day to get your target." }
+        if averageEaten == nil { return "Enter the calories you eat per day to get your target." }
         return averagesNotice
+    }
+
+    // MARK: What your weight says
+
+    var balance: CalorieTarget.Balance? {
+        guard let averages else { return nil }
+        return CalorieTarget.balance(currentAverageKg: averages.currentAverageKg, pastAverageKg: averages.pastAverageKg)
+    }
+
+    var balanceHeadline: String? {
+        guard let balance else { return nil }
+        switch balance.kind {
+        case .maintenance: return "Holding weight"
+        case .deficit: return "In a deficit of about \(BodyNumbers.grouped(abs(balance.dailyKcal))) kcal a day"
+        case .surplus: return "In a surplus of about \(BodyNumbers.grouped(abs(balance.dailyKcal))) kcal a day"
+        }
+    }
+
+    var balanceTone: Pill.Tone {
+        switch balance?.kind {
+        case .deficit: return .amber
+        case .surplus: return .green
+        default: return .grey
+        }
+    }
+
+    var weightChangeText: String? {
+        guard let averages else { return nil }
+        let change = averages.currentAverageKg - averages.pastAverageKg
+        let sign = change > 0 ? "+" : (change < 0 ? "−" : "")
+        return "\(Format.fixed(averages.pastAverageKg)) → \(Format.fixed(averages.currentAverageKg)) kg (\(sign)\(Format.fixed(abs(change)))) over the last two weeks"
+    }
+
+    /// Says whether what the weight did matches the mode chosen with the multiplier.
+    var plannedModeText: String? {
+        guard let target else { return nil }
+        return "Planned: \(target.plannedMode.rawValue)"
     }
 
     // MARK: Weeks, weight chart
@@ -110,12 +154,17 @@ final class BodyViewModel: ObservableObject {
         "Rules: protein \(Format.number(rules.proteinGramsPerLb)) g per lb · fat \(Format.number(rules.fatPercent))% of calories"
     }
 
-    // MARK: Calories sheet
+    // MARK: Calories sheet (the default per day)
 
-    var initialCaloriesText: String { latestEntry.map { Format.number($0.calories) } ?? "" }
-    var initialMultiplierText: String { Format.number(latestEntry?.multiplier ?? 1) }
+    var initialCaloriesText: String { currentDefault.map { Format.number($0.calories) } ?? "" }
+    var initialMultiplierText: String { Format.number(currentDefault?.multiplier ?? 1) }
     var initialProteinText: String { Format.number(rules.proteinGramsPerLb) }
     var initialFatText: String { Format.number(rules.fatPercent) }
+
+    var defaultCaption: String {
+        guard let currentDefault else { return "No default yet. Set the calories you usually eat per day." }
+        return "Default \(BodyNumbers.grouped(currentDefault.calories)) kcal per day since \(Format.longDate(currentDefault.effectiveFrom))"
+    }
 
     /// Live preview for numbers typed in the sheet; nil while they cannot be used.
     func preview(caloriesText: String, multiplierText: String) -> CalorieTarget? {
@@ -123,17 +172,30 @@ final class BodyViewModel: ObservableObject {
         return (try? services.calories.advice(caloriesEaten: calories, multiplier: multiplier))?.target
     }
 
-    /// Rules are saved first so a rejected rule never leaves a half-applied calorie entry.
-    func saveCalorieSettings(caloriesText: String, multiplierText: String, proteinText: String, fatText: String) throws {
-        guard let calories = Format.decimal(caloriesText) else { throw ValidationError("Enter the calories eaten per day as a number") }
+    /// Rules are saved first so a rejected rule never leaves a half-applied default.
+    func saveCalorieSettings(caloriesText: String, multiplierText: String, proteinText: String, fatText: String, from start: ISODate) throws {
+        guard let calories = Format.decimal(caloriesText) else { throw ValidationError("Enter the calories per day as a number") }
         guard let multiplier = Format.decimal(multiplierText) else { throw ValidationError("Enter the goal multiplier as a number") }
         guard let protein = Format.decimal(proteinText) else { throw ValidationError("Enter protein g per lb as a number") }
         guard let fat = Format.decimal(fatText) else { throw ValidationError("Enter the fat share as a number") }
 
         if protein != rules.proteinGramsPerLb { try services.nutrition.setProteinGramsPerLb(protein) }
         if fat != rules.fatPercent { try services.nutrition.setFatPercent(fat) }
-        try services.calories.saveCalories(on: today, calories: calories, multiplier: multiplier)
+        try services.calories.setDefault(calories: calories, multiplier: multiplier, from: start)
     }
+
+    // MARK: Single days
+
+    func saveDay(_ day: ISODate, calories: Double) throws { try services.calories.saveCalories(on: day, calories: calories) }
+
+    func clearDay(_ day: ISODate) throws { try services.calories.deleteCalories(on: day) }
+
+    func day(_ date: ISODate) -> CalorieDay? { try? services.calories.day(date) }
+
+    /// Further back than the 7 days on the Body screen, newest first.
+    func calorieDays(count: Int) -> [CalorieDay] { (try? services.calories.days(endingOn: today, count: count)) ?? [] }
+
+    func allWeights() -> [BodyWeightEntry] { (try? services.logBody.recentWeights(limit: 100_000)) ?? [] }
 
     // MARK: Weigh-ins
 

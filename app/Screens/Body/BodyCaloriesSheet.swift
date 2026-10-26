@@ -1,7 +1,7 @@
 import FitnessCore
 import SwiftUI
 
-/// Sheet from screen 11: calories eaten, goal multiplier and macro rules.
+/// Sheet from screen 11: the calories per day (from a start date onward), goal multiplier and macro rules.
 struct BodyCaloriesSheet: View {
     let model: BodyViewModel
     let onSaved: () -> Void
@@ -11,6 +11,7 @@ struct BodyCaloriesSheet: View {
     @State private var multiplier = "1"
     @State private var protein = ""
     @State private var fat = ""
+    @State private var startDate = Date()
     @State private var errorMessage: String?
     @State private var prepared = false
 
@@ -20,14 +21,15 @@ struct BodyCaloriesSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    BodyField(label: "Calories eaten per day (this week)", text: $calories, unit: "kcal", identifier: "calories-field")
+                    BodyField(label: "Calories per day", text: $calories, unit: "kcal", identifier: "calories-field")
+                    startSection
                     multiplierSection
                     HStack(alignment: .top, spacing: 12) {
                         BodyField(label: "Protein g per lb", text: $protein, identifier: "protein-field")
                         BodyField(label: "Fat % of calories", text: $fat, identifier: "fat-field")
                     }
                     previewCard
-                    Text("Carbs fill what is left. Macros are shown when the multiplier is below 1 (cutting), as in your notebook.")
+                    Text("The new calories count from the start date onward. Earlier days keep what they had, and days you changed by hand keep their own value. Carbs fill what is left. Macros are shown when the multiplier is below 1 (cutting), as in your notebook.")
                         .font(.system(size: 12)).foregroundColor(Theme.muted)
                 }
                 .padding(16)
@@ -50,6 +52,20 @@ struct BodyCaloriesSheet: View {
             multiplier = model.initialMultiplierText
             protein = model.initialProteinText
             fat = model.initialFatText
+            startDate = BodyDates.date(from: model.today)
+        }
+    }
+
+    private var startSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                SectionLabel("Starts on")
+                Text(model.defaultCaption).font(.system(size: 12)).foregroundColor(Theme.muted)
+            }
+            Spacer()
+            DatePicker("Starts on", selection: $startDate, displayedComponents: .date)
+                .labelsHidden()
+                .accessibilityIdentifier("default-start-date")
         }
     }
 
@@ -90,7 +106,8 @@ struct BodyCaloriesSheet: View {
 
     private func save() {
         do {
-            try model.saveCalorieSettings(caloriesText: calories, multiplierText: multiplier, proteinText: protein, fatText: fat)
+            try model.saveCalorieSettings(caloriesText: calories, multiplierText: multiplier, proteinText: protein, fatText: fat,
+                                          from: BodyDates.day(from: startDate))
             onSaved()
             dismiss()
         } catch {

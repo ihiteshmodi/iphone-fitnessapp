@@ -131,6 +131,18 @@ final class DailyCaloriesTests: XCTestCase {
         XCTAssertEqual(target.multiplier, 0.8)
     }
 
+    func testTheTargetFallsBackToTheNewestDefaultWhenTheWeekHasNoCaloriesYet() throws {
+        let latest = date("2026-10-23")
+        for offset in 0..<7 { try db.addBodyWeight(on: latest.adding(days: -offset).string, kg: 63.86) }
+        for offset in 7..<14 { try db.addBodyWeight(on: latest.adding(days: -offset).string, kg: 63.94) }
+        try service.setDefault(calories: 2948.5, multiplier: 0.8, from: date("2026-10-26"))
+
+        let target = try service.currentAdvice().target
+
+        XCTAssertEqual(target.caloriesEaten, 2948.5)
+        XCTAssertEqual(target.multiplier, 0.8)
+    }
+
     func testTheTargetNeedsCaloriesFromSomewhere() throws {
         try db.addBodyWeight(on: "2026-10-23", kg: 64)
         try db.addBodyWeight(on: "2026-10-16", kg: 64)
@@ -176,6 +188,12 @@ final class DailyCaloriesTests: XCTestCase {
                                                  rules: MacroRules(proteinGramsPerLb: 1.2, fatPercent: 25))
             XCTAssertEqual(target.balance, example.balance, "change \(example.change)")
         }
+    }
+
+    func testKnowsTheBalanceFromWeightAloneWithoutAnyCalories() {
+        let balance = CalorieTarget.balance(currentAverageKg: 82.0, pastAverageKg: 82.5)
+
+        XCTAssertEqual(balance, CalorieTarget.Balance(dailyKcal: -551, kind: .deficit))
     }
 
     func testReadsThePlannedModeFromTheMultiplier() {

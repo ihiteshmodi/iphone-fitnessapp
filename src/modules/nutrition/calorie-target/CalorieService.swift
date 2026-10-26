@@ -72,10 +72,12 @@ public final class CalorieService {
         return WeeklyAverages(latestWeighIn: latest, currentAverageKg: current, pastAverageKg: past)
     }
 
-    /// Target from the week's average calories (the 7 days the weight average covers).
+    /// Target from the week's average calories (the 7 days the weight average covers). When none of those days has
+    /// calories yet (a first default that starts today), the newest default stands in for them.
     public func currentAdvice() throws -> CalorieAdvice {
         let averages = try weeklyAverages()
-        guard let eaten = try averageCalories(endingOn: averages.latestWeighIn, days: 7) else {
+        let newestDefault = try defaults().first
+        guard let eaten = try averageCalories(endingOn: averages.latestWeighIn, days: 7) ?? newestDefault?.calories else {
             throw ValidationError("Log the calories you ate per day")
         }
         return try advice(averages: averages, caloriesEaten: eaten, multiplier: try multiplier(on: averages.latestWeighIn))
@@ -140,9 +142,9 @@ public final class CalorieService {
         }
     }
 
-    /// The goal multiplier in force on a day: the default's, else the one saved with the latest typed day, else 1.
+    /// The goal multiplier in force on a day: the default's, else the newest default, else the one saved with the latest typed day, else 1.
     private func multiplier(on date: ISODate) throws -> Double {
-        if let baseline = try defaultInForce(on: date) { return baseline.multiplier }
+        if let baseline = try defaultInForce(on: date) ?? defaults().first { return baseline.multiplier }
         return try db.query("SELECT multiplier FROM calorie_entries WHERE logged_on <= ? ORDER BY logged_on DESC LIMIT 1",
                             [.text(date.string)]).first?.double("multiplier") ?? 1
     }

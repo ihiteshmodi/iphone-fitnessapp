@@ -14,9 +14,11 @@ private enum BodySheet: Identifiable {
     case calories
     case logWeight
     case editWeight(BodyWeightEntry)
+    case editDay(CalorieDay)
 
     var id: String {
         switch self {
+        case .editDay(let day): return "edit-day-\(day.date.string)"
         case .calories: return "calories"
         case .logWeight: return "log-weight"
         case .editWeight(let entry): return "edit-weight-\(entry.id)"
@@ -43,7 +45,7 @@ private struct BodyScreen: View {
                     }
                     ringCard
                     HStack(spacing: 10) {
-                        Button("✎ Calories eaten") { sheet = .calories }
+                        Button("✎ Daily calories") { sheet = .calories }
                             .accessibilityIdentifier("calories-edit-button")
                         Button("✎ Macro rules") { sheet = .calories }
                             .accessibilityIdentifier("macro-rules-button")
@@ -53,8 +55,10 @@ private struct BodyScreen: View {
 
                     weeksSection
                     if model.weights.isEmpty { emptyWeightCard } else { weightCard }
+                    balanceCard
                     macrosCard
                     if !model.weights.isEmpty { recentCard }
+                    recentCaloriesCard
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -73,6 +77,8 @@ private struct BodyScreen: View {
                     try model.logWeight(kg: kg, on: day)
                     session.didChange()
                 }
+            case .editDay(let day):
+                CalorieDayEditSheet(model: model, day: day) { session.didChange() }
             case .editWeight(let entry):
                 BodyValueEntrySheet(title: "Edit weigh-in", fieldLabel: "Weight", unit: "kg", initialText: Format.number(entry.kg),
                                     initialDate: entry.date, today: model.today, deleteTitle: "Delete weigh-in",
@@ -203,12 +209,56 @@ private struct BodyScreen: View {
 
     private var recentCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionLabel("Recent weigh-ins").padding(.bottom, 4)
+            HStack {
+                SectionLabel("Recent weigh-ins")
+                Spacer()
+                NavigationLink("See all") { BodyHistoryListView(model: model, kind: .weights) }
+                    .font(.system(size: 12, weight: .semibold))
+                    .accessibilityIdentifier("see-all-weigh-ins")
+            }
+            .padding(.bottom, 4)
             ForEach(model.weights.prefix(7)) { entry in
                 BodyHistoryRow(date: Format.shortDate(entry.date), value: "\(Format.number(entry.kg)) kg",
                                identifier: "weigh-in-\(entry.id)") { sheet = .editWeight(entry) }
             }
         }
         .card()
+    }
+
+    private var recentCaloriesCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                SectionLabel("Recent calories")
+                Spacer()
+                NavigationLink("See all") { BodyHistoryListView(model: model, kind: .calories) }
+                    .font(.system(size: 12, weight: .semibold))
+                    .accessibilityIdentifier("see-all-calories")
+            }
+            Text(model.defaultCaption).font(.system(size: 12)).foregroundColor(Theme.muted).padding(.bottom, 4)
+            ForEach(model.calorieDays) { day in
+                CalorieDayRow(day: day, identifier: "calorie-day-\(day.date.string)") { sheet = .editDay(day) }
+            }
+        }
+        .card()
+    }
+
+    /// What the weight trend says happened, next to what the multiplier says was planned.
+    @ViewBuilder
+    private var balanceCard: some View {
+        if let headline = model.balanceHeadline {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    SectionLabel("What your weight says")
+                    Spacer()
+                    if let planned = model.plannedModeText { Pill(text: planned, tone: .grey) }
+                }
+                Text(headline).font(.system(size: 17, weight: .semibold)).foregroundColor(Theme.text)
+                    .accessibilityIdentifier("balance-headline")
+                if let change = model.weightChangeText {
+                    Text(change).font(.system(size: 12)).foregroundColor(Theme.muted)
+                }
+            }
+            .card()
+        }
     }
 }

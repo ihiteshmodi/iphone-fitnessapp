@@ -48,6 +48,12 @@ Feature: Daily calories with a default that starts on a date
     When I ask for the calorie target
     Then it uses 2914.29 calories eaten per day
 
+  Scenario: A first default that starts today still gives a target right away
+    Given weights ending 2026-10-23 and no calories on any of those 7 days
+    And the default is 2948.5 starting 2026-10-26
+    When I ask for the calorie target
+    Then it uses 2948.5 calories eaten per day
+
   Scenario Outline: A default must be valid
     When I set the default to <calories> with multiplier <multiplier> starting <date>
     Then it is rejected with "<message>"
