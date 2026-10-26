@@ -140,6 +140,49 @@ final class ExerciseDetailViewModel: ObservableObject {
         (detail?.target.warmups ?? []).map { Warmup(percent: "\($0.percent)%", kg: "\(Format.number($0.weightKg)) kg") }
     }
 
+    // MARK: PR banner
+
+    var progression: Progression { detail?.progression ?? .none }
+
+    struct Banner {
+        enum Style { case pr, repeatClean }
+        let style: Style
+        let kicker: String
+        let headline: String
+        let detail: String
+        /// "Est. 1RM from 60 kg × 16" and "92 kg".
+        let oneRepMaxLabel: String?
+        let oneRepMaxValue: String?
+        let nextWeightLabel: String?
+        let nextWeightValue: String?
+    }
+
+    var banner: Banner? {
+        switch progression {
+        case .none:
+            return nil
+        case .pr(let next, let oneRepMax, let weight, let reps, let isToday):
+            let lifted = "\(Format.number(weight)) kg × \(reps)"
+            let minReps = Format.number(detail?.target.minReps ?? 0)
+            return Banner(
+                style: .pr,
+                kicker: isToday ? "★ PR today · clean form" : "★ PR last time · clean form",
+                headline: isToday ? "Next time: \(Format.number(next)) kg" : "Increase weight to \(Format.number(next)) kg",
+                detail: isToday ? "You did \(lifted) at the top of your range." : "You did \(lifted) at the top of your range. Start at \(Format.number(next)) kg and aim for \(minReps) reps or more.",
+                oneRepMaxLabel: "Est. 1RM from \(lifted)", oneRepMaxValue: "\(Format.number(oneRepMax, maxDecimals: 1)) kg",
+                nextWeightLabel: "At \(minReps) reps the 1RM allows", nextWeightValue: "\(Format.number(next)) kg")
+        case .repeatForCleanReps(let weight):
+            return Banner(
+                style: .repeatClean,
+                kicker: "Repeat · aim for clean reps",
+                headline: "Stay at \(Format.number(weight)) kg",
+                detail: "Last time you reached the top reps but said the form was not clean. Hit them again with a full contraction on every rep, then it counts as a PR.",
+                oneRepMaxLabel: nil, oneRepMaxValue: nil, nextWeightLabel: nil, nextWeightValue: nil)
+        }
+    }
+
+    var isPRNextWeight: Bool { if case .pr(_, _, _, _, let isToday) = progression { return !isToday }; return false }
+
     // MARK: Aim, how to
 
     /// The aim as a pill and an optional hint. Hidden when there is no working weight yet (the card says so itself).
@@ -149,9 +192,10 @@ final class ExerciseDetailViewModel: ObservableObject {
     }
 
     var aimTone: Pill.Tone {
+        if isPRNextWeight { return .gold }
         switch aimSummary?.pill {
         case "Increase weight", "Increase reps": return .green
-        case "Maintain", "Deload": return .amber
+        case "Maintain", "Deload", "Repeat": return .amber
         default: return .grey
         }
     }
@@ -164,7 +208,8 @@ final class ExerciseDetailViewModel: ObservableObject {
 
     var sessionPoints: [SessionPoint] {
         (detail?.sessions ?? []).map {
-            SessionPoint(id: $0.date.string, label: Format.shortDate($0.date), kg: $0.best.weightKg, repsText: "×\($0.best.reps)")
+            SessionPoint(id: $0.date.string, label: Format.shortDate($0.date), kg: $0.best.weightKg, repsText: "×\($0.best.reps)",
+                         mark: detail?.sessionMarks[$0.date])
         }
     }
 

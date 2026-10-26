@@ -66,6 +66,8 @@ public struct WorkoutExercise: Equatable, Identifiable {
     public let setsLoggedToday: Int
     /// Best-set weight of up to the last 6 sessions, oldest first.
     public let sparkline: [Double]
+    /// PR to act on, or repeat for clean reps. `.none` during deload.
+    public let progression: Progression
 
     /// All its main sets are logged today.
     public var isDone: Bool { setsLoggedToday >= sets }

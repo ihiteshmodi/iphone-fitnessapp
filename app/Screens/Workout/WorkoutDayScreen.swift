@@ -215,7 +215,11 @@ private struct WorkoutHeroCard: View {
                 HStack(spacing: 18) {
                     stat("\(vm.exercises.count)", "exercises")
                     stat("\(vm.totalSets)", "sets")
-                    stat("\(vm.toProgressCount)", "to progress", color: Theme.green)
+                    if vm.prCount > 0 {
+                        stat("\(vm.prCount)", "PR to beat", color: Theme.gold)
+                    } else {
+                        stat("\(vm.toProgressCount)", "to progress", color: Theme.green)
+                    }
                 }
                 .padding(.top, 4)
             }
@@ -274,6 +278,7 @@ private struct WorkoutBadgePill: View {
         case .green: Pill(text: badge.text, tone: .green)
         case .amber: Pill(text: badge.text, tone: .amber)
         case .grey: Pill(text: badge.text, tone: .grey)
+        case .gold: Pill(text: badge.text, tone: .gold)
         }
     }
 }

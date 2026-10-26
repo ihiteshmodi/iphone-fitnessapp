@@ -74,6 +74,11 @@ final class WorkoutViewModel: ObservableObject {
         exercises.filter { $0.recommendation == .increaseWeight || $0.recommendation == .increaseReps }.count
     }
 
+    /// Exercises whose last session was a PR to act on.
+    var prCount: Int {
+        exercises.filter { if case .pr(_, _, _, _, let isToday) = $0.progression { return !isToday }; return false }.count
+    }
+
     /// Counts partial exercises too, so the ring moves after every logged set.
     var ringProgress: Double {
         guard totalSets > 0 else { return 0 }
@@ -99,13 +104,18 @@ final class WorkoutViewModel: ObservableObject {
     func ringLabel(_ exercise: WorkoutExercise) -> String { "\(exercise.setsLoggedToday)/\(exercise.sets)" }
 
     struct Badge: Equatable {
-        enum Tone { case green, amber, grey }
+        enum Tone { case green, amber, grey, gold }
         let text: String
         let tone: Tone
     }
 
     func badge(_ exercise: WorkoutExercise) -> Badge {
         if isDeload { return Badge(text: "Deload", tone: .amber) }
+        switch exercise.progression {
+        case .pr(let next, _, _, _, _): return Badge(text: "★ Go to \(Format.number(next))", tone: .gold)
+        case .repeatForCleanReps: return Badge(text: "Same weight, clean", tone: .amber)
+        case .none: break
+        }
         switch exercise.recommendation {
         case .increaseWeight: return Badge(text: "Increase weight", tone: .green)
         case .increaseReps: return Badge(text: "Increase reps", tone: .green)

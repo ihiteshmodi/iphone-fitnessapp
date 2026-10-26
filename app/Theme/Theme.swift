@@ -22,6 +22,8 @@ enum Theme {
     static let greenSoft = Color(hex: 0x8AF0BD)
     static let greenDeep = Color(hex: 0x2A8A5C)
     static let amber = Color(hex: 0xF5C542)
+    /// PR highlight: a gold distinct from the green of normal sessions (always paired with a ★, not colour alone).
+    static let gold = Color(hex: 0xFFC53D)
     static let red = Color(hex: 0xFF6B6B)
     static let onGreen = Color(hex: 0x04130A)
 }
@@ -63,7 +65,7 @@ struct SectionLabel: View {
 }
 
 struct Pill: View {
-    enum Tone { case green, amber, red, grey }
+    enum Tone { case green, amber, red, grey, gold }
     let text: String
     var tone: Tone = .green
 
@@ -73,6 +75,7 @@ struct Pill: View {
         case .amber: return (Theme.amber, Theme.amber.opacity(0.15))
         case .red: return (Theme.red, Theme.red.opacity(0.15))
         case .grey: return (Theme.muted, Theme.card2)
+        case .gold: return (Theme.gold, Theme.gold.opacity(0.16))
         }
     }
 

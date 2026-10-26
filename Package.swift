@@ -29,6 +29,7 @@ let package = Package(
                 "planning/deload-mode/deload-mode.feature",
                 "planning/edit-plan/edit-plan.feature",
                 "planning/exercise-detail/exercise-detail.feature",
+                "planning/exercise-detail/pr-highlighting.feature",
                 "planning/exercise-library/exercise-library.feature",
                 "planning/muscle-anatomy/muscle-anatomy.feature",
                 "planning/view-workout/view-workout.feature",

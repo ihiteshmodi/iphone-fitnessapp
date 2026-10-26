@@ -65,11 +65,12 @@ final class ExerciseDetailTests: XCTestCase {
         XCTAssertEqual(try detail(planned).aim, "Increase reps: beat 9 reps at 54 kg")
     }
 
-    func testAimAtTheTopOfTheRangeIsIncreaseWeight() throws {
+    func testAimAtTheTopOfTheRangeIsIncreaseWeightWithTheNextWeight() throws {
         let planned = try PlannedExercise.make(db)
         try db.addSet(exercise: planned.exerciseId, on: "2026-10-18", weight: 54, reps: 10)
 
-        XCTAssertEqual(try detail(planned).aim, "Increase weight")
+        // 54 x 10 gives a 1RM of 72; at the minimum 6 reps that is 60 kg.
+        XCTAssertEqual(try detail(planned).aim, "Increase weight: go to 60 kg")
     }
 
     func testAimBelowTheRangeIsBringToMaintenance() throws {

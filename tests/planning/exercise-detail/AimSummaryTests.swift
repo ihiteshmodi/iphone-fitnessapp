@@ -11,7 +11,7 @@ final class AimSummaryTests: XCTestCase {
     }
 
     func testRepsAtTheTopOfTheRangeMeanIncreaseWeightWithNoHint() throws {
-        XCTAssertEqual(try aim(weight: 45, reps: 10, min: 6, max: 10), AimSummary(pill: "Increase weight", hint: nil))
+        XCTAssertEqual(try aim(weight: 45, reps: 10, min: 6, max: 10), AimSummary(pill: "Increase weight", hint: "Go to 50 kg"))
     }
 
     func testRepsInsideTheRangeMeanIncreaseReps() throws {

@@ -74,6 +74,10 @@ public struct ExerciseDetail: Equatable {
     public let todayCleanForm: Bool?
     /// Today reached the top of the rep range and the clean-form question has not been answered yet.
     public let needsFormAnswer: Bool
+    /// Sessions (in the chart or not) that reached the top of the rep range: PR, or not clean.
+    public let sessionMarks: [ISODate: SessionMark]
+    /// What to do next: take the heavier weight after a PR, or repeat the weight for clean reps.
+    public let progression: Progression
     public let targetSets: Int
     public let prefill: SetFormPrefill
     /// The muscles this exercise trains (chosen by the user, or automatic).
@@ -130,6 +134,23 @@ public final class ExerciseDetailService {
                                                     deload: settings.deload)
 
         let sessions = SessionHistory.sessions(from: sets)
+        let answers = try FormChecks(db).answers(exerciseId: exerciseId)
+        let progression = ProgressionCalculator.progression(sessions: sessions, minReps: entry.minReps, maxReps: entry.maxReps,
+                                                            answers: answers, today: today, deloadActive: settings.deload.enabled)
+        // After a PR the working weight for today is the heavier weight; the warm-ups follow it.
+        var shownWorking = target.workingWeight
+        var aim = Self.aim(target: target, lastSession: sessions.filter { $0.date < today }.last)
+        switch progression {
+        case .pr(let next, _, _, _, let isToday) where !isToday:
+            shownWorking = next
+            aim = "Increase weight: go to \(Self.format(next)) kg"
+        case .pr(let next, _, _, _, _):
+            aim = "Increase weight: go to \(Self.format(next)) kg next time"
+        case .repeatForCleanReps(let weight):
+            aim = "Repeat: aim for clean reps at \(Self.format(weight)) kg"
+        case .none:
+            break
+        }
         let lastSession = sessions.filter { $0.date < today }.last
         // The history list is a log, so it keeps deload sessions (their sets carry the deload flag).
         let loggedBefore = SessionHistory.sessions(from: allSets).filter { $0.date < today }
@@ -143,11 +164,11 @@ public final class ExerciseDetailService {
             hasHistory: heaviest != nil,
             isDeload: settings.deload.enabled,
             target: DetailTarget(sets: entry.sets, warmupSets: entry.warmupSets,
-                                 warmups: WarmupPlan.steps(count: entry.warmupSets, workingWeight: target.workingWeight), minReps: target.minReps, maxReps: target.maxReps,
-                                 workingWeight: target.workingWeight, warmup75: target.warmup75, warmup90: target.warmup90,
+                                 warmups: WarmupPlan.steps(count: entry.warmupSets, workingWeight: shownWorking), minReps: target.minReps, maxReps: target.maxReps,
+                                 workingWeight: shownWorking, warmup75: target.warmup75, warmup90: target.warmup90,
                                  recommendation: target.recommendation),
             lastSession: lastSession,
-            aim: Self.aim(target: target, lastSession: lastSession),
+            aim: aim,
             sessions: Array(sessions.suffix(Self.chartSessions)),
             trend: ExerciseTrend.classify(sessions.map(\.estimatedOneRepMax)),
             history: Array(loggedBefore.reversed().prefix(Self.historySessions)),
@@ -155,8 +176,10 @@ public final class ExerciseDetailService {
             todayOneRepMax: todaySets.map { OneRepMax.estimate(weightKg: $0.weightKg, reps: $0.reps) }.max(),
             todayCleanForm: todayCleanForm,
             needsFormAnswer: reachedTopReps && todayCleanForm == nil,
+            sessionMarks: ProgressionCalculator.marks(of: sessions, maxReps: entry.maxReps, answers: answers, today: today),
+            progression: progression,
             targetSets: entry.sets,
-            prefill: SetFormPrefill(weightKg: target.workingWeight, reps: RepRange.middle(min: target.minReps, max: target.maxReps)),
+            prefill: SetFormPrefill(weightKg: shownWorking, reps: RepRange.middle(min: target.minReps, max: target.maxReps)),
             muscles: try ExerciseMuscleService(db).muscles(exerciseId: exerciseId))
     }
 

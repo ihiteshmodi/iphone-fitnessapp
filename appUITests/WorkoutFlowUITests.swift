@@ -142,6 +142,23 @@ final class WorkoutFlowUITests: XCTestCase {
         XCTAssertFalse(app.buttons["form-yes"].waitForExistence(timeout: 2), "asked only once a day")
     }
 
+    func testLastSessionAtTheTopRepsShowsTheGoldBannerAndChip() throws {
+        let app = try launchApp()
+        app.buttons["day-3"].tap()
+        let card = app.buttons["exercise-card-Triceps Pushdown"]
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        XCTAssertTrue(card.label.contains("Go to"), "the list chip points at the heavier weight: \(card.label)")
+        attach(app, named: "pr-list")
+
+        card.tap()
+        let banner = app.descendants(matching: .any)["pr-banner"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 10), "the gold PR banner is the first thing on the screen")
+        XCTAssertTrue(banner.label.contains("Increase weight to"), "banner was: \(banner.label)")
+        attach(app, named: "pr-exercise")
+        app.swipeUp()
+        attach(app, named: "pr-exercise-scrolled")
+    }
+
     func testRejectsZeroRepsWithoutSaving() throws {
         let app = try launchApp()
         app.buttons["day-3"].tap()

@@ -31,6 +31,7 @@ private struct ExerciseDetailContent: View {
             if vm.detail != nil {
                 VStack(spacing: 12) {
                     header
+                    progressionBanner
                     doToday
                     progress
                     howTo
@@ -99,6 +100,49 @@ private struct ExerciseDetailContent: View {
         }
     }
 
+    // MARK: 1b. PR banner (loud on purpose: it is the main thing to act on)
+
+    @ViewBuilder
+    private var progressionBanner: some View {
+        if let banner = vm.banner {
+            let gold = banner.style == .pr
+            let tint = gold ? Theme.gold : Theme.amber
+            VStack(alignment: .leading, spacing: 6) {
+                Text(banner.kicker.uppercased())
+                    .font(.system(size: 11, weight: .heavy)).tracking(0.9).foregroundColor(tint)
+                Text(banner.headline)
+                    .font(.system(size: gold ? 22 : 20, weight: .heavy)).foregroundColor(tint)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(banner.detail)
+                    .font(.system(size: 13)).foregroundColor(gold ? Color(hex: 0xF6E3B0) : Color(hex: 0xD9C88F))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let label = banner.oneRepMaxLabel, let value = banner.oneRepMaxValue {
+                    Divider().overlay(Color.white.opacity(0.08)).padding(.top, 4)
+                    bannerRow(label, value, valueColor: Theme.text)
+                }
+                if let label = banner.nextWeightLabel, let value = banner.nextWeightValue {
+                    bannerRow(label, value, valueColor: Theme.gold)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(gold ? Theme.gold.opacity(0.14) : Theme.amber.opacity(0.07))
+            .overlay(RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(tint.opacity(gold ? 1 : 0.55), style: StrokeStyle(lineWidth: gold ? 1.5 : 1, dash: gold ? [] : [5, 4])))
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier(gold ? "pr-banner" : "repeat-banner")
+        }
+    }
+
+    private func bannerRow(_ label: String, _ value: String, valueColor: Color) -> some View {
+        HStack {
+            Text(label).font(.system(size: 12.5)).foregroundColor(Theme.muted)
+            Spacer()
+            Text(value).font(.system(size: 14, weight: .bold)).foregroundColor(valueColor)
+        }
+    }
+
     // MARK: 2. Do today (weight, aim, warm-ups)
 
     private var doToday: some View {
@@ -107,18 +151,19 @@ private struct ExerciseDetailContent: View {
                 SectionLabel("Do today")
                 Spacer()
                 if let aim = vm.aimSummary {
-                    Pill(text: aim.pill, tone: vm.aimTone).accessibilityIdentifier("aim-pill")
+                    Pill(text: vm.isPRNextWeight ? "★ New weight" : aim.pill, tone: vm.aimTone).accessibilityIdentifier("aim-pill")
                 }
             }
             if let weight = vm.workingWeightText {
                 HStack(alignment: .bottom, spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(weight).font(.system(size: 44, weight: .bold)).foregroundColor(Theme.text)
+                            Text(weight).font(.system(size: 44, weight: .bold)).foregroundColor(vm.isPRNextWeight ? Theme.gold : Theme.text)
                             Text("kg").font(.system(size: 18)).foregroundColor(Theme.muted)
                         }
                         if let hint = vm.aimSummary?.hint {
-                            Text(hint).font(.system(size: 13)).foregroundColor(Theme.green).accessibilityIdentifier("aim-hint")
+                            Text(hint).font(.system(size: 13)).foregroundColor(vm.isPRNextWeight ? Theme.gold : Theme.green)
+                                .accessibilityIdentifier("aim-hint")
                         }
                     }
                     Spacer()
