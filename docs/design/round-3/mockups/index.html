@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fitness app mockups: round 3 (sample data)</title>
+<link rel="stylesheet" href="../../fitness-app/mockups/mockup.css">
+<script src="../../fitness-app/mockups/mockup.js"></script>
+<style>
+  :root { --gold: #ffc53d; --gold-soft: rgba(255,197,61,.14); }
+  h2 { font-size: 15px; font-weight: 600; margin: 34px 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+  .chip.gold { background: var(--gold-soft); color: var(--gold); }
+  .chip.gold b { font-weight: 800; }
+
+  /* Filter toggle under the progress ring */
+  .filter { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 3px; margin: 2px 0 12px; }
+  .filter div { flex: 1; text-align: center; padding: 7px 0; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .filter div.on { background: var(--green); color: #04130a; }
+  .filter small { font-weight: 500; opacity: .75; margin-left: 4px; }
+  .ex.done { opacity: .55; }
+  .empty { text-align: center; padding: 38px 18px; }
+  .empty .big { font-size: 22px; }
+  .empty p { color: var(--muted); font-size: 14px; margin: 8px 0 16px; line-height: 1.4; }
+
+  /* Aim banners */
+  .banner { border-radius: 20px; padding: 14px 16px; }
+  .banner .k { font-size: 11px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; }
+  .banner .h { font-size: 22px; font-weight: 800; margin-top: 4px; letter-spacing: -.3px; line-height: 1.15; }
+  .banner .p { font-size: 13px; margin-top: 6px; line-height: 1.4; opacity: .9; }
+  .banner.pr { background: linear-gradient(135deg, rgba(255,197,61,.22), rgba(255,197,61,.08)); border: 1.5px solid var(--gold); color: var(--gold); }
+  .banner.pr .p { color: #f6e3b0; }
+  .banner.repeat { background: rgba(245,197,66,.07); border: 1px dashed rgba(245,197,66,.55); color: var(--amber); }
+  .banner.repeat .p { color: #d9c88f; }
+  .banner.go { background: rgba(46,232,135,.10); border: 1px solid rgba(46,232,135,.35); color: var(--green); }
+  .banner.go .p { color: #b9e8cf; }
+  .rm { display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); font-size: 12.5px; color: var(--muted); }
+  .rm b { color: var(--text); font-size: 14px; }
+  .rm .arrow { color: var(--gold); font-weight: 700; }
+
+  .kgbig { display: flex; align-items: baseline; gap: 4px; margin-top: 6px; }
+  .kgbig .n { font-size: 40px; font-weight: 800; letter-spacing: -1px; }
+  .kgbig .n.gold { color: var(--gold); }
+  .warm { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; color: #d3dbd6; }
+  .warm span { color: var(--muted); }
+  .ref { font-size: 10px; font-weight: 700; letter-spacing: .6px; color: var(--muted); background: var(--card-2); padding: 2px 7px; border-radius: 99px; margin-left: 8px; }
+
+  /* Legend */
+  .legend { font-size: 13px; line-height: 1.55; color: #d3dbd6; }
+  .legend .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin-right: 8px; }
+  .legend table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  .legend td, .legend th { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  .legend th { color: var(--muted); font-weight: 600; }
+  .doc { width: 390px; background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 20px; }
+  .doc h3 { font-size: 15px; margin: 14px 0 6px; }
+  .doc h3:first-child { margin-top: 0; }
+
+  /* Sheets drawn over a phone */
+  .dim { position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #121614; border-top: 1px solid var(--line); border-radius: 26px 26px 0 0; padding: 12px 18px 26px; }
+  .sheet .grab { width: 38px; height: 5px; border-radius: 99px; background: #2d3631; margin: 0 auto 12px; }
+  .sheet .ttl { font-size: 17px; font-weight: 700; text-align: center; }
+  .sheet .cap2 { text-align: center; font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  /* Steppers */
+  .stp { background: var(--card-2); border: 1px solid var(--line); border-radius: 16px; padding: 10px 10px 12px; }
+  .stp .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; text-align: center; }
+  .stp .ctl { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+  .stp .btnr { width: 38px; height: 44px; border-radius: 14px; background: #202824; border: 1px solid var(--line); color: var(--green); font-size: 26px; font-weight: 500; display: flex; align-items: center; justify-content: center; }
+  .stp .val { font-size: 30px; font-weight: 800; letter-spacing: -.5px; text-align: center; min-width: 0; border-bottom: 2px dotted #3a4640; padding: 0 4px 1px; }
+  .stp .val small { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+  .stp .hint { text-align: center; font-size: 10.5px; line-height: 1.3; color: var(--muted); margin-top: 8px; }
+  .stp .hint b { color: var(--green); font-weight: 600; }
+  .pair { display: flex; gap: 10px; }
+  .pair > * { flex: 1; min-width: 0; }
+  .yn { display: flex; gap: 10px; margin-top: 16px; }
+  .yn div { flex: 1; text-align: center; padding: 15px 8px; border-radius: 16px; font-weight: 700; font-size: 15px; line-height: 1.25; }
+  .yn .yes { background: var(--green); color: #04130a; }
+  .yn .no { background: var(--card-2); border: 1px solid var(--line); color: var(--text); }
+  .yn small { display: block; font-weight: 500; font-size: 11px; opacity: .8; margin-top: 3px; }
+  .note { font-size: 12px; color: var(--muted); line-height: 1.45; margin-top: 12px; }
+  .toast { background: rgba(255,197,61,.12); border: 1px solid rgba(255,197,61,.5); color: var(--gold); border-radius: 14px; padding: 10px 12px; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .toast.calm { background: rgba(245,197,66,.07); border-color: rgba(245,197,66,.4); color: var(--amber); }
+  .setrow .n.warm { background: transparent; border: 1.5px dashed #3a4640; color: #7b8a83; }
+  .setrow.ref .v { color: var(--muted); font-weight: 500; }
+  .setrow .tag { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<h1>Fitness app: round 3 changes</h1>
+<div class="sub">Sample data, not live. Scroll inside a phone with the mouse wheel or trackpad. Nothing here is built yet: this is for your approval first.</div>
+
+<h2>1. Workout day: the All / Remaining toggle</h2>
+<div class="row">
+  <div class="col">
+    <div class="phone" id="p-all"></div>
+    <div class="cap"><b>All</b> (always the choice when the app opens). Finished exercises are dimmed, so you can still see them.</div>
+  </div>
+  <div class="col">
+    <div class="phone" id="p-rem"></div>
+    <div class="cap"><b>Remaining</b>: finished exercises disappear, so the last ones are at the top instead of 17 scrolls away.</div>
+  </div>
+  <div class="col">
+    <div class="phone" id="p-empty"></div>
+    <div class="cap"><b>Remaining, everything done</b>: says so instead of showing an empty page.</div>
+  </div>
+</div>
+
+<h2>2. Exercise screen: PR banner, gold dot, 1RM, main sets and warm-ups</h2>
+<div class="row">
+  <div class="col">
+    <div class="phone" id="p-pr"></div>
+    <div class="cap"><b>Last session was a PR</b> (60 kg × 16, clean form). Loud gold banner at the top with the number to take, and the last dot on the chart is gold.</div>
+  </div>
+  <div class="col">
+    <div class="phone" id="p-pr2"></div>
+    <div class="cap">Same screen scrolled: warm-ups are <b>reference only</b> (not logged, not counted). The circle counts main sets: <b>0 of 1</b>.</div>
+  </div>
+  <div class="col">
+    <div class="phone" id="p-noform"></div>
+    <div class="cap"><b>Top reps but form was not clean</b>: no gold dot, calm banner: same weight again.</div>
+  </div>
+  <div class="col">
+    <div class="phone" id="p-normal"></div>
+    <div class="cap"><b>Normal day</b>: green everywhere, exactly as now.</div>
+  </div>
+</div>
+
+<h2>3. Logging a set: arrows, then the clean-form question</h2>
+<div class="row">
+  <div class="col">
+    <div class="phone" id="p-add"></div>
+    <div class="cap">Add set: <b>− / +</b> on both. Weight steps by 2.5 kg, reps by 1. Reps start in the <b>middle</b> of the range (8–16 → 12). Tap a number to type it instead.</div>
+  </div>
+  <div class="col">
+    <div class="phone" id="p-form"></div>
+    <div class="cap">Only when you reach the <b>top of the rep range at the working weight</b>, right after Save, one question about all the reps.</div>
+  </div>
+  <div class="col">
+    <div class="phone" id="p-yes"></div>
+    <div class="cap">Answered <b>Yes</b>: counts as a PR, the 1RM and next weight appear, and the gold dot is shown now.</div>
+  </div>
+  <div class="col">
+    <div class="phone" id="p-no"></div>
+    <div class="cap">Answered <b>No</b>: logged normally, not a PR. Next time: same weight, clean reps.</div>
+  </div>
+</div>
+
+<h2>4. Edit plan: main sets and warm-up sets</h2>
+<div class="row">
+  <div class="col">
+    <div class="phone" id="p-plan"></div>
+    <div class="cap">Each exercise gets <b>Main sets</b> and <b>Warm-up sets</b>. Existing exercises keep their sets as main sets and start with 0 warm-ups; you set them where you want them.</div>
+  </div>
+  <div class="col">
+    <div class="doc legend">
+      <h3>How the colours work (the line chart)</h3>
+      <div><span class="dot" style="background:var(--green)"></span>Green dot: a normal session.</div>
+      <div><span class="dot" style="background:var(--gold);box-shadow:0 0 0 3px rgba(255,197,61,.25)"></span>Gold dot with ★: a PR. Top of the rep range at the working weight and form confirmed clean.</div>
+      <div><span class="dot" style="background:transparent;border:2px solid var(--green)"></span>Hollow green: you reached the top reps but said the form was not clean. Not a PR.</div>
+      <div style="margin-top:8px">When your last session is a PR, the exercise screen shows the gold banner and the workout list shows a gold chip. As soon as you log a session at a higher weight, the banner is gone and the new weight starts a fresh run of green dots. Gold dots from earlier PRs stay on the chart.</div>
+
+      <h3>What the app says to do next</h3>
+      <table>
+        <tr><th>Last session</th><th>Next time</th></tr>
+        <tr><td>PR, clean form</td><td>★ Increase weight to the 1RM weight (below)</td></tr>
+        <tr><td>Top reps, not clean</td><td>Same weight, aim for clean reps</td></tr>
+        <tr><td>Below the top reps, at or above the minimum</td><td>Same weight, beat last reps (green)</td></tr>
+        <tr><td>Below the minimum reps</td><td>Bring to maintenance (as now)</td></tr>
+      </table>
+
+      <h3>The 1RM maths (Epley, as your app uses today)</h3>
+      <div>1RM = weight × (1 + reps ÷ 30). Next weight = 1RM ÷ (1 + minimum reps ÷ 30), rounded to the nearest 2.5 kg. No cap for now.</div>
+      <table>
+        <tr><th>Did</th><th>1RM</th><th>Next (min 8 reps)</th></tr>
+        <tr><td>60 kg × 16</td><td>92.0 kg</td><td><b>72.5 kg</b></td></tr>
+        <tr><td>50 kg × 16</td><td>76.7 kg</td><td><b>60 kg</b></td></tr>
+        <tr><td>40 kg × 16</td><td>61.3 kg</td><td><b>47.5 kg</b></td></tr>
+      </table>
+      <div class="note">The 1RM is also shown after every set you log ("Est. 1RM about 92 kg"), not only on PRs.</div>
+
+      <h3>Warm-up weights (reference only)</h3>
+      <div>1 warm-up: 75%. 2 warm-ups: 75% and 90% (as today). 3 warm-ups: 60%, 75% and 90%. Never logged, never counted.</div>
+
+      <h3>What counts as "done" on the workout list</h3>
+      <div>An exercise is done when all its <b>main</b> sets are logged. Warm-ups are ignored. "Remaining" hides done ones.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const GOLD = "#ffc53d", GREEN = "#2ee887";
+const tabbar = on => `<div class="tabbar"><div class="tab ${on === 0 ? "on" : ""}"><i></i>Workout</div><div class="tab ${on === 1 ? "on" : ""}"><i></i>Body</div><div class="tab ${on === 2 ? "on" : ""}"><i></i>Progress</div><div class="tab"><i></i>More</div></div>`;
+const status = `<div class="status"><span>9:41</span><span>●●●</span></div>`;
+
+/* ---------- Workout list ---------- */
+const CHIP = {
+  pr: n => `<span class="chip gold"><b>★</b> Go to ${n}</span>`,
+  reps: `<span class="chip green">Increase reps</span>`,
+  flat: `<span class="chip amber">Flat</span>`,
+  repeat: `<span class="chip amber">Same weight, clean</span>`,
+};
+const EXERCISES = [
+  { n: "Chest Press Machine", m: "Chest · 1 × 6–10", done: 1, of: 1, kg: 55, spark: "50,52.5,52.5,55,55,55", chip: CHIP.reps },
+  { n: "Incline Dumbbell Press", m: "Chest · 1 × 8–12", done: 1, of: 1, kg: 24, spark: "20,22,22,24,24,24", chip: CHIP.reps },
+  { n: "Cable Fly", m: "Chest · 1 × 10–15", done: 1, of: 1, kg: 18, spark: "14,16,16,18,18,18", chip: CHIP.flat },
+  { n: "Triceps Pushdown", m: "Triceps · 1 × 10–15", done: 1, of: 1, kg: 35, spark: "30,30,32.5,32.5,35,35", chip: CHIP.reps },
+  { n: "Leg Extensions", m: "Quads · 1 × 8–16", done: 0, of: 1, kg: 60, spark: "50,50,60,60,60,60", chip: CHIP.pr("72.5") },
+  { n: "Lat Pulldown", m: "Lats · 1 × 8–12", done: 0, of: 1, kg: 50, spark: "45,45,47.5,47.5,50,50", chip: CHIP.reps },
+  { n: "Seated Cable Row", m: "Back · 2 × 8–12", done: 0, of: 2, kg: 45, spark: "40,42.5,42.5,45,45,45", chip: CHIP.reps },
+  { n: "Face Pulls", m: "Shoulders · 1 × 12–15", done: 0, of: 1, kg: 28, spark: "22,25,25,28,28,28", chip: CHIP.repeat },
+  { n: "Biceps Curl", m: "Biceps · 1 × 8–12", done: 0, of: 1, kg: 16, spark: "12,14,14,14,16,16", chip: CHIP.reps },
+  { n: "Hammer Curl", m: "Biceps · 1 × 8–12", done: 0, of: 1, kg: 16, spark: "12,12,14,14,16,16", chip: CHIP.reps },
+  { n: "Hip Abduction Machine", m: "Abductors · 1 × 12–15", done: 0, of: 1, kg: 60, spark: "50,55,55,60,60,60", chip: CHIP.reps },
+];
+function card(e) {
+  const ring = e.of ? e.done / e.of : 0;
+  return `<div class="card ex ${e.done >= e.of ? "done" : ""}">
+    <div data-ring="${ring}" data-size="44" data-stroke="5" data-label="${e.done}/${e.of}"></div>
+    <div class="info"><div class="name">${e.n}</div><div class="meta">${e.m}</div></div>
+    <svg data-spark="${e.spark}" width="54" height="26"></svg>
+    <div class="right"><div class="kg">${e.kg}<span class="unit">kg</span></div>${e.chip}</div></div>`;
+}
+function workoutPhone(id, mode) {
+  const list = mode === "empty" ? [] : mode === "remaining" ? EXERCISES.filter(e => e.done < e.of) : EXERCISES;
+  const doneAll = mode === "empty";
+  const total = 17, doneCount = doneAll ? 17 : 4;
+  document.getElementById(id).innerHTML = `${status}<div class="content">
+    <div class="topbar"><div class="title"><small>Monday, 26 Oct</small>Workout</div><div class="link">Edit day</div></div>
+    <div class="seg"><div class="on">Day 1</div><div>Day 2</div><div>Day 3</div><div class="add">+</div></div>
+    <div class="card hero" style="margin-top:12px">
+      <div data-ring="${doneCount / total}" data-size="92" data-stroke="9" data-label="${doneCount}/${total}" data-sub="done"></div>
+      <div><div class="label">Day 1</div><div class="big" style="font-size:22px">Legs + Chest</div>
+        <div class="stats"><div class="stat"><b>${total}</b><span>exercises</span></div><div class="stat"><b>19</b><span>main sets</span></div><div class="stat"><b style="color:var(--gold)">${doneAll ? 0 : 1}</b><span>PR to beat</span></div></div></div>
+    </div>
+    <div class="filter"><div class="${mode === "all" ? "on" : ""}">All<small>17</small></div><div class="${mode !== "all" ? "on" : ""}">Remaining<small>${doneAll ? 0 : 13}</small></div></div>
+    ${doneAll ? `<div class="card empty"><div class="big">All done ✓</div><p>Every exercise for today is logged. Nice work.</p><div class="btn ghost sm">Show all exercises</div></div>` : list.map(card).join("")}
+  </div>${tabbar(0)}`;
+}
+workoutPhone("p-all", "all");
+workoutPhone("p-rem", "remaining");
+workoutPhone("p-empty", "empty");
+
+/* ---------- Line chart with gold PR dots ---------- */
+function prChart(id, pts, opts) {
+  const w = 330, h = 168, L = 18, R = 30, T = 26, B = 36;
+  const vals = pts.map(p => p.kg), min = Math.min(...vals) - 4, max = Math.max(...vals) + 4;
+  const x = i => L + i * (w - L - R) / (pts.length - 1), y = v => T + (max - v) / (max - min) * (h - T - B);
+  let s = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`;
+  for (let g = 0; g < 4; g++) { const gy = T + g * (h - T - B) / 3; s += `<line x1="${L}" x2="${w - R}" y1="${gy}" y2="${gy}" stroke="#232a26"/>`; }
+  const line = pts.map((p, i) => `${x(i)},${y(p.kg)}`).join(" ");
+  s += `<polygon points="${line} ${x(pts.length - 1)},${h - B} ${x(0)},${h - B}" fill="${GREEN}" opacity="0.10"/>`;
+  s += `<polyline points="${line}" fill="none" stroke="${GREEN}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  pts.forEach((p, i) => {
+    const cx = x(i), cy = y(p.kg), last = i === pts.length - 1;
+    if (p.pr) {
+      if (last) s += `<circle cx="${cx}" cy="${cy}" r="13" fill="${GOLD}" opacity="0.18"/>`;
+      s += `<circle cx="${cx}" cy="${cy}" r="${last ? 7 : 5.5}" fill="${GOLD}" stroke="#141816" stroke-width="2"/>`;
+      s += `<text x="${cx}" y="${cy - (last ? 14 : 11)}" text-anchor="middle" font-size="${last ? 12 : 11}" font-weight="800" fill="${GOLD}">★ ${p.kg}</text>`;
+    } else if (p.hollow) {
+      s += `<circle cx="${cx}" cy="${cy}" r="5" fill="#141816" stroke="${GREEN}" stroke-width="2.2"/>`;
+      s += `<text x="${cx}" y="${cy - 11}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${GREEN}">${p.kg}</text>`;
+    } else {
+      s += `<circle cx="${cx}" cy="${cy}" r="3.8" fill="${GREEN}"/>`;
+      s += `<text x="${cx}" y="${cy - 9}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${GREEN}">${p.kg}</text>`;
+    }
+    s += `<text x="${cx}" y="${h - 17}" text-anchor="middle" font-size="9.5" fill="#8a9690">${p.d}</text>`;
+    s += `<text x="${cx}" y="${h - 5}" text-anchor="middle" font-size="9.5" font-weight="${p.pr ? 800 : 500}" fill="${p.pr ? GOLD : "#8a9690"}">×${p.r}</text>`;
+  });
+  document.getElementById(id).innerHTML = s + `</svg>`;
+}
+const LEG = [
+  { d: "16 Sep", kg: 50, r: 12 }, { d: "23 Sep", kg: 50, r: 16, pr: 1 }, { d: "30 Sep", kg: 60, r: 9 },
+  { d: "7 Oct", kg: 60, r: 12 }, { d: "14 Oct", kg: 60, r: 14 }, { d: "21 Oct", kg: 60, r: 16, pr: 1 },
+];
+const LEG_NOFORM = LEG.map((p, i) => i === 5 ? { d: p.d, kg: p.kg, r: p.r, hollow: 1 } : p);
+const LAT = [
+  { d: "16 Sep", kg: 45, r: 12 }, { d: "23 Sep", kg: 45, r: 14 }, { d: "30 Sep", kg: 47.5, r: 10 },
+  { d: "7 Oct", kg: 47.5, r: 12 }, { d: "14 Oct", kg: 50, r: 13 }, { d: "21 Oct", kg: 50, r: 11 },
+];
+
+/* ---------- Exercise screens ---------- */
+const chartCard = (id, caption) => `<div class="card section"><div class="head"><div class="label">Best set per session</div><span class="label" style="color:var(--green)">kg above each point · reps below</span></div><div id="${id}" style="margin-top:6px"></div><div class="label" style="text-transform:none;letter-spacing:0;margin-top:2px">${caption}</div></div>`;
+const warmups = (n, kg) => {
+  const sets = n === 1 ? [[75, 0.75]] : n === 2 ? [[75, .75], [90, .9]] : n === 3 ? [[60, .6], [75, .75], [90, .9]] : [];
+  return sets.map(([p, f]) => `<div class="warm"><span>${p}% of working weight</span><b>${(kg * f).toFixed(2).replace(/\.?0+$/, "")} kg</b></div>`).join("");
+};
+const howTo = `<div class="card section"><div class="head"><div class="label">How to</div><div class="link" style="font-size:12px">Edit</div></div><div class="instr">Pad on the lower shins. Extend fully, pause for a second, lower slowly.</div></div>`;
+const musclesCard = `<div class="card section"><div class="head"><div class="label">Muscles worked</div><div class="link" style="font-size:12px">Edit</div></div><div style="display:flex;gap:12px;align-items:center;margin-top:8px"><div style="width:84px;height:84px;border-radius:12px;background:#101412;border:1px solid var(--line)"></div><div style="font-size:12px"><div class="label" style="font-size:10px">Primary</div><div style="color:var(--green);font-weight:700">Quads (all four heads)</div><div class="label" style="font-size:10px;margin-top:6px">Secondary</div><div style="color:#7fd9ab">Hip flexors</div></div></div></div>`;
+
+function logCard(opts) {
+  const warm = opts.warm.map((w, i) => `<div class="setrow ref"><div class="n warm">W</div><div class="v">${w}</div><span class="tag">warm-up · reference</span></div>`).join("");
+  const sets = opts.sets.map((s, i) => `<div class="setrow"><div class="n done">${i + 1}</div><div class="v">${s}</div><span style="color:var(--green)">✎</span><span style="color:#ff6b6b">🗑</span></div>`).join("");
+  const empty = opts.sets.length < opts.main ? `<div class="setrow"><div class="n">${opts.sets.length + 1}</div><div class="v"><span>${opts.empty}</span></div><span class="tag">tap to log</span></div>` : "";
+  return `<div class="card section">
+    <div class="head"><div class="label">Log sets · today</div><span class="label" style="color:var(--green)">${opts.sets.length} of ${opts.main}</span></div>
+    ${opts.warm.length ? `<div class="label" style="margin:8px 0 0;font-size:10px">Warm up first (not logged)</div>${warm}<div style="height:1px;background:var(--line);margin:6px 0"></div><div class="label" style="font-size:10px">Main set</div>` : ""}
+    ${sets}${empty}
+    ${opts.rm ? `<div class="rm"><span>Est. 1RM (Epley)</span><b>${opts.rm}</b></div>` : ""}
+    <div class="btn">+ Add set</div></div>`;
+}
+function exercisePhone(id, o) {
+  document.getElementById(id).innerHTML = `${status}<div class="content">
+    <div class="back">‹ Back</div>
+    <div class="topbar" style="align-items:flex-start"><div class="title" style="font-size:26px"><small>${o.meta}</small>${o.name}</div>${o.badge}</div>
+    ${o.banner}
+    ${o.body}
+  </div>`;
+  if (o.chart) prChart(o.chart.id, o.chart.pts);
+}
+
+/* PR state */
+const prBanner = `<div class="banner pr section" style="margin-top:10px">
+  <div class="k">★ PR last time · clean form</div>
+  <div class="h">Increase weight to 72.5 kg</div>
+  <div class="p">You did 60 kg × 16 at the top of your range. Start at 72.5 kg and aim for 8 reps or more.</div>
+  <div class="rm"><span>Est. 1RM from 60 kg × 16</span><b>92 kg</b></div>
+  <div class="rm" style="border:0;margin-top:2px;padding-top:0"><span>At 8 reps the 1RM allows</span><b class="arrow">72.5 kg</b></div>
+</div>`;
+const doToday = (kg, goldKg) => `<div class="card section"><div class="head"><div class="label">Do today</div><span class="chip ${goldKg ? "gold" : "green"}">${goldKg ? "<b>★</b> New weight" : "Increase reps"}</span></div>
+  <div class="kgbig"><span class="n ${goldKg ? "gold" : ""}">${kg}</span><span class="unit">kg</span></div>
+  <div style="font-size:12.5px;color:var(--muted);margin-top:2px">8–16 reps · 1 main set</div>
+  <div style="height:1px;background:var(--line);margin:10px 0 4px"></div>
+  <div class="label" style="font-size:10px">Warm-ups (reference)</div>${warmups(2, kg)}</div>`;
+
+exercisePhone("p-pr", {
+  name: "Leg Extensions", meta: "Quads · 1 main set · 8–16 reps", badge: `<span class="chip gold" style="margin-top:6px"><b>★</b> PR</span>`,
+  banner: prBanner,
+  body: doToday("72.5", true) + chartCard("c1", "Gold ★ dots are PRs. The last one is your latest session."),
+  chart: { id: "c1", pts: LEG },
+});
+exercisePhone("p-pr2", {
+  name: "Leg Extensions", meta: "Quads · 1 main set · 8–16 reps", badge: `<span class="chip gold" style="margin-top:6px"><b>★</b> PR</span>`,
+  banner: `<div class="banner pr section" style="margin-top:10px;padding:10px 14px"><div class="k">★ Increase to 72.5 kg today</div></div>`,
+  body: howTo + musclesCard + logCard({ warm: ["54.38 kg × a few easy reps", "65.25 kg × 1–2 reps"], sets: [], main: 1, empty: "72.5 kg × 12 reps" }),
+});
+exercisePhone("p-noform", {
+  name: "Leg Extensions", meta: "Quads · 1 main set · 8–16 reps", badge: `<span class="chip amber" style="margin-top:6px">Same weight</span>`,
+  banner: `<div class="banner repeat section" style="margin-top:10px"><div class="k">Repeat · aim for clean reps</div><div class="h" style="font-size:20px">Stay at 60 kg</div><div class="p">Last time you reached 16 reps but said the form was not clean. Hit them again with a full contraction on every rep, then it counts as a PR.</div></div>`,
+  body: doToday("60", false).replace('chip green">Increase reps', 'chip amber">Clean reps') + chartCard("c2", "Hollow dot: top reps reached, form not clean. Not a PR."),
+  chart: { id: "c2", pts: LEG_NOFORM },
+});
+exercisePhone("p-normal", {
+  name: "Lat Pulldown", meta: "Lats · 1 main set · 8–12 reps", badge: `<span class="chip green" style="margin-top:6px">▲ Improving</span>`,
+  banner: `<div class="banner go section" style="margin-top:10px"><div class="k">Increase reps</div><div class="h" style="font-size:20px">Beat 11 reps at 50 kg</div></div>`,
+  body: doToday("50", false) + chartCard("c3", "All green: keep going at this weight."),
+  chart: { id: "c3", pts: LAT },
+});
+
+/* ---------- Logging flow ---------- */
+const behindList = `${status}<div class="content"><div class="back">‹ Back</div><div class="topbar"><div class="title" style="font-size:26px"><small>Quads · 1 main set · 8–16 reps</small>Leg Extensions</div></div>
+  <div class="card section"><div class="label">Do today</div><div class="kgbig"><span class="n">60</span><span class="unit">kg</span></div></div></div><div class="dim"></div>`;
+document.getElementById("p-add").innerHTML = behindList + `<div class="sheet"><div class="grab"></div><div class="ttl">Leg Extensions</div><div class="cap2">Main set 1 of 1 · range 8–16 reps</div>
+  <div class="pair" style="margin-top:14px">
+    <div class="stp"><div class="lbl">Weight</div><div class="ctl"><div class="btnr">−</div><div class="val">60<small>kg</small></div><div class="btnr">+</div></div><div class="hint">steps of <b>2.5 kg</b></div></div>
+    <div class="stp"><div class="lbl">Reps</div><div class="ctl"><div class="btnr">−</div><div class="val">12</div><div class="btnr">+</div></div><div class="hint">starts in the middle of <b>8–16</b></div></div>
+  </div>
+  <div class="note" style="text-align:center">Tap a number to type it with the keyboard instead.<br>The reps are not limited to 8–16: go lower or higher if that is what happened.</div>
+  <div class="btn" style="margin-top:14px">Save set</div>
+  <div class="note" style="text-align:center;margin-top:8px">Middle rule: (min + max) ÷ 2, rounded up. 8–16 gives 12. 10–15 gives 13.</div></div>`;
+
+document.getElementById("p-form").innerHTML = behindList + `<div class="sheet"><div class="grab"></div><div class="ttl">60 kg × 16 saved</div><div class="cap2">That is the top of your range at the working weight.</div>
+  <div class="card" style="margin-top:14px;text-align:center;background:var(--card-2)"><div class="label">Est. 1RM</div><div class="big" style="font-size:28px">92 kg</div></div>
+  <div style="font-size:17px;font-weight:700;text-align:center;margin-top:16px">Did every rep have a full contraction?</div>
+  <div class="yn"><div class="yes">Yes, clean<small>counts as a PR</small></div><div class="no">No, it was loose<small>not a PR</small></div></div>
+  <div class="note" style="text-align:center">Swinging the weight or cutting reps short is not a PR, even at max reps. Asked once for the whole exercise, only when you hit the top reps.</div></div>`;
+
+document.getElementById("p-yes").innerHTML = `${status}<div class="content"><div class="back">‹ Back</div><div class="topbar"><div class="title" style="font-size:26px"><small>Quads · 1 main set · 8–16 reps</small>Leg Extensions</div><span class="chip gold" style="margin-top:6px"><b>★</b> PR</span></div>
+  <div class="toast section" style="margin-top:10px">★ PR logged. Next time: 72.5 kg.</div>
+  <div class="card"><div class="head"><div class="label">Best set per session</div></div><div id="c4" style="margin-top:6px"></div></div>
+  ${logCard({ warm: [], sets: ["60 kg × 16 reps"], main: 1, rm: "≈ 92 kg" })}</div>`;
+prChart("c4", LEG.slice(0, 5).concat([{ d: "26 Oct", kg: 60, r: 16, pr: 1 }]));
+
+document.getElementById("p-no").innerHTML = `${status}<div class="content"><div class="back">‹ Back</div><div class="topbar"><div class="title" style="font-size:26px"><small>Quads · 1 main set · 8–16 reps</small>Leg Extensions</div></div>
+  <div class="toast calm section" style="margin-top:10px">Logged. Not counted as a PR: same weight next time, clean reps.</div>
+  <div class="card"><div class="head"><div class="label">Best set per session</div></div><div id="c5" style="margin-top:6px"></div></div>
+  ${logCard({ warm: [], sets: ["60 kg × 16 reps"], main: 1, rm: "≈ 92 kg" })}</div>`;
+prChart("c5", LEG.slice(0, 5).concat([{ d: "26 Oct", kg: 60, r: 16, hollow: 1 }]));
+
+/* ---------- Edit plan ---------- */
+document.getElementById("p-plan").innerHTML = `${status}<div class="content"><div class="back">‹ More</div><div class="title" style="font-size:30px">Edit plan</div>
+  <div class="seg small"><div class="on">Name by numbers</div><div>Name by weekdays</div></div>
+  <div class="card" style="margin-top:12px"><div class="head"><div><div style="font-size:17px;font-weight:700">Day 1</div><div class="label" style="text-transform:none;letter-spacing:0;margin-top:2px">Legs + Chest · 17 exercises</div></div><span class="chip grey">Mon</span></div></div>
+  <div class="card list" style="margin-top:8px;padding:2px 14px">
+    <div class="li"><div><div style="font-weight:600">Leg Extensions</div><span>1 main · 2 warm-up · 8–16 reps</span></div><span style="color:var(--green)">Edit ≡</span></div>
+    <div class="li"><div><div style="font-weight:600">Chest Press Machine</div><span>1 main · 0 warm-up · 6–10 reps</span></div><span style="color:var(--green)">Edit ≡</span></div>
+    <div class="li"><div><div style="font-weight:600">Lat Pulldown</div><span>1 main · 1 warm-up · 8–12 reps</span></div><span style="color:var(--green)">Edit ≡</span></div>
+  </div>
+  </div><div class="dim"></div>
+  <div class="sheet"><div class="grab"></div><div class="ttl">Leg Extensions</div><div class="cap2">Day 1</div>
+    <div class="pair" style="margin-top:14px">
+      <div class="stp"><div class="lbl">Main sets</div><div class="ctl"><div class="btnr">−</div><div class="val">1</div><div class="btnr">+</div></div><div class="hint">logged and counted</div></div>
+      <div class="stp"><div class="lbl">Warm-up sets</div><div class="ctl"><div class="btnr">−</div><div class="val">2</div><div class="btnr">+</div></div><div class="hint">reference only, <b>not logged</b></div></div>
+    </div>
+    <div class="pair" style="margin-top:10px">
+      <div class="stp"><div class="lbl">Min reps</div><div class="ctl"><div class="btnr">−</div><div class="val">8</div><div class="btnr">+</div></div></div>
+      <div class="stp"><div class="lbl">Max reps</div><div class="ctl"><div class="btnr">−</div><div class="val">16</div><div class="btnr">+</div></div></div>
+    </div>
+    <div class="note" style="text-align:center">The workout list shows 0/1 for this exercise. The two warm-ups appear on the exercise screen at 75% and 90% of the working weight.</div>
+    <div class="btn" style="margin-top:12px">Save</div></div>`;
+</script>
+</body>
+</html>
