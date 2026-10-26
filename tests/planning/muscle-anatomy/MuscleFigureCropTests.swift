@@ -22,14 +22,27 @@ final class MuscleFigureCropTests: XCTestCase {
         XCTAssertEqual(views(primary(.deltSide)), [.front, .back])
     }
 
-    // Scenario: The card zooms on the primary muscles only
-    func testSecondaryMusclesDoNotAddAPicture() {
+    // Scenario: A secondary muscle on the other side of the body gets its own picture
+    func testASecondaryMuscleOnTheOtherSideAddsItsOwnPicture() {
         let latPulldown = primary(.lats) + [
             MuscleAssignment(part: .biceps, role: .secondary),
             MuscleAssignment(part: .deltRear, role: .secondary),
             MuscleAssignment(part: .teres, role: .secondary),
         ]
-        XCTAssertEqual(views(latPulldown), [.back])
+        XCTAssertEqual(views(latPulldown), [.front, .back])
+    }
+
+    func testLegExtensionWithHamstringsAddedShowsTheFrontAndTheBack() {
+        let legExtension = primary(.quadRectus, .quadOuter, .quadInner) + [MuscleAssignment(part: .hamOuter, role: .secondary)]
+        XCTAssertEqual(views(legExtension), [.front, .back])
+    }
+
+    func testSecondaryMusclesOnTheSameSideAreFramedWithThePrimaryOnes() throws {
+        let primaryOnly = try XCTUnwrap(MuscleFigureCrop.frames(for: primary(.lats)).first).rect
+        let withSecondary = try XCTUnwrap(MuscleFigureCrop.frames(for: primary(.lats) + [MuscleAssignment(part: .hamOuter, role: .secondary)])
+            .first { $0.view == .back }).rect
+
+        XCTAssertGreaterThan(withSecondary.height, primaryOnly.height, "the back frame now reaches down to the hamstrings")
     }
 
     func testWhenNothingIsPrimaryTheSecondaryMusclesAreFramed() {

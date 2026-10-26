@@ -14,11 +14,10 @@ public enum MuscleFigureCrop {
     /// Smallest frame side, so a small muscle still shows where on the body it is.
     public static let minimumSide = 90.0
 
-    /// One frame per side of the body that holds a primary muscle (front first). With no primary muscle, every
-    /// chosen muscle is framed instead. Secondary muscles are not framed; they show only where they fall inside.
+    /// One frame per side of the body that holds a chosen muscle (front first), framing every chosen muscle drawn on that
+    /// side, primary or secondary. A secondary muscle on the other side therefore gets its own picture.
     public static func frames(for muscles: [MuscleAssignment]) -> [MuscleFrame] {
-        let primary = muscles.filter { $0.role == .primary }
-        let framed = (primary.isEmpty ? muscles : primary).map(\.part)
+        let framed = muscles.map(\.part)
         return BodyView.allCases.compactMap { view in
             frame(for: framed, view: view).map { MuscleFrame(view: view, rect: $0) }
         }
