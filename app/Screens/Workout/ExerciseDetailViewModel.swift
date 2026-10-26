@@ -210,6 +210,11 @@ final class ExerciseDetailViewModel: ObservableObject {
         return "starts in the middle of \(Format.number(target.minReps))–\(Format.number(target.maxReps))"
     }
 
+    /// "≈ 92 kg" once a set is logged today, from the best set (Epley).
+    var oneRepMaxText: String? {
+        detail?.todayOneRepMax.map { "≈ \(Format.number($0, maxDecimals: 1)) kg" }
+    }
+
     var prefillWeightText: String { detail?.prefill.weightKg.map { Format.number($0) } ?? "" }
     var prefillRepsText: String { detail.map { String($0.prefill.reps) } ?? "" }
 

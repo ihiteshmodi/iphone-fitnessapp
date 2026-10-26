@@ -48,6 +48,9 @@ final class WorkoutFlowUITests: XCTestCase {
 
         let row = app.descendants(matching: .any)["today-set-1"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
+        // The saved set is 54 kg × 8, so the estimated 1RM is 54 × (1 + 8/30) = 68.4.
+        XCTAssertTrue(app.staticTexts["one-rep-max"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["one-rep-max"].label, "≈ 68.4 kg")
         attach(app, named: "detail-after-save")
     }
 

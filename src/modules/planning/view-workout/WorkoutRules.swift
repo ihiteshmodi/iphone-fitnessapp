@@ -72,7 +72,7 @@ public struct ExerciseSession: Equatable {
 }
 
 public enum SessionHistory {
-    /// Epley: weight x (1 + reps / 30).
+    /// Epley: weight x (1 + reps / 30). See `OneRepMax` for what it is used for.
     public static func epleyEstimate(weightKg: Double, reps: Int) -> Double {
         weightKg * (1 + Double(reps) / 30)
     }

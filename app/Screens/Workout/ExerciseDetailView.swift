@@ -198,6 +198,15 @@ private struct ExerciseDetailContent: View {
             ForEach(vm.emptySlotNumbers, id: \.self) { number in
                 emptyRow(number: number)
             }
+            if let oneRepMax = vm.oneRepMaxText {
+                HStack {
+                    Text("Est. 1RM (Epley)").font(.system(size: 13)).foregroundColor(Theme.muted)
+                    Spacer()
+                    Text(oneRepMax).font(.system(size: 14, weight: .bold)).foregroundColor(Theme.text)
+                        .accessibilityIdentifier("one-rep-max")
+                }
+                .padding(.top, 4)
+            }
             Button { showingAddSet = true } label: { Text("+ Add set") }
                 .buttonStyle(PrimaryButtonStyle())
                 .padding(.top, 4)

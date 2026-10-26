@@ -102,3 +102,24 @@ Feature: Exercise detail with progress trend and inline logging
     Given "Squats" has no sets since the baseline
     When I open it
     Then I see "No history yet", the trend is "Not enough data", and I can still log a first set
+
+  Scenario: The estimated 1RM is shown after every logged set
+    Given today I logged 60 kg × 16
+    When I open the exercise
+    Then it says "Est. 1RM about 92 kg" (Epley: weight × (1 + reps ÷ 30))
+    And with several sets today it uses the best one
+
+  Scenario Outline: The next weight comes from the 1RM at the minimum reps
+    Given I did <weight> kg × <reps> and the minimum reps are <min>
+    Then the next weight is <next> kg (1RM ÷ (1 + min ÷ 30), rounded to the nearest 2.5 kg)
+
+    Examples:
+      | weight | reps | min | next |
+      | 60     | 16   | 8   | 72.5 |
+      | 50     | 16   | 8   | 60   |
+      | 40     | 16   | 8   | 47.5 |
+      | 60     | 16   | 14  | 62.5 |
+
+  Scenario: The next weight is always above the weight just lifted
+    Given the formula would give the same weight or lower
+    Then the next weight is one step (2.5 kg) above

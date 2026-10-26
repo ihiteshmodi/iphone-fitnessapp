@@ -68,6 +68,8 @@ public struct ExerciseDetail: Equatable {
     /// Up to 10 sessions strictly before today, newest first.
     public let history: [ExerciseSession]
     public let todaySets: [PerformedSet]
+    /// Best estimated 1RM among today's sets; nil before the first set today.
+    public let todayOneRepMax: Double?
     public let targetSets: Int
     public let prefill: SetFormPrefill
     /// The muscles this exercise trains (chosen by the user, or automatic).
@@ -128,6 +130,8 @@ public final class ExerciseDetailService {
         // The history list is a log, so it keeps deload sessions (their sets carry the deload flag).
         let loggedBefore = SessionHistory.sessions(from: allSets).filter { $0.date < today }
 
+        let todaySets = try history.sets(exerciseId: exerciseId, on: today)
+
         return ExerciseDetail(
             exercise: entry.exercise,
             hasHistory: heaviest != nil,
@@ -141,7 +145,8 @@ public final class ExerciseDetailService {
             sessions: Array(sessions.suffix(Self.chartSessions)),
             trend: ExerciseTrend.classify(sessions.map(\.estimatedOneRepMax)),
             history: Array(loggedBefore.reversed().prefix(Self.historySessions)),
-            todaySets: try history.sets(exerciseId: exerciseId, on: today),
+            todaySets: todaySets,
+            todayOneRepMax: todaySets.map { OneRepMax.estimate(weightKg: $0.weightKg, reps: $0.reps) }.max(),
             targetSets: entry.sets,
             prefill: SetFormPrefill(weightKg: target.workingWeight, reps: RepRange.middle(min: target.minReps, max: target.maxReps)),
             muscles: try ExerciseMuscleService(db).muscles(exerciseId: exerciseId))
