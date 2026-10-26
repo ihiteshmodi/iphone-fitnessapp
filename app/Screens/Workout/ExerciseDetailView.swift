@@ -16,6 +16,8 @@ private struct ExerciseDetailContent: View {
     @EnvironmentObject private var session: AppSession
     @StateObject private var vm: ExerciseDetailViewModel
     @State private var showingAddSet = false
+    @State private var editingSet: EditableSet?
+    @State private var expandedSessions: Set<String> = []
     @State private var showingHowToEditor = false
     @State private var showingMuscleEditor = false
 
@@ -33,6 +35,7 @@ private struct ExerciseDetailContent: View {
                     howTo
                     musclesWorked
                     logSets
+                    earlierSessions
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
@@ -43,6 +46,9 @@ private struct ExerciseDetailContent: View {
         .task(id: session.revision) { vm.load() }
         .sheet(isPresented: $showingAddSet) {
             DetailAddSetSheet(vm: vm, onSaved: { session.didChange() })
+        }
+        .sheet(item: $editingSet) { set in
+            DetailAddSetSheet(vm: vm, editing: set, onSaved: { session.didChange() })
         }
         .sheet(isPresented: $showingHowToEditor) {
             DetailHowToEditor(vm: vm, onSaved: { session.didChange() })
@@ -57,7 +63,7 @@ private struct ExerciseDetailContent: View {
             }
         }
         // The sheets show their own errors; two alerts bound to one message would fight.
-        .errorAlert(showingAddSet || showingHowToEditor || showingMuscleEditor ? .constant(nil) : $vm.errorMessage)
+        .errorAlert(showingAddSet || editingSet != nil || showingHowToEditor || showingMuscleEditor ? .constant(nil) : $vm.errorMessage)
     }
 
     // MARK: 1. Header
@@ -216,6 +222,14 @@ private struct ExerciseDetailContent: View {
             if set.isDeload { Pill(text: "Deload", tone: .amber) }
             Spacer()
             Button {
+                editingSet = EditableSet(id: set.id, weightKg: set.weightKg, reps: set.reps, date: set.date)
+            } label: {
+                Image(systemName: "pencil").font(.system(size: 14)).foregroundColor(Theme.green)
+                    .frame(width: 36, height: 36)
+            }
+            .accessibilityLabel("Edit set \(number)")
+            .accessibilityIdentifier("edit-set-\(number)")
+            Button {
                 if vm.deleteSet(id: set.id) { session.didChange() }
             } label: {
                 Image(systemName: "trash").font(.system(size: 14)).foregroundColor(Theme.red)
@@ -241,6 +255,76 @@ private struct ExerciseDetailContent: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("empty-set-\(number)")
+    }
+    // MARK: 7. Earlier sessions (correct or delete sets from other days)
+
+    private var earlierSessions: some View {
+        Group {
+            if !vm.earlierSessions.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionLabel("Earlier sessions")
+                    ForEach(vm.earlierSessions, id: \.date) { sessionDay in
+                        earlierSessionRow(sessionDay)
+                    }
+                    if vm.hasMoreEarlier {
+                        Button("Show all sessions") { vm.showAllEarlier() }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(Theme.green)
+                            .accessibilityIdentifier("show-all-sessions-button")
+                    }
+                }
+                .card()
+            }
+        }
+    }
+
+    private func earlierSessionRow(_ day: SetSession) -> some View {
+        let key = day.date.string
+        let open = expandedSessions.contains(key)
+        return VStack(alignment: .leading, spacing: 8) {
+            Button {
+                if open { expandedSessions.remove(key) } else { expandedSessions.insert(key) }
+            } label: {
+                HStack {
+                    Text(Format.longDate(day.date)).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
+                    Text("\(day.sets.count) \(day.sets.count == 1 ? "set" : "sets")").font(.system(size: 13)).foregroundColor(Theme.muted)
+                    Spacer()
+                    Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 12)).foregroundColor(Theme.muted)
+                }
+                .frame(minHeight: 32)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("session-\(key)")
+            if open {
+                ForEach(Array(day.sets.enumerated()), id: \.element.id) { index, set in
+                    earlierSetRow(number: index + 1, set: set)
+                }
+            }
+        }
+    }
+
+    private func earlierSetRow(number: Int, set: LoggedSet) -> some View {
+        HStack(spacing: 12) {
+            numberCircle(number, done: true)
+            (Text("\(Format.number(set.weightKg)) kg ").font(.system(size: 16, weight: .bold)).foregroundColor(Theme.text)
+                + Text("× \(set.reps) reps").font(.system(size: 14)).foregroundColor(Theme.muted))
+            Spacer()
+            Button {
+                editingSet = EditableSet(id: set.id, weightKg: set.weightKg, reps: set.reps, date: set.date)
+            } label: {
+                Image(systemName: "pencil").font(.system(size: 14)).foregroundColor(Theme.green).frame(width: 36, height: 36)
+            }
+            .accessibilityLabel("Edit set \(number) on \(set.date.string)")
+            .accessibilityIdentifier("edit-earlier-set-\(set.id)")
+            Button {
+                if vm.deleteSet(id: set.id) { session.didChange() }
+            } label: {
+                Image(systemName: "trash").font(.system(size: 14)).foregroundColor(Theme.red).frame(width: 36, height: 36)
+            }
+            .accessibilityLabel("Delete set \(number) on \(set.date.string)")
+            .accessibilityIdentifier("delete-earlier-set-\(set.id)")
+        }
     }
 }
 

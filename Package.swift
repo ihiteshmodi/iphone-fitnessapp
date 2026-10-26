@@ -19,6 +19,7 @@ let package = Package(
             path: "tests",
             exclude: [
                 "data/import-export-database/import-export-database.feature",
+                "logging/edit-sets/edit-sets.feature",
                 "logging/log-body-metrics/log-body-metrics.feature",
                 "logging/log-sets/log-sets.feature",
                 "nutrition/calorie-target/calorie-target.feature",

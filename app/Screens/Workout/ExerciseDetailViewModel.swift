@@ -5,9 +5,13 @@ import Foundation
 @MainActor
 final class ExerciseDetailViewModel: ObservableObject {
     @Published private(set) var detail: ExerciseDetail?
+    @Published private(set) var earlierSessions: [SetSession] = []
+    @Published private(set) var hasMoreEarlier = false
     @Published var errorMessage: String?
 
     private let services: Services
+    private var earlierLimit = ExerciseDetailViewModel.firstEarlierPage
+    private static let firstEarlierPage = 5
     let exerciseId: Int
     let dayId: Int
 
@@ -20,6 +24,10 @@ final class ExerciseDetailViewModel: ObservableObject {
     func load() {
         do {
             detail = try services.detail.detail(exerciseId: exerciseId, dayId: dayId)
+            // One extra session tells whether "Show all" has anything more to show.
+            let sessions = try services.logSets.sessions(exerciseId: exerciseId, excluding: today, limit: earlierLimit + 1)
+            hasMoreEarlier = sessions.count > earlierLimit
+            earlierSessions = Array(sessions.prefix(earlierLimit))
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -27,22 +35,33 @@ final class ExerciseDetailViewModel: ObservableObject {
 
     // MARK: Writes. Each returns true when the screen should call `session.didChange()`.
 
-    func logSet(weightText: String, repsText: String) -> Bool {
+    var today: ISODate { services.clock.today() }
+
+    func showAllEarlier() {
+        earlierLimit = Int.max - 1
+        load()
+    }
+
+    func logSet(weightText: String, repsText: String, on day: ISODate? = nil) -> Bool {
+        guard let (weight, reps) = parse(weightText: weightText, repsText: repsText) else { return false }
+        return perform { try services.logSets.logSet(.existing(id: exerciseId), weightKg: weight, reps: reps, on: day ?? today) }
+    }
+
+    func updateSet(id: Int, weightText: String, repsText: String, on day: ISODate) -> Bool {
+        guard let (weight, reps) = parse(weightText: weightText, repsText: repsText) else { return false }
+        return perform { try services.logSets.updateSet(id: id, weightKg: weight, reps: reps, on: day) }
+    }
+
+    private func parse(weightText: String, repsText: String) -> (Double, Int)? {
         guard let weight = Format.decimal(weightText) else {
             errorMessage = "Enter the weight in kg (0 for bodyweight)"
-            return false
+            return nil
         }
         guard let reps = Int(repsText.trimmingCharacters(in: .whitespaces)) else {
             errorMessage = "Enter the number of reps"
-            return false
+            return nil
         }
-        do {
-            try services.logSets.logSet(.existing(id: exerciseId), weightKg: weight, reps: reps, on: services.clock.today())
-            return true
-        } catch {
-            errorMessage = error.localizedDescription
-            return false
-        }
+        return (weight, reps)
     }
 
     func deleteSet(id: Int) -> Bool {

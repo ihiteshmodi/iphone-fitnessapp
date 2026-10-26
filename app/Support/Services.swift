@@ -25,7 +25,7 @@ final class Services: ObservableObject {
         detail = ExerciseDetailService(db, clock: clock)
         planEditor = PlanEditor(db)
         library = ExerciseRepository(db)
-        logSets = LogSets(db)
+        logSets = LogSets(db, clock: clock)
         logBody = LogBodyMetrics(db)
         calories = CalorieService(db)
         nutrition = NutritionSettings(db)

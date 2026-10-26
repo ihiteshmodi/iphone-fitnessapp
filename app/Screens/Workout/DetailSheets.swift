@@ -1,11 +1,23 @@
+import FitnessCore
 import SwiftUI
 
+/// A set that is already logged and is being corrected.
+struct EditableSet: Identifiable, Equatable {
+    let id: Int
+    let weightKg: Double
+    let reps: Int
+    let date: ISODate
+}
+
+/// Adds a set (any day up to today) or, when `editing` is given, corrects one that is already logged.
 struct DetailAddSetSheet: View {
     @ObservedObject var vm: ExerciseDetailViewModel
+    var editing: EditableSet?
     let onSaved: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var weight = ""
     @State private var reps = ""
+    @State private var date = Date()
 
     var body: some View {
         NavigationStack {
@@ -14,8 +26,15 @@ struct DetailAddSetSheet: View {
                     field("Weight (kg)", text: $weight, keyboard: .decimalPad, id: "weight-field")
                     field("Reps", text: $reps, keyboard: .numberPad, id: "reps-field")
                 }
-                Button("Save set") {
-                    if vm.logSet(weightText: weight, repsText: reps) {
+                HStack {
+                    SectionLabel("Date")
+                    Spacer()
+                    DatePicker("Date", selection: $date, in: ...BodyDates.date(from: vm.today), displayedComponents: .date)
+                        .labelsHidden()
+                        .accessibilityIdentifier("date-picker")
+                }
+                Button(editing == nil ? "Save set" : "Save changes") {
+                    if save() {
                         onSaved()
                         dismiss()
                     }
@@ -26,7 +45,7 @@ struct DetailAddSetSheet: View {
             }
             .padding(16)
             .screenBackground()
-            .navigationTitle(vm.name)
+            .navigationTitle(editing == nil ? vm.name : "Edit set")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -39,9 +58,24 @@ struct DetailAddSetSheet: View {
         }
         .presentationDetents([.medium])
         .onAppear {
-            weight = vm.prefillWeightText
-            reps = vm.prefillRepsText
+            if let editing {
+                weight = Format.number(editing.weightKg)
+                reps = String(editing.reps)
+                date = BodyDates.date(from: editing.date)
+            } else {
+                weight = vm.prefillWeightText
+                reps = vm.prefillRepsText
+                date = BodyDates.date(from: vm.today)
+            }
         }
+    }
+
+    private func save() -> Bool {
+        let day = BodyDates.day(from: date)
+        if let editing {
+            return vm.updateSet(id: editing.id, weightText: weight, repsText: reps, on: day)
+        }
+        return vm.logSet(weightText: weight, repsText: reps, on: day)
     }
 
     private func field(_ title: String, text: Binding<String>, keyboard: UIKeyboardType, id: String) -> some View {
