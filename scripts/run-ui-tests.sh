@@ -20,7 +20,7 @@ LOGS=".uitest-logs"
 mkdir -p "$LOGS"
 
 # The simulator cannot read ~/Desktop, so the seed database is staged in /Users/Shared (see appUITests/UITestSeed.swift).
-cp output/fitness.sqlite /Users/Shared/fitness-ui-seed.sqlite
+cp output/fitness.seed.sqlite /Users/Shared/fitness-ui-seed.sqlite
 
 build_pid=""
 stop_everything() {

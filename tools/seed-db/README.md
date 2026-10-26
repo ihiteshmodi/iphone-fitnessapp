@@ -11,7 +11,7 @@ python3 -m venv .venv && .venv/bin/pip install openpyxl pandas pytest   # once
 .venv/bin/python -m pytest
 ```
 
-Defaults: workbook `current_artifacts/Data File - Single Line.xlsx`, output `output/fitness.sqlite` (overwritten).
+Defaults: workbook `current_artifacts/Data File - Single Line.xlsx`, output `output/fitness.seed.sqlite` (overwritten; the test fixture, so it never replaces `output/fitness.sqlite`, the real exported database the app bundles).
 The database is created by executing `src/shared/database/schema.sql` verbatim. A summary (counts, skipped rows with sheet row numbers) is printed.
 
 ## Rules

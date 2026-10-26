@@ -1,6 +1,6 @@
 import XCTest
 
-/// Body and Progress tabs against the real exported database (`output/fitness.sqlite`).
+/// Body and Progress tabs against the real exported database (`output/fitness.seed.sqlite`).
 final class BodyProgressUITests: XCTestCase {
     private var app: XCUIApplication!
 

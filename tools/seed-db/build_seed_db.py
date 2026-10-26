@@ -15,7 +15,7 @@ warnings.filterwarnings("ignore", message="Unknown extension is not supported")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_XLSX = PROJECT_ROOT / "current_artifacts" / "Data File - Single Line.xlsx"
-DEFAULT_OUT = PROJECT_ROOT / "output" / "fitness.sqlite"
+DEFAULT_OUT = PROJECT_ROOT / "output" / "fitness.seed.sqlite"
 SCHEMA_PATH = PROJECT_ROOT / "src" / "shared" / "database" / "schema.sql"
 
 MASTER_SHEET = "Master Sheet"
