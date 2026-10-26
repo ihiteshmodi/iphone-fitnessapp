@@ -4,7 +4,7 @@ An offline iPhone app that replaces a weekly "notes → spreadsheet → Python n
 Log sets on the phone, get the next workout for each training day, track body weight, calories and measurements.
 Everything lives in one SQLite file on the phone. No account, no backend.
 
-**Features:** workout per day with working weight, warm-ups and a progression recommendation; exercise screen with the aim, a best-set line chart and inline set logging; muscle diagram showing which muscles an exercise trains (automatic, editable per exercise); deload mode (display only) and an option to ignore deload sessions in progress; plan and exercise-library editing; calorie target with macros; measurement progress (direction-aware); volume per muscle; database import, export and upgrade.
+**Features:** workout per day with working weight, an All / Remaining filter, main and warm-up sets and a progression recommendation; PRs (top of the rep range with a clean-form check) shown in gold with the next weight worked out from the estimated 1RM; exercise screen with the aim, a best-set line chart and inline set logging; muscle diagram showing which muscles an exercise trains (automatic, editable per exercise); deload mode (display only) and an option to ignore deload sessions in progress; plan and exercise-library editing; calorie target with macros; measurement progress (direction-aware); volume per muscle; database import, export and upgrade.
 
 ## Screens
 
