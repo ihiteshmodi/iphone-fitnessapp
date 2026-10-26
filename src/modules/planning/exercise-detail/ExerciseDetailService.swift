@@ -3,7 +3,7 @@ import Foundation
 public struct DetailTarget: Equatable {
     public let sets: Int
     public let minReps: Double
-    public let maxReps: Int
+    public let maxReps: Double
     public let workingWeight: Double?
     public let warmup75: Double?
     public let warmup90: Double?
@@ -106,7 +106,7 @@ public final class ExerciseDetailService {
             history: Array(loggedBefore.reversed().prefix(Self.historySessions)),
             todaySets: try history.sets(exerciseId: exerciseId, on: today),
             targetSets: entry.sets,
-            prefill: SetFormPrefill(weightKg: target.workingWeight, reps: entry.maxReps),
+            prefill: SetFormPrefill(weightKg: target.workingWeight, reps: Int(target.maxReps.rounded())),
             muscles: try ExerciseMuscleService(db).muscles(exerciseId: exerciseId))
     }
 
@@ -124,7 +124,7 @@ public final class ExerciseDetailService {
         guard let weight = target.workingWeight else { return "No history yet" }
         let kg = "\(format(weight)) kg"
         guard let recommendation = target.recommendation else {
-            return "Deload: \(format(target.minReps)) to \(target.maxReps) reps at \(kg)"
+            return "Deload: \(format(target.minReps)) to \(format(target.maxReps)) reps at \(kg)"
         }
         switch recommendation {
         case .noHistory:

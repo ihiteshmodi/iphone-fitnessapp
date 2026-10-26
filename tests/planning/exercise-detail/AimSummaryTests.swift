@@ -37,7 +37,7 @@ final class AimSummaryTests: XCTestCase {
 
         let detail = try ExerciseDetailService(db, clock: planningClock()).detail(exerciseId: planned.exerciseId, dayId: planned.dayId)
 
-        XCTAssertEqual(detail.aimSummary, AimSummary(pill: "Deload", hint: "4.5 to 10 reps at 43.2 kg"))
+        XCTAssertEqual(detail.aimSummary, AimSummary(pill: "Deload", hint: "4.5 to 7.5 reps at 43.2 kg"))
     }
 
     func testSplittingTheAimText() {

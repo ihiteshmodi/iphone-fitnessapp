@@ -1,6 +1,6 @@
 Feature: Deload mode
   As the lifter I want a lighter week so that I can recover.
-  The notebook defaults are weight multiplier 1 and reps multiplier 0.75 (applied to minimum reps).
+  The defaults are weight multiplier 1 and reps multiplier 0.75, applied to both ends of the rep range.
 
   Scenario: Deload applies the multipliers and hides the recommendation
     Given deload mode is on with weight multiplier 0.8 and reps multiplier 0.75
@@ -9,14 +9,20 @@ Feature: Deload mode
     When I open Day 3
     Then the working weight is 43.2 kg
     And warm-ups are 32.4 kg (75%) and 38.88 kg (90%)
-    And the reps range is 4.5 to 10
+    And the reps range is 4.5 to 7.5
     And no recommendation is shown
 
-  Scenario: Default deload keeps weight and lowers minimum reps
+  Scenario Outline: Default deload keeps weight and lowers both ends of the rep range to 75%
     Given deload mode is on with the default multipliers
-    When I open Day 3
+    And an exercise is planned with reps <planned>
+    When I open the day
     Then the working weight is the heaviest set weight
-    And minimum reps are 75% of planned
+    And the reps range shown is <shown>
+
+    Examples:
+      | planned  | shown    |
+      | 8 to 16  | 6 to 12  |
+      | 6 to 10  | 4.5 to 7.5 |
 
   Scenario: Switching deload off restores normal targets without altering the plan
     Given deload mode was on

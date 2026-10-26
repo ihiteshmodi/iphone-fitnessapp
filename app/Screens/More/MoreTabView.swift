@@ -136,8 +136,8 @@ struct MoreTabView: View {
                 multiplierStepper(title: "Weight multiplier", value: deload?.weightMultiplier ?? 1, step: model.stepWeightMultiplier)
             }
             divider
-            MoreRow(title: "Min reps multiplier") {
-                multiplierStepper(title: "Min reps multiplier", value: deload?.repsMultiplier ?? 0.75, step: model.stepRepsMultiplier)
+            MoreRow(title: "Reps multiplier", subtitle: "Scales both ends of the rep range: 8 to 16 at 0.75 becomes 6 to 12.") {
+                multiplierStepper(title: "Reps multiplier", value: deload?.repsMultiplier ?? 0.75, step: model.stepRepsMultiplier)
             }
             divider
             MoreRow(title: "Ignore deload sessions",

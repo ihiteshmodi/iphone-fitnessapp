@@ -49,7 +49,10 @@ public struct WorkoutExercise: Equatable, Identifiable {
     public let minReps: Double
     /// The value stored in the plan. The plan editor edits this, never the scaled `minReps`.
     public let plannedMinReps: Int
-    public let maxReps: Int
+    /// Scaled by deload like `minReps` (16 becomes 12). Display only.
+    public let maxReps: Double
+    /// The value stored in the plan, for the plan editor.
+    public let plannedMaxReps: Int
     public let workingWeight: Double?
     public let warmup75: Double?
     public let warmup90: Double?

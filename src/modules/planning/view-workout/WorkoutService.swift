@@ -32,6 +32,7 @@ public final class WorkoutService {
                 planEntryId: entry.planEntryId, exerciseId: entry.exercise.id, name: entry.exercise.name,
                 muscle: entry.exercise.muscle, instructions: entry.exercise.instructions,
                 sets: entry.sets, minReps: target.minReps, plannedMinReps: entry.minReps, maxReps: target.maxReps,
+                plannedMaxReps: entry.maxReps,
                 workingWeight: target.workingWeight, warmup75: target.warmup75, warmup90: target.warmup90,
                 recommendation: target.recommendation, repsAtMax: target.repsAtMax, dateOfMax: target.dateOfMax,
                 setsLoggedToday: try history.sets(exerciseId: entry.exercise.id, on: today).count,

@@ -81,7 +81,7 @@ final class WorkoutViewModel: ObservableObject {
     // MARK: Cards
 
     func meta(_ exercise: WorkoutExercise) -> String {
-        let reps = "\(Format.number(exercise.minReps))–\(exercise.maxReps)"
+        let reps = "\(Format.number(exercise.minReps))–\(Format.number(exercise.maxReps))"
         let target = "\(exercise.sets) × \(reps)"
         guard let muscle = exercise.muscle, !muscle.isEmpty else { return target }
         return "\(muscle) · \(target)"

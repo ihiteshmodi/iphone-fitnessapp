@@ -91,7 +91,7 @@ final class ExerciseDetailViewModel: ObservableObject {
 
     var caption: String {
         guard let detail else { return "" }
-        let reps = "\(Format.number(detail.target.minReps))–\(detail.target.maxReps) reps"
+        let reps = "\(Format.number(detail.target.minReps))–\(Format.number(detail.target.maxReps)) reps"
         let parts = [detail.exercise.muscle, "\(detail.target.sets) sets", reps].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.joined(separator: " · ")
     }

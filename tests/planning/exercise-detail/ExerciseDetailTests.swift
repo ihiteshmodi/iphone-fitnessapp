@@ -89,7 +89,8 @@ final class ExerciseDetailTests: XCTestCase {
         XCTAssertNil(result.target.recommendation)
         XCTAssertEqual(result.target.workingWeight, 43.2)
         XCTAssertEqual(result.target.minReps, 4.5)
-        XCTAssertEqual(result.aim, "Deload: 4.5 to 10 reps at 43.2 kg")
+        XCTAssertEqual(result.target.maxReps, 7.5)
+        XCTAssertEqual(result.aim, "Deload: 4.5 to 7.5 reps at 43.2 kg")
     }
 
     func testHowToInstructionsComeFromTheLibrary() throws {
