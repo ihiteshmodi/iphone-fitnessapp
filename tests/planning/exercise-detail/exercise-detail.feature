@@ -74,7 +74,24 @@ Feature: Exercise detail with progress trend and inline logging
 
   Scenario: The set form is prefilled from the target
     When I open the "Add set" form for "Chest Dips Machine"
-    Then weight is prefilled with 54 and reps with the maximum reps 10
+    Then weight is prefilled with 54 and reps with the middle of the rep range, 8 for 6 to 10
+
+  Scenario Outline: The middle of the rep range is the average, rounded up
+    Given an exercise planned for <min> to <max> reps
+    Then the reps in the "Add set" form start at <middle>
+
+    Examples:
+      | min | max | middle |
+      | 8   | 16  | 12     |
+      | 6   | 10  | 8      |
+      | 10  | 15  | 13     |
+      | 12  | 15  | 14     |
+
+  Scenario: Weight and reps can be nudged with arrows
+    When I open the "Add set" form
+    Then "−" and "+" change the weight by 2.5 kg and the reps by 1
+    And tapping a number still lets me type it
+    And reps are not limited to the rep range
 
   Scenario: Correct a mistaken set
     Given I logged 540 kg × 9 today by mistake

@@ -22,10 +22,14 @@ struct DetailAddSetSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 12) {
-                    field("Weight (kg)", text: $weight, keyboard: .decimalPad, id: "weight-field")
-                    field("Reps", text: $reps, keyboard: .numberPad, id: "reps-field")
+                HStack(alignment: .top, spacing: 10) {
+                    NumberStepperField(title: "Weight", unit: "kg", text: $weight, step: 2.5, minimum: 0, decimals: true,
+                                       hint: "steps of 2.5 kg", identifier: "weight-field")
+                    NumberStepperField(title: "Reps", unit: nil, text: $reps, step: 1, minimum: 1, decimals: false,
+                                       hint: vm.repRangeHint, identifier: "reps-field")
                 }
+                Text("Tap a number to type it. Reps are not limited to the rep range.")
+                    .font(.system(size: 12)).foregroundColor(Theme.muted)
                 HStack {
                     SectionLabel("Date")
                     Spacer()
@@ -77,20 +81,70 @@ struct DetailAddSetSheet: View {
         }
         return vm.logSet(weightText: weight, repsText: reps, on: day)
     }
+}
 
-    private func field(_ title: String, text: Binding<String>, keyboard: UIKeyboardType, id: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+/// A number with − and + around it. Tapping the number opens the keyboard, so typing still works.
+struct NumberStepperField: View {
+    let title: String
+    let unit: String?
+    @Binding var text: String
+    let step: Double
+    let minimum: Double
+    let decimals: Bool
+    let hint: String
+    let identifier: String
+
+    var body: some View {
+        VStack(spacing: 8) {
             SectionLabel(title)
-            TextField("", text: text)
-                .keyboardType(keyboard)
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(Theme.text)
-                .padding(12)
-                .background(Theme.card2)
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .accessibilityIdentifier(id)
+            HStack(spacing: 6) {
+                stepButton("minus", delta: -step, label: "Decrease \(title.lowercased())", suffix: "minus")
+                VStack(spacing: 0) {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        TextField("", text: $text)
+                            .keyboardType(decimals ? .decimalPad : .numberPad)
+                            .multilineTextAlignment(.center)
+                            .font(.system(size: 28, weight: .heavy))
+                            .foregroundColor(Theme.text)
+                            .minimumScaleFactor(0.6)
+                            .accessibilityIdentifier(identifier)
+                            // Tapping the number selects it, so typing replaces it without any backspacing.
+                            .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidBeginEditingNotification)) { note in
+                                DispatchQueue.main.async { (note.object as? UITextField)?.selectAll(nil) }
+                            }
+                        if let unit { Text(unit).font(.system(size: 12)).foregroundColor(Theme.muted) }
+                    }
+                    Rectangle().fill(Theme.line).frame(height: 2).padding(.horizontal, 6)
+                }
+                stepButton("plus", delta: step, label: "Increase \(title.lowercased())", suffix: "plus")
+            }
+            Text(hint).font(.system(size: 10.5)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
         }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(Theme.card2)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func stepButton(_ symbol: String, delta: Double, label: String, suffix: String) -> some View {
+        Button { nudge(by: delta) } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(Theme.green)
+                .frame(width: 38, height: 44)
+                .background(Color(hex: 0x202824))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier("\(identifier)-\(suffix)")
+    }
+
+    private func nudge(by delta: Double) {
+        let current = Format.decimal(text) ?? 0
+        let next = max(minimum, ((current + delta) * 100).rounded() / 100)
+        text = Format.number(next)
     }
 }
 

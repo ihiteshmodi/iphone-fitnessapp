@@ -177,10 +177,18 @@ final class ExerciseDetailTests: XCTestCase {
         XCTAssertEqual(result.history.map(\.date), [date("2026-10-18")])
     }
 
-    func testSetFormIsPrefilledWithWorkingWeightAndMaximumReps() throws {
+    func testSetFormIsPrefilledWithWorkingWeightAndTheMiddleOfTheRepRange() throws {
         let result = try detail(try chestDipsWithLastSession())
 
-        XCTAssertEqual(result.prefill, SetFormPrefill(weightKg: 54, reps: 10))
+        XCTAssertEqual(result.prefill, SetFormPrefill(weightKg: 54, reps: 8))
+    }
+
+    func testTheMiddleRepsFollowTheRepRangeShownDuringDeload() throws {
+        let planned = try PlannedExercise.make(db, minReps: 8, maxReps: 16)
+        try db.addSet(exercise: planned.exerciseId, on: "2026-10-01", weight: 60, reps: 12)
+        try setDeload(db, enabled: true, repsMultiplier: 0.75)
+
+        XCTAssertEqual(try detail(planned).prefill.reps, 9, "6 to 12 reps are shown, so the middle is 9")
     }
 
     func testDeletingAMistakenSetRemovesItFromTheCardAndChart() throws {
@@ -210,7 +218,7 @@ final class ExerciseDetailTests: XCTestCase {
         XCTAssertNil(result.lastSession)
         XCTAssertNil(result.target.workingWeight)
         XCTAssertEqual(result.sessions, [])
-        XCTAssertEqual(result.prefill, SetFormPrefill(weightKg: nil, reps: 10))
+        XCTAssertEqual(result.prefill, SetFormPrefill(weightKg: nil, reps: 8))
     }
 
     func testAnExerciseThatIsNotOnTheDayIsRejected() throws {

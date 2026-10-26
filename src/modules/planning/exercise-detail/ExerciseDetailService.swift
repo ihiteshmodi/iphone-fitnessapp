@@ -11,6 +11,13 @@ public struct DetailTarget: Equatable {
     public let recommendation: TargetRecommendation?
 }
 
+public enum RepRange {
+    /// Where the reps in the "Add set" form start: the average of the range, rounded up (8 to 16 gives 12, 10 to 15 gives 13).
+    public static func middle(min: Double, max: Double) -> Int {
+        Swift.max(1, Int(((min + max) / 2).rounded(.up)))
+    }
+}
+
 /// What the "Add set" form starts with.
 public struct SetFormPrefill: Equatable {
     public let weightKg: Double?
@@ -106,7 +113,7 @@ public final class ExerciseDetailService {
             history: Array(loggedBefore.reversed().prefix(Self.historySessions)),
             todaySets: try history.sets(exerciseId: exerciseId, on: today),
             targetSets: entry.sets,
-            prefill: SetFormPrefill(weightKg: target.workingWeight, reps: Int(target.maxReps.rounded())),
+            prefill: SetFormPrefill(weightKg: target.workingWeight, reps: RepRange.middle(min: target.minReps, max: target.maxReps)),
             muscles: try ExerciseMuscleService(db).muscles(exerciseId: exerciseId))
     }
 

@@ -205,6 +205,12 @@ final class ExerciseDetailViewModel: ObservableObject {
         return "\(weight) kg × \(prefill.reps) reps"
     }
 
+    /// "starts in the middle of 8–16" under the reps stepper.
+    var repRangeHint: String {
+        guard let target = detail?.target else { return "" }
+        return "starts in the middle of \(Format.number(target.minReps))–\(Format.number(target.maxReps))"
+    }
+
     var prefillWeightText: String { detail?.prefill.weightKg.map { Format.number($0) } ?? "" }
     var prefillRepsText: String { detail.map { String($0.prefill.reps) } ?? "" }
 

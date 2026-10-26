@@ -42,13 +42,70 @@ final class WorkoutFlowUITests: XCTestCase {
         let weight = app.textFields["weight-field"]
         XCTAssertTrue(weight.waitForExistence(timeout: 5))
         XCTAssertEqual(weight.value as? String, "54")
-        XCTAssertEqual(app.textFields["reps-field"].value as? String, "10")
+        XCTAssertEqual(app.textFields["reps-field"].value as? String, "8", "the middle of 6 to 10")
         attach(app, named: "add-set-sheet")
         app.buttons["save-set-button"].tap()
 
         let row = app.descendants(matching: .any)["today-set-1"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         attach(app, named: "detail-after-save")
+    }
+
+    func testArrowsChangeWeightAndRepsAndTheKeyboardStillWorks() throws {
+        let app = try launchApp()
+        app.buttons["day-3"].tap()
+        app.buttons["exercise-card-Chest Dips Machine"].tap()
+        let addSet = app.buttons["add-set-button"]
+        XCTAssertTrue(addSet.waitForExistence(timeout: 10))
+        for _ in 0..<6 where !addSet.isHittable { app.swipeUp() }
+        addSet.tap()
+
+        let weight = app.textFields["weight-field"]
+        let reps = app.textFields["reps-field"]
+        XCTAssertTrue(weight.waitForExistence(timeout: 5))
+        app.buttons["weight-field-plus"].tap()
+        XCTAssertEqual(weight.value as? String, "56.5")
+        app.buttons["weight-field-minus"].tap()
+        app.buttons["weight-field-minus"].tap()
+        XCTAssertEqual(weight.value as? String, "51.5")
+        app.buttons["reps-field-plus"].tap()
+        XCTAssertEqual(reps.value as? String, "9")
+        app.buttons["reps-field-minus"].tap()
+        app.buttons["reps-field-minus"].tap()
+        XCTAssertEqual(reps.value as? String, "7")
+
+        reps.tap()
+        reps.typeText("12")
+        XCTAssertEqual(reps.value as? String, "12", "tapping selects the number, so typing replaces it")
+    }
+
+    func testRemainingHidesFinishedExercises() throws {
+        let app = try launchApp()
+        app.buttons["day-3"].tap()
+        let cards = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'exercise-card-'"))
+        XCTAssertTrue(app.buttons["filter-remaining"].waitForExistence(timeout: 10))
+        let all = cards.count
+
+        let card = app.buttons["exercise-card-Chest Dips Machine"]
+        card.tap()
+        let addSet = app.buttons["add-set-button"]
+        XCTAssertTrue(addSet.waitForExistence(timeout: 10))
+        for _ in 0..<6 where !addSet.isHittable { app.swipeUp() }
+        // Chest Dips Machine has several main sets in the seed: log until its ring is full.
+        for _ in 0..<3 {
+            guard addSet.exists, addSet.isHittable else { break }
+            addSet.tap()
+            app.buttons["save-set-button"].tap()
+            _ = app.descendants(matching: .any)["today-set-1"].waitForExistence(timeout: 5)
+            for _ in 0..<6 where !addSet.isHittable { app.swipeUp() }
+        }
+        app.goBack()
+
+        app.buttons["filter-remaining"].tap()
+        XCTAssertFalse(app.buttons["exercise-card-Chest Dips Machine"].waitForExistence(timeout: 3), "a finished exercise is hidden")
+        XCTAssertLessThan(cards.count, all)
+        app.buttons["filter-all"].tap()
+        XCTAssertTrue(app.buttons["exercise-card-Chest Dips Machine"].waitForExistence(timeout: 5))
     }
 
     func testRejectsZeroRepsWithoutSaving() throws {

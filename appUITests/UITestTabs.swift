@@ -8,3 +8,16 @@ extension XCUIApplication {
         return inTabBar.exists ? inTabBar : buttons[name].firstMatch
     }
 }
+
+extension XCUIApplication {
+    /// Back one screen. Some layouts (the iPhone Duo simulator) draw no back button, so fall back to the edge swipe.
+    func goBack() {
+        let back = navigationBars.buttons.element(boundBy: 0)
+        if back.exists {
+            back.tap()
+        } else {
+            coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+                .press(forDuration: 0.1, thenDragTo: coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+        }
+    }
+}
