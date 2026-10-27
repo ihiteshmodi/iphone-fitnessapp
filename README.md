@@ -3,11 +3,13 @@
 ![Platform](https://img.shields.io/badge/platform-iOS%2016%2B-black)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI%20%2B%20SQLite-F05138)
 ![Data](https://img.shields.io/badge/data-offline%2C%20one%20SQLite%20file-2ee887)
-![Backend](https://img.shields.io/badge/backend-none-lightgrey)
+![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
-> An offline iPhone app that replaces a weekly "notes → spreadsheet → Python notebook → screenshot" routine: log sets on the phone, get the next weight for every exercise, spot PRs at a glance, and track body weight, calories and measurements. No account, no server.
+> An offline iPhone app for strength training. Log your sets, see the weight to lift next for every exercise, spot your PRs at a glance, and track body weight, calories and measurements. Everything lives in one SQLite file on your phone: no account, no server.
 
-All screenshots below are the real app on an iPhone 15 Pro Max (iOS simulator), filled with **generated sample data** (invented weights, reps and measurements), not anyone's real training data.
+## Screens
+
+Screenshots of the real app.
 
 ### Training
 
@@ -42,18 +44,31 @@ All screenshots below are the real app on an iPhone 15 Pro Max (iOS simulator), 
 
 ## Features
 
-- **Workout per day:** working weight, a progression recommendation, and an **All / Remaining** filter so the last exercises are not many scrolls away.
-- **Main and warm-up sets:** one main set to failure is logged and counted (the circle reads 0/1); warm-ups (0 to 3) are shown with weights as a reference and never logged.
-- **PRs:** reaching the top of the rep range with clean form is a PR. It shows as a gold banner, a gold ★ on the best-set chart and a gold chip on the list, with the **next weight worked out from the estimated 1RM**.
-- **Fast logging:** the reps start in the middle of the range, − / + buttons on weight (2.5 kg) and reps, log for another day, edit or delete any set, look up and fix any past day.
-- **Muscle diagram:** which muscles an exercise trains, automatic and editable per exercise.
-- **Body:** weigh-ins, calorie target with macros, daily calories with a default that starts on a date, and the actual deficit or surplus from your weight trend.
-- **Progress:** measurements against targets (grow or reduce, % from target, colour tolerance) and volume per muscle.
-- **Deload mode** (display only, scales both ends of the rep range), plan and library editing, database import, export and automatic upgrade.
+**Training**
+- **Workout per day:** each exercise shows its working weight and a progression chip. Pick a day, tap an exercise, log.
+- **All / Remaining filter:** *Remaining* hides the exercises you have already finished today, so the last ones are not many scrolls away. The app always opens on *All*.
+- **Main and warm-up sets:** the main set is logged and counted (the circle reads 0/1). Warm-ups (0 to 3 per exercise) are listed with their weights as a reference and are never logged.
+- **PRs in gold:** reaching the top of the rep range with clean form is a PR. It shows as a gold banner, a gold ★ on the best-set chart and a gold chip on the list, with the next weight worked out from your estimated 1RM. If the form was not clean the app says to repeat the weight instead.
+- **Clean-form check:** one question, asked once per exercise per day when you reach the top reps: "Did every rep have a full contraction?".
+- **Fast logging:** − / + buttons on weight (2.5 kg steps) and reps, reps start in the middle of the range, log a set for an earlier day, edit or delete any set, and look up or fix any past day.
+- **Best-set chart:** the best set of each session as a line (kg above each point, reps below), plus the estimated 1RM after every set.
+- **Muscle diagram:** shows which muscles an exercise trains. It is automatic and editable per exercise, with a picture for every side of the body that has a worked muscle.
+- **Deload mode:** a lighter week that scales the weight and both ends of the rep range for display only, with an option to ignore deload sessions in your progress.
+- **Plan and library editing:** add, rename, reorder and delete days and exercises, set main sets, warm-up sets and rep ranges, and name days by number or weekday.
+
+**Body and progress**
+- **Weigh-ins:** log your weight on any day, edit or delete old ones.
+- **Calories:** a daily default that starts on a date you choose, a change for any single day, and a calorie target with macros.
+- **What your weight says:** your actual deficit or surplus from the weight trend, next to your planned mode.
+- **Measurements:** targets that grow or reduce, % from target, and a colour tolerance (green, amber, red).
+- **Volume per muscle:** training volume over time for each muscle group.
+
+**Data**
+- **One SQLite file** on the phone. Export it, restore it, or import another one. Older files are upgraded automatically.
 
 ## Quick Start
 
-For developers. You need a recent Xcode (Swift 5.9 or newer, iOS 16+ SDK) and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+For developers. Developed with Xcode 27.1 (Swift 6.4); the package targets iOS 16 and later. You also need [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
 
 ```bash
 git clone https://github.com/ihiteshmodi/iphone-fitnessapp.git
@@ -61,7 +76,7 @@ cd iphone-fitnessapp
 
 swift test                # logic tests, no simulator needed
 # Expected (last lines): Executed 431 tests, with 10 tests skipped and 0 failures (0 unexpected)
-#   the 10 skipped need your own seeded database (see "Configuration")
+#   the 10 skipped need a seeded database (see "Configuration")
 
 xcodegen generate         # creates FitnessApp.xcodeproj from project.yml
 # Expected: Created project at .../FitnessApp.xcodeproj
@@ -70,9 +85,57 @@ open FitnessApp.xcodeproj # pick an iPhone simulator and press Run
 # Expected: the app opens on "Set up your data"; choose "Start empty" to try it
 ```
 
+## Everyday commands
+
+```sh
+swift test                                   # logic tests, no simulator needed
+cd tools/seed-db && python -m pytest         # seed tool tests (needs its own venv)
+xcodegen generate                            # creates FitnessApp.xcodeproj from project.yml
+scripts/run-ui-tests.sh WorkoutFlowUITests   # one UI test class, live progress, Ctrl-C to stop
+```
+
+The UI test runner shows a live progress bar and stops when the tests finish. Set `SIM_UDID` to the id of an iPhone simulator (`xcrun simctl list devices`). It uses `output/fitness.seed.sqlite`.
+
+## Build an unsigned .ipa (for LiveContainer)
+
+```sh
+xcodegen generate
+xcodebuild -project FitnessApp.xcodeproj -scheme FitnessApp -configuration Release -sdk iphoneos \
+  -destination 'generic/platform=iOS' -derivedDataPath .derived-device \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+# ** BUILD SUCCEEDED **
+mkdir -p Payload && cp -R .derived-device/Build/Products/Release-iphoneos/FitnessApp.app Payload/ && zip -qry FitnessApp.ipa Payload
+# FitnessApp.ipa is created in the current folder
+```
+
+If `output/fitness.sqlite` exists at build time it is bundled and offered as **Load my data** on first launch. Without it the build contains no data and the app starts on **Set up your data**.
+
+## Install the .ipa on your iPhone
+
+The .ipa you build is unsigned, so it has to be installed with a sideloading tool. Pick one:
+
+**LiveContainer** ([project page](https://github.com/khanhduytran0/LiveContainer))
+1. Install LiveContainer on your iPhone (it is itself sideloaded, see its README).
+2. Get `FitnessApp.ipa` onto the phone (AirDrop, iCloud Drive or the Files app).
+3. In LiveContainer open the **Apps** tab, tap **+**, and choose `FitnessApp.ipa`. Wait for it to finish installing.
+4. Tap the app in the list to launch it.
+5. If the file picker will not let you select a database file inside the app, open the app's settings in LiveContainer and turn on **Fix File Picker**.
+
+**AltStore or SideStore** ([AltStore](https://altstore.io), [SideStore](https://sidestore.io))
+1. Install AltStore or SideStore on your iPhone and sign in with your Apple ID.
+2. Put `FitnessApp.ipa` on the phone, open the store app, go to **My Apps**, tap **+** and choose the file.
+3. With a free Apple ID the app expires after 7 days; refresh it from the store app to keep it.
+
+**Sideloadly** (Mac or Windows, [sideloadly.io](https://sideloadly.io))
+1. Connect your iPhone, open Sideloadly and drag `FitnessApp.ipa` into it.
+2. Enter your Apple ID and click **Start**.
+3. On the iPhone, open **Settings → General → VPN & Device Management** and trust your Apple ID profile.
+
+On iOS 16 and later you may also need to turn on **Developer Mode** (**Settings → Privacy & Security → Developer Mode**) and restart the phone. Menu names can differ slightly between versions.
+
 ## Usage
 
-### Log a workout day (in the app)
+### Log a workout day
 
 1. **Workout** tab: pick a day. Each card shows the working weight and a chip: green *Increase reps*, amber *Same weight, clean*, or gold *★ Go to 72.5*.
 2. Tap **Remaining** to hide the exercises you have finished.
@@ -87,50 +150,6 @@ Est. 1RM:      35 × (1 + 15 / 30) = 52.5 kg
 Next weight:   52.5 ÷ (1 + 10 / 30) = 39.4 → rounded to the nearest 2.5 kg = 40 kg
 Do today:      40 kg   (warm-ups at 75% = 30 kg and 90% = 36 kg when 2 warm-up sets are planned)
 ```
-
-### Back up or inspect your data
-
-The live file is `Documents/fitness.sqlite` inside the app. Use **More → Export database (.sqlite)**, or in LiveContainer open the app's data folder. Then:
-
-```bash
-sqlite3 fitness.sqlite "select count(*) from set_logs;"
-# one number: how many sets you have logged
-sqlite3 fitness.sqlite "select performed_on, weight_kg, reps from set_logs order by id desc limit 1;"
-# one row, for example: 2026-10-26|35.0|15
-```
-
-If the Files picker will not select the file inside LiveContainer, copy it into the app's `Documents` folder: it is listed on the first screen and under **More → Backup**.
-
-### Build a seeded database from a spreadsheet
-
-```bash
-cd tools/seed-db
-python3 -m venv .venv && .venv/bin/pip install openpyxl pandas pytest   # once
-.venv/bin/python build_seed_db.py --xlsx "path/to/Data File.xlsx"
-# Wrote .../output/fitness.seed.sqlite
-.venv/bin/python -m pytest
-# 69 passed
-```
-
-### Build an unsigned .ipa (for LiveContainer)
-
-```bash
-xcodegen generate
-xcodebuild -project FitnessApp.xcodeproj -scheme FitnessApp -configuration Release -sdk iphoneos \
-  -destination 'generic/platform=iOS' -derivedDataPath .derived-device \
-  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
-# ** BUILD SUCCEEDED **
-mkdir -p Payload && cp -R .derived-device/Build/Products/Release-iphoneos/FitnessApp.app Payload/ && zip -qry FitnessApp.ipa Payload
-```
-
-### Run the simulator UI tests
-
-```bash
-SIM_UDID=<an iPhone simulator id> scripts/run-ui-tests.sh WorkoutFlowUITests
-# ALL 7 UI TESTS PASSED  (...)
-```
-
-The runner shows a live progress bar and stops when the tests finish. It uses `output/fitness.seed.sqlite`, never your own data.
 
 ## Configuration
 
@@ -155,7 +174,7 @@ There are no environment variables or secrets. The app is configured by settings
 | Option | What it does | Default | Required |
 |---|---|---|---|
 | `output/fitness.sqlite` | If present at build time it is bundled and offered as **Load my data** on first launch | absent (button hidden) | No |
-| `output/fitness.seed.sqlite` | Test fixture built from the spreadsheet; used by tests, UI tests and the screenshot tour | absent (10 parity tests skip) | No |
+| `output/fitness.seed.sqlite` | Test fixture built by `tools/seed-db`; used by the parity tests and the UI tests | absent (10 parity tests skip) | No |
 | `-UITestImportPath <file>` | Simulator tests only: import this database at launch | unset | No |
 | `-UITestInitialTab <0-3>` | Simulator tests only: start on a tab (0 Workout, 1 Body, 2 Progress, 3 More) | `0` | No |
 
@@ -201,11 +220,18 @@ The schema lives in `src/shared/database/schema.sql`. Older files are upgraded i
 | `Tolerance must be between 0% and 50%` | Changing the measurement tolerance |
 | `Log body weight for both of the last two weeks` | Calorie target without enough weigh-ins |
 
-## Your data is not in this repository
+## Database file
 
-The repository is public, so personal data is git-ignored: the spreadsheet, the notebook, your exported database (`output/fitness.sqlite`), the test fixture and the `.ipa` (it embeds the database). Without a database the app still works: choose **Start empty** on first launch.
+The live file is `Documents/fitness.sqlite` inside the app. Copy it out (Files app, or LiveContainer's "Open Data Folder") to back it up, or use **Export** in the More tab. To restore, copy a `.sqlite` file into the same `Documents` folder: it is listed on the first screen and under **More → Backup**. Older database versions are upgraded automatically on open.
 
-## Project layout
+```bash
+sqlite3 fitness.sqlite "select count(*) from set_logs;"
+# one number: how many sets you have logged
+sqlite3 fitness.sqlite "select performed_on, weight_kg, reps from set_logs order by id desc limit 1;"
+# one row, for example: 2026-10-26|35.0|15
+```
+
+## Layout
 
 | Path | What |
 |---|---|
@@ -214,9 +240,11 @@ The repository is public, so personal data is git-ignored: the spreadsheet, the 
 | `tests/<capability>/<feature>/` | `.feature` scenarios and the XCTest specs that mirror them |
 | `app/` | SwiftUI app (screens, theme, view models) |
 | `appUITests/` | Simulator UI tests and the screenshot tours |
-| `tools/seed-db/` | Python tool that builds a database from the spreadsheet |
-| `tools/anatomy/` | The muscle diagram (my own drawing); `node tools/anatomy/generate-swift.js` writes the Swift data file |
-| `docs/design/` | Impact maps and HTML mockups of every screen |
+| `tools/seed-db/` | Python tool that builds a seeded database from a spreadsheet |
+| `tools/anatomy/` | The muscle diagram source; `node tools/anatomy/generate-swift.js` writes the Swift data file |
+| `docs/design/` | Impact maps, HTML mockups of every screen, and their screenshots |
 | `scripts/run-ui-tests.sh` | UI test runner with a live progress bar |
 
-There is no `LICENSE` file yet, so by default all rights are reserved.
+## License
+
+Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, change and build on this app for noncommercial purposes, such as personal use, hobby projects, study, and non-profit or educational use. Commercial use needs my permission: contact me through my [GitHub profile](https://github.com/ihiteshmodi).
