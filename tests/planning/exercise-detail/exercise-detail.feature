@@ -14,17 +14,38 @@ Feature: Exercise detail with progress trend and inline logging
 
   Scenario: Open an exercise and see everything needed to train, top to bottom
     Given I chose Day 3
-    And my last session of "Chest Dips Machine" on 2026-10-18 was 54 kg × 9, 54 kg × 8, 54 kg × 8
+    And my last sessions of "Chest Dips Machine" had a best set of 54 kg × 9 on 2026-10-18 and 54 kg × 8 on 2026-10-23
     When I tap "Chest Dips Machine"
-    Then the first screen shows, in this order:
-      | section      | content                                                                    |
-      | target       | working weight 54 kg, warm-ups 40.5 kg and 48.6 kg, reps 6 to 10, 3 sets   |
-      | last session | date 2026-10-18 and its sets                                               |
-      | today's aim  | the recommendation, for example "Increase reps: beat 9 reps at 54 kg"      |
-      | how to       | the instruction "handle inner, squeeze very hard ..."                      |
-      | progress     | chart of the last sessions (top-set weight and reps) and the trend badge   |
-      | history      | recent sessions, newest first                                              |
-      | log sets     | today's sets, an "Add set" button (bottom of the screen)                   |
+    Then the screen shows, in this order:
+      | section        | content                                                                                                      |
+      | do today       | working weight 54 kg; the aim as a pill ("Increase reps") with a hint ("Beat 8 reps at 54 kg"); warm-ups labelled "75% 40.5 kg" and "90% 48.6 kg" |
+      | best set       | line chart: kg on the line (weight above each point), and the date with "× reps" under each point; the newest point is the brightest |
+      | how to         | the instruction "handle inner, squeeze very hard ..."                                                         |
+      | muscles worked | a small card (see muscle-anatomy.feature)                                                                      |
+      | log sets       | today's sets and an "Add set" button, always the last thing on the screen                                     |
+    And there is no separate "Last session", "Aim" or "History" box, because the chart already shows weight and reps per session
+
+  Scenario Outline: The aim sits inside the "Do today" card
+    Given the heaviest set is <weight> kg × <reps> and the plan is <min> to <max> reps
+    When I open the exercise
+    Then the "Do today" card shows the pill "<pill>" and the hint "<hint>"
+
+    Examples:
+      | weight | reps | min | max | pill           | hint                |
+      | 45     | 10   | 6   | 10  | Increase weight |                     |
+      | 54     | 8    | 6   | 10  | Increase reps  | Beat 8 reps at 54 kg |
+      | 54     | 5    | 6   | 10  | Maintain       | Reach 6 reps at 54 kg |
+
+  Scenario: The chart shows the last six sessions
+    Given "Triceps Pushdown" has 8 sessions of best sets
+    When I open it
+    Then the chart shows the 6 newest sessions, oldest on the left
+    And the newest point is the brightest
+
+  Scenario: The chart with a single session
+    Given "Squats" has one session of history
+    When I open it
+    Then the chart shows one point and the trend badge says "Not enough data"
 
   Scenario: Edit the instructions from the exercise screen
     Given I am on "Chest Dips Machine"

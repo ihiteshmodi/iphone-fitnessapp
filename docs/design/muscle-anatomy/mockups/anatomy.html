@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muscles worked: small card and editor (sample data)</title>
+<link rel="stylesheet" href="../../fitness-app/mockups/mockup.css">
+<script src="../../../../tools/anatomy/figure.js"></script>
+<script src="../../fitness-app/mockups/mockup.js"></script>
+<style>
+  .p { fill: #1d2420; stroke: #2b352f; stroke-width: 0.6; }
+  .base { fill: #131815; stroke: #232a26; stroke-width: 0.8; }
+  .p.primary { fill: var(--green); stroke: var(--green); }
+  .p.secondary { fill: rgba(46,232,135,.42); stroke: rgba(46,232,135,.42); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+
+  /* the warm-up lines in the "Do today" card */
+  .warm { font-weight: 700; font-size: 14px; margin-top: 3px; }
+  .warm .pct { color: var(--muted); font-weight: 600; font-size: 11px; margin-right: 6px; }
+  .hint { font-size: 12.5px; color: var(--green); margin-top: 2px; }
+  /* the first phone is shown at full length so the whole screen can be reviewed at once */
+  .tall { height: auto !important; }
+  .tall .content { overflow: visible; flex: none; padding-bottom: 18px; }
+
+  /* the small card on the exercise screen */
+  .mini { display: flex; gap: 12px; align-items: center; }
+  .mini .crops { display: flex; gap: 8px; flex: none; }
+  .mini .crops svg { width: 92px; height: 92px; background: #101412; border-radius: 12px; border: 1px solid var(--line); }
+  .mini .names { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.45; }
+  .mini .names b { display: block; font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-top: 6px; }
+  .mini .names b:first-child { margin-top: 0; }
+  .mini .names .pri { color: var(--green); font-weight: 700; }
+  .mini .names .sec { color: #8fd9b3; }
+  .tag { font-size: 10.5px; color: var(--muted); margin-top: 8px; }
+
+  /* the editor */
+  .region { margin-top: 14px; }
+  .region .rh { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .prow { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .tri { display: flex; background: var(--card-2); border: 1px solid var(--line); border-radius: 10px; padding: 2px; }
+  .tri div { padding: 4px 9px; font-size: 11px; font-weight: 700; color: var(--muted); border-radius: 8px; }
+  .tri .on { background: var(--green); color: #04130a; }
+  .tri .on2 { background: rgba(46,232,135,.42); color: var(--text); }
+  .editfig { display: flex; justify-content: center; gap: 4px; }
+  .editfig svg { height: 190px; width: auto; }
+
+  .gallery { width: 390px; display: flex; flex-direction: column; gap: 10px; }
+  .gallery .gh { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+  .debug svg { width: 190px; }
+</style>
+</head>
+<body>
+<h1>Muscles worked: small card and editor</h1>
+<div class="sub">My own drawing (not from any book). The exercise screen is unchanged; one small card near the bottom zooms in on only the muscles that matter.</div>
+<div class="nav"><a href="../../fitness-app/mockups/index.html">Core screens</a><a href="../../fitness-app/mockups/manage.html">Plan and library screens</a></div>
+
+<div class="row">
+
+  <!-- 1. the exercise screen, shown at full length -->
+  <div class="col">
+    <div class="phone tall">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content" id="scroll1">
+        <div class="back">‹ Day 3</div>
+        <div class="topbar" style="align-items:flex-start">
+          <div class="title" style="font-size:24px"><small>Triceps · 3 sets · 6–10 reps</small>Triceps Pushdown</div>
+          <span class="pill green">▲ Improving</span>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">Do today</div><span class="pill green">Increase weight</span></div>
+          <div style="display:flex;align-items:flex-end;gap:8px;margin-top:2px">
+            <div style="display:flex;align-items:baseline;gap:8px"><div class="big" style="font-size:44px">45</div><div class="unit" style="font-size:18px">kg</div></div>
+            <div style="margin-left:auto;text-align:right">
+              <div class="label">Warm-ups</div>
+              <div class="warm"><span class="pct">75%</span> 33.75 kg</div>
+              <div class="warm"><span class="pct">90%</span> 40.5 kg</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">Best set per session</div><div class="label" style="color:var(--green)">kg above · reps below</div></div>
+          <div id="bars" style="margin-top:8px"></div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px">Estimated 1RM up <b style="color:var(--green)">+4.2%</b> over the last 6 sessions</div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">How to</div><div class="link" style="font-size:12px">Edit</div></div>
+          <div class="instr">Pin in no 20, straight bar. If you pull away from you and land straight it will go to the lateral head; pulled fully in it goes to the long head.</div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">Muscles worked</div><div class="link" style="font-size:12px">Edit</div></div>
+          <div class="mini" id="mini-main" style="margin-top:8px"></div>
+          <div class="tag">Automatic from the exercise name</div>
+        </div>
+
+        <div class="card section">
+          <div class="head"><div class="label">Log sets · today</div><div class="label" style="color:var(--green)">1 of 3</div></div>
+          <div class="setrow"><div class="n done">1</div><div class="v">45 kg <span>× 10 reps</span></div><span style="color:var(--green)">✓</span></div>
+          <div class="setrow"><div class="n">2</div><div class="v" style="color:var(--muted)">45 kg <span>× 10 reps</span></div><span style="color:var(--muted)">tap to log</span></div>
+          <div class="setrow"><div class="n">3</div><div class="v" style="color:var(--muted)">45 kg <span>× 10 reps</span></div><span style="color:var(--muted)">tap to log</span></div>
+          <div class="btn">+ Add set</div>
+        </div>
+      </div>
+      <div class="tabbar"><div class="tab on"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Progress</div><div class="tab"><i></i>More</div></div>
+    </div>
+    <div class="cap">1 · The exercise screen, full length: Do today (with the aim and the 75% / 90% warm-ups), the best-set line chart (kg on the line, reps under each point), How to, a small Muscles worked card, then Log sets last. Last session, Aim and History boxes are gone because the chart already shows weight and reps.</div>
+  </div>
+
+  <!-- 2. how the small card zooms for different exercises -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="title" style="font-size:22px;margin:6px 0 4px"><small>Small card, different exercises</small>Only what matters</div>
+        <div id="gallery"></div>
+      </div>
+    </div>
+    <div class="cap">2 · The card zooms to the side and area of the body that is trained: arms from the back for pushdowns, chest from the front plus triceps from the back for presses, and so on.</div>
+  </div>
+
+  <!-- 3. editor -->
+  <div class="col">
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>●●●</span></div>
+      <div class="content">
+        <div class="head" style="margin-top:6px"><div class="link">Cancel</div><div style="font-weight:700">Muscles worked</div><div class="link">Save</div></div>
+        <div style="font-weight:700;font-size:17px;margin:10px 0 2px">Seated rows mid back</div>
+        <div class="card section"><div class="editfig" id="fig-edit"></div></div>
+        <div class="region"><div class="rh"><span>Upper back</span><span class="link" style="font-size:12px">Select entire upper back</span></div>
+          <div class="card" style="padding:4px 14px">
+            <div class="prow">Upper traps<div class="tri"><div class="on2" style="background:transparent;color:var(--muted)">None</div><div>Secondary</div><div>Primary</div></div></div>
+            <div class="prow">Mid traps<div class="tri"><div>None</div><div>Secondary</div><div class="on">Primary</div></div></div>
+            <div class="prow">Lower traps<div class="tri"><div>None</div><div class="on2">Secondary</div><div>Primary</div></div></div>
+            <div class="prow">Lats<div class="tri"><div>None</div><div>Secondary</div><div class="on">Primary</div></div></div>
+            <div class="prow">Rhomboids<div class="tri"><div>None</div><div>Secondary</div><div class="on">Primary</div></div></div>
+            <div class="prow">Teres and rotator cuff<div class="tri"><div>None</div><div>Secondary</div><div>Primary</div></div></div>
+          </div></div>
+        <div class="region"><div class="rh"><span>Biceps</span><span class="link" style="font-size:12px">Select entire biceps</span></div>
+          <div class="card" style="padding:4px 14px">
+            <div class="prow">Biceps<div class="tri"><div>None</div><div class="on2">Secondary</div><div>Primary</div></div></div>
+            <div class="prow">Brachialis<div class="tri"><div>None</div><div>Secondary</div><div>Primary</div></div></div>
+          </div></div>
+        <div class="btn ghost" style="margin-top:14px">Reset to automatic</div>
+      </div>
+    </div>
+    <div class="cap">3 · Muscle editor. Here the whole body stays visible (small) so you can see what you are choosing. Pick the entire region, or tap parts.</div>
+  </div>
+
+</div>
+
+<h1 style="margin-top:40px">Every part, labelled (for checking the drawing)</h1>
+<div class="sub">Each muscle part in its own colour. Front, then back, then the colour key (F = front, B = back).</div>
+<div class="row debug" id="debug"></div>
+
+<script>
+  const F = window.ANATOMY_FIGURE;
+  const NAMES = {
+    chest_upper: 'Upper chest', chest_mid: 'Mid chest', chest_lower: 'Lower chest', delt_front: 'Front delts', delt_side: 'Side delts',
+    delt_rear: 'Rear delts', traps_upper: 'Upper traps', traps_mid: 'Mid traps', traps_lower: 'Lower traps', lats: 'Lats',
+    rhomboids: 'Rhomboids', teres: 'Teres and rotator cuff', erectors: 'Spinal erectors', biceps: 'Biceps', brachialis: 'Brachialis',
+    triceps_long: 'Triceps long head', triceps_lateral: 'Triceps lateral head', forearm_flexors: 'Forearm flexors',
+    forearm_extensors: 'Forearm extensors', abs: 'Abs', obliques: 'Obliques', serratus: 'Serratus', quad_rectus: 'Rectus femoris',
+    quad_outer: 'Outer quad', quad_inner: 'Inner quad', ham_outer: 'Outer hamstring', ham_inner: 'Inner hamstring', glute_max: 'Glute max',
+    abductors: 'Hip abductors', adductors: 'Hip adductors', gastrocnemius: 'Gastrocnemius', soleus: 'Soleus', tibialis: 'Tibialis',
+  };
+
+  function pathBounds(paths) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const d of paths) {
+      const n = d.match(/-?\d+(\.\d+)?/g).map(Number);
+      for (let i = 0; i + 1 < n.length; i += 2) {
+        x0 = Math.min(x0, n[i]); x1 = Math.max(x1, n[i]); y0 = Math.min(y0, n[i + 1]); y1 = Math.max(y1, n[i + 1]);
+      }
+    }
+    return { x0, y0, x1, y1 };
+  }
+
+  /** The rectangle (in the 200 x 440 figure box) that frames the highlighted parts of one view. */
+  function cropRect(view, states) {
+    const paths = Object.keys(states).filter(p => F[view][p]).flatMap(p => F[view][p]);
+    if (!paths.length) return null;
+    const b = pathBounds(paths);
+    const pad = 10, minSize = 90;
+    let w = Math.max(b.x1 - b.x0 + 2 * pad, minSize), h = Math.max(b.y1 - b.y0 + 2 * pad, minSize);
+    const side = Math.max(w, h);               // keep the crop square so every card has the same shape
+    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    let x = Math.min(Math.max(cx - side / 2, 0), F.width - side), y = Math.min(Math.max(cy - side / 2, 0), F.height - side);
+    return { x, y, w: Math.min(side, F.width), h: Math.min(side, F.height) };
+  }
+
+  function svg(view, states, rect) {
+    const box = rect || { x: 0, y: 0, w: F.width, h: F.height };
+    let out = `<svg viewBox="${box.x} ${box.y} ${box.w} ${box.h}" xmlns="http://www.w3.org/2000/svg">`;
+    out += F.base.map(d => `<path class="base" d="${d}"/>`).join('');
+    for (const [part, paths] of Object.entries(F[view])) out += paths.map(d => `<path class="p ${states[part] || ''}" d="${d}"/>`).join('');
+    return out + '</svg>';
+  }
+
+  function mini(states) {
+    // Frame only the primary muscles (secondary ones show where they fall inside that frame), so the card stays small.
+    const primaryOnly = Object.fromEntries(Object.entries(states).filter(([, role]) => role === 'primary'));
+    const framing = Object.keys(primaryOnly).length ? primaryOnly : states;
+    const crops = ['front', 'back'].map(v => { const r = cropRect(v, framing); return r ? svg(v, states, r) : ''; }).join('');
+    const names = (role) => Object.keys(states).filter(p => states[p] === role).map(p => NAMES[p]).join(', ');
+    const pri = names('primary'), sec = names('secondary');
+    return `<div class="crops">${crops}</div><div class="names">${pri ? `<b>Primary</b><span class="pri">${pri}</span>` : ''}${sec ? `<b>Secondary</b><span class="sec">${sec}</span>` : ''}</div>`;
+  }
+
+  const EXAMPLES = [
+    ['Triceps Pushdown', { triceps_lateral: 'primary', triceps_long: 'secondary' }],
+    ['Guillotine press (incline)', { chest_upper: 'primary', chest_mid: 'secondary', delt_front: 'secondary', triceps_long: 'secondary', triceps_lateral: 'secondary' }],
+    ['Lat Pulldown', { lats: 'primary', teres: 'secondary', biceps: 'secondary', delt_rear: 'secondary' }],
+    ['Preacher Curls', { biceps: 'primary', brachialis: 'secondary', forearm_flexors: 'secondary' }],
+    ['Goblet Squat', { quad_rectus: 'primary', quad_outer: 'primary', quad_inner: 'primary', glute_max: 'secondary', adductors: 'secondary' }],
+    ['Stiff Leg Deadlift', { ham_outer: 'primary', ham_inner: 'primary', glute_max: 'primary', erectors: 'secondary' }],
+  ];
+
+  document.getElementById('mini-main').innerHTML = mini(EXAMPLES[0][1]);
+  document.getElementById('gallery').innerHTML = EXAMPLES.map(([name, st]) =>
+    `<div class="card section" style="padding:10px 12px"><div class="gh">${name}</div><div class="mini">${mini(st)}</div></div>`).join('');
+
+  const editStates = { traps_mid: 'primary', lats: 'primary', rhomboids: 'primary', traps_lower: 'secondary', biceps: 'secondary' };
+  document.getElementById('fig-edit').innerHTML = svg('front', editStates) + svg('back', editStates);
+
+  // The detail screen opens scrolled to the new card.
+  /** Weight as a line (kg above each point); the date and the reps ("×10") sit under each point. */
+  function sessionLine(el, sessions) {
+    const W = 330, H = 176, L = 26, R = 26, T = 24, B = 46, n = sessions.length;
+    const lo = Math.min(...sessions.map(s => s.kg)), hi = Math.max(...sessions.map(s => s.kg)), pad = Math.max((hi - lo) * 0.35, 1.5);
+    const x = i => L + (W - L - R) * (n === 1 ? 0.5 : i / (n - 1));
+    const y = kg => T + (1 - (kg - (lo - pad)) / ((hi + pad) - (lo - pad))) * (H - T - B);
+    const pts = sessions.map((s, i) => [x(i), y(s.kg)]);
+    let out = `<svg viewBox="0 0 ${W} ${H}" width="100%" xmlns="http://www.w3.org/2000/svg">`;
+    for (let g = 0; g < 3; g++) { const gy = T + g * (H - T - B) / 2; out += `<line x1="${L}" x2="${W - R}" y1="${gy}" y2="${gy}" stroke="#232a26"/>`; }
+    out += `<polygon points="${pts.map(p => p.join(',')).join(' ')} ${x(n - 1)},${H - B} ${x(0)},${H - B}" fill="#2ee887" opacity=".10"/>`;
+    out += `<polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="#2ee887" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    sessions.forEach((s, i) => {
+      const latest = i === n - 1;
+      out += `<circle cx="${pts[i][0]}" cy="${pts[i][1]}" r="${latest ? 5 : 3.8}" fill="#2ee887"/>`;
+      out += `<text x="${pts[i][0]}" y="${pts[i][1] - 10}" text-anchor="middle" font-size="11" font-weight="700" fill="${latest ? '#2ee887' : '#8fd9b3'}">${s.kg}</text>`;
+      out += `<text x="${pts[i][0]}" y="${H - 28}" text-anchor="middle" font-size="10" fill="#8a9690">${s.label}</text>`;
+      out += `<text x="${pts[i][0]}" y="${H - 12}" text-anchor="middle" font-size="11" font-weight="700" fill="${latest ? '#2ee887' : '#8fd9b3'}">×${s.reps}</text>`;
+    });
+    el.innerHTML = out + '</svg>';
+  }
+  sessionLine(document.getElementById('bars'), [
+    { kg: 40, reps: 10, label: '12 Sep' }, { kg: 40, reps: 12, label: '19 Sep' }, { kg: 42.5, reps: 9, label: '26 Sep' },
+    { kg: 42.5, reps: 10, label: '3 Oct' }, { kg: 45, reps: 9, label: '16 Oct' }, { kg: 45, reps: 10, label: '23 Oct' },
+  ]);
+
+  const palette = (i) => `hsl(${(i * 47) % 360} 70% 45%)`;
+  const all = [...new Set([...Object.keys(F.front), ...Object.keys(F.back)])];
+  const colors = Object.fromEntries(all.map((p, i) => [p, palette(i)]));
+  const debug = document.getElementById('debug');
+  for (const view of ['front', 'back']) {
+    let s = `<svg viewBox="0 0 ${F.width} ${F.height}" xmlns="http://www.w3.org/2000/svg">` + F.base.map(d => `<path class="base" d="${d}"/>`).join('');
+    for (const [part, paths] of Object.entries(F[view])) s += paths.map(d => `<path class="p" style="fill:${colors[part]};stroke:#000;stroke-width:.5" d="${d}"/>`).join('');
+    const wrap = document.createElement('div');
+    wrap.className = 'col';
+    wrap.innerHTML = s + `</svg><div class="cap">${view}</div>`;
+    debug.appendChild(wrap);
+  }
+  const key = document.createElement('div');
+  key.className = 'col';
+  key.style.alignItems = 'flex-start';
+  key.innerHTML = all.map(p => `<div style="font-size:12px"><span class="dot" style="background:${colors[p]}"></span>${p} <span style="color:var(--muted)">${F.front[p] ? 'F' : ''}${F.back[p] ? 'B' : ''}</span></div>`).join('');
+  debug.appendChild(key);
+</script>
+</body>
+</html>

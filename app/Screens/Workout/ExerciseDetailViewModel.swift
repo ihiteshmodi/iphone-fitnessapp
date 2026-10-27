@@ -97,21 +97,33 @@ final class ExerciseDetailViewModel: ObservableObject {
 
     var workingWeightText: String? { detail?.target.workingWeight.map { Format.number($0) } }
 
-    var warmupsText: String? {
-        guard let target = detail?.target, let w75 = target.warmup75, let w90 = target.warmup90 else { return nil }
-        return "\(Format.number(w75)) · \(Format.number(w90)) kg"
+    /// "75%  33.75 kg" and "90%  40.5 kg", labelled so it is clear they are shares of the working weight.
+    struct Warmup: Identifiable {
+        let percent: String
+        let kg: String
+        var id: String { percent }
     }
 
-    // MARK: Last session, aim, how to
-
-    var lastSessionTitle: String {
-        guard let session = detail?.lastSession else { return "Last session" }
-        return "Last session · \(Format.shortDate(session.date))"
+    var warmups: [Warmup] {
+        guard let target = detail?.target, let w75 = target.warmup75, let w90 = target.warmup90 else { return [] }
+        return zip(WarmupLabels.percentages, [w75, w90]).map { Warmup(percent: "\($0)%", kg: "\(Format.number($1)) kg") }
     }
 
-    var lastSessionChips: [String] { detail?.lastSession?.sets.map(Self.setText) ?? [] }
+    // MARK: Aim, how to
 
-    var aim: String { detail?.aim ?? "" }
+    /// The aim as a pill and an optional hint. Hidden when there is no working weight yet (the card says so itself).
+    var aimSummary: AimSummary? {
+        guard let detail, detail.target.workingWeight != nil else { return nil }
+        return detail.aimSummary
+    }
+
+    var aimTone: Pill.Tone {
+        switch aimSummary?.pill {
+        case "Increase weight", "Increase reps": return .green
+        case "Maintain", "Deload": return .amber
+        default: return .grey
+        }
+    }
 
     var instructions: String {
         detail?.exercise.instructions?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -119,9 +131,9 @@ final class ExerciseDetailViewModel: ObservableObject {
 
     // MARK: Progress
 
-    var chartPoints: [ChartPoint] {
+    var sessionPoints: [SessionPoint] {
         (detail?.sessions ?? []).map {
-            ChartPoint(label: Format.shortDate($0.date), value: $0.best.weightKg, caption: "\($0.best.reps)")
+            SessionPoint(id: $0.date.string, label: Format.shortDate($0.date), kg: $0.best.weightKg, repsText: "×\($0.best.reps)")
         }
     }
 
@@ -133,19 +145,25 @@ final class ExerciseDetailViewModel: ObservableObject {
         return "Estimated 1RM \(sign)\(Format.number(change, maxDecimals: 1))% over the last \(count) sessions"
     }
 
-    // MARK: History
+    // MARK: Muscles worked
 
-    struct HistoryRow: Identifiable {
-        let id: String
-        let date: String
-        let sets: String
-        let isDeload: Bool
+    var muscles: ExerciseMuscles? { detail?.muscles }
+
+    func saveMuscles(_ assignments: [MuscleAssignment]) -> Bool {
+        perform { try services.muscles.save(exerciseId: exerciseId, assignments: assignments) }
     }
 
-    var historyRows: [HistoryRow] {
-        (detail?.history ?? []).map {
-            HistoryRow(id: $0.date.string, date: Format.shortDate($0.date), sets: $0.sets.map(Self.setText).joined(separator: " · "),
-                       isDeload: $0.sets.allSatisfy(\.isDeload))
+    func resetMuscles() -> Bool {
+        perform { try services.muscles.reset(exerciseId: exerciseId) }
+    }
+
+    private func perform(_ action: () throws -> Void) -> Bool {
+        do {
+            try action()
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
         }
     }
 

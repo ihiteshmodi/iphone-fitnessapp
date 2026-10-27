@@ -1,15 +1,25 @@
 import XCTest
 @testable import FitnessCore
 
-/// An existing database (schema version 1, no deload tagging) is upgraded in place when the app opens it.
+/// An existing database (an older schema version) is upgraded in place when the app opens it.
 final class SchemaMigrationTests: DatabaseFileTestCase {
-    /// What the first seeded database looked like: no `is_deload` column, no ignore setting, version 1.
+    /// What the first seeded database looked like: no `is_deload` column, no ignore setting, no chosen-muscles table, version 1.
     private func installVersion1Database() throws {
         let url = try makeFitnessDatabase(named: "v1.sqlite")
         let db = try Database(path: url.path)
         try db.execute("ALTER TABLE set_logs DROP COLUMN is_deload")
         try db.execute("DELETE FROM settings WHERE key = 'ignore_deload_sessions'")
+        try db.execute("DROP TABLE exercise_muscles")
         try db.runScript("PRAGMA user_version = 1")
+        try FileManager.default.copyItem(at: url, to: location.databaseURL)
+    }
+
+    /// The database before chosen muscles existed: version 2.
+    private func installVersion2Database() throws {
+        let url = try makeFitnessDatabase(named: "v2.sqlite")
+        let db = try Database(path: url.path)
+        try db.execute("DROP TABLE exercise_muscles")
+        try db.runScript("PRAGMA user_version = 2")
         try FileManager.default.copyItem(at: url, to: location.databaseURL)
     }
 
@@ -17,14 +27,34 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         try db.query("PRAGMA table_info(\(table))").map { $0.text("name") }
     }
 
+    func testOpeningAVersion2DatabaseAddsTheChosenMusclesTable() throws {
+        try installVersion2Database()
+
+        let db = try XCTUnwrap(try service.openLiveDatabase())
+
+        XCTAssertEqual(db.userVersion, 3)
+        XCTAssertEqual(try columns(of: "exercise_muscles", in: db), ["exercise_id", "part", "role"])
+        XCTAssertEqual(try db.query("SELECT COUNT(*) AS n FROM exercise_muscles").first?.int("n"), 0)
+        XCTAssertEqual(try db.query("SELECT name FROM exercises").map { $0.text("name") }, ["Squat"], "existing data is untouched")
+    }
+
+    func testTheChosenMusclesTableRejectsBadRolesAndKeepsOneRowPerPart() throws {
+        let db = try Database.inMemory()
+        let id = try db.addExercise("Squats")
+        XCTAssertThrowsError(try db.execute("INSERT INTO exercise_muscles (exercise_id, part, role) VALUES (?, 'lats', 'main')", [.int(Int64(id))]))
+        try db.execute("INSERT INTO exercise_muscles (exercise_id, part, role) VALUES (?, 'lats', 'primary')", [.int(Int64(id))])
+        XCTAssertThrowsError(try db.execute("INSERT INTO exercise_muscles (exercise_id, part, role) VALUES (?, 'lats', 'secondary')", [.int(Int64(id))]))
+    }
+
     func testOpeningAVersion1DatabaseAddsTheDeloadTagAndSetting() throws {
         try installVersion1Database()
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
 
-        XCTAssertEqual(db.userVersion, 2)
+        XCTAssertEqual(db.userVersion, 3)
         XCTAssertTrue(try columns(of: "set_logs", in: db).contains("is_deload"))
         XCTAssertTrue(try SettingsRepository(db).load().ignoreDeloadSessions)
+        XCTAssertFalse(try columns(of: "exercise_muscles", in: db).isEmpty, "a version 1 file gets every later step too")
     }
 
     func testOldSetsAreNotTaggedAsDeload() throws {
@@ -47,7 +77,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         let again = try XCTUnwrap(try service.openLiveDatabase())
 
         XCTAssertFalse(try SettingsRepository(again).load().ignoreDeloadSessions)
-        XCTAssertEqual(again.userVersion, 2)
+        XCTAssertEqual(again.userVersion, 3)
     }
 
     func testAnOldVersionNumberOnAnAlreadyCurrentSchemaDoesNotFail() throws {
@@ -56,7 +86,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
 
-        XCTAssertEqual(db.userVersion, 2)
+        XCTAssertEqual(db.userVersion, 3)
     }
 
     func testImportingAVersion1FileThenOpeningItWorks() throws {
@@ -67,7 +97,7 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         try service.importDatabase(from: picked, clock: clock)
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
-        XCTAssertEqual(db.userVersion, 2)
+        XCTAssertEqual(db.userVersion, 3)
     }
 }
 

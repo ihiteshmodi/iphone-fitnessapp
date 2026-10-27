@@ -12,7 +12,7 @@ def rows(conn, sql):
 
 def test_schema_is_applied_with_settings_and_version(build):
     conn, _ = build()
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
     settings = dict(rows(conn, "SELECT key, value FROM settings"))
     assert settings["history_start_date"] == "2026-08-31"
     assert settings["day_label_mode"] == "number"
@@ -24,6 +24,11 @@ def test_schema_is_applied_with_settings_and_version(build):
 def test_imported_sets_are_not_tagged_as_deload(build):
     conn, _ = build()
     assert rows(conn, "SELECT COUNT(*) FROM set_logs WHERE is_deload != 0") == [(0,)]
+
+
+def test_no_muscles_are_chosen_so_every_exercise_is_automatic(build):
+    conn, _ = build()
+    assert rows(conn, "SELECT COUNT(*) FROM exercise_muscles") == [(0,)]
 
 
 def test_library_rows_are_inserted_trimmed_with_library_source(build):

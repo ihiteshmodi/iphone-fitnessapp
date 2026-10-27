@@ -40,12 +40,27 @@ final class ScreenTourUITests: XCTestCase {
         app.buttons["day-3"].tap()
         snap("01-workout-day3")
 
-        let card = app.buttons["exercise-card-Chest Dips Machine"]
+        let card = app.buttons["exercise-card-Triceps Pushdown"]
         XCTAssertTrue(card.waitForExistence(timeout: 10))
         card.tap()
         _ = app.buttons["add-set-button"].waitForExistence(timeout: 10)
         snap("02-detail-top")
-        scrollAndSnap("02-detail")
+        scrollAndSnap("02-detail", times: 2)
+
+        // The small muscles card, then the editor behind its Edit button.
+        let edit = app.buttons["muscles-edit-button"]
+        for _ in 0..<6 where !(edit.exists && edit.isHittable) { app.swipeUp() }
+        XCTAssertTrue(app.otherElements["muscles-card"].exists || edit.exists, "the muscles card is on the exercise screen")
+        snap("02-muscles-card")
+        edit.tap()
+        sleep(1)
+        snap("02-muscle-editor")
+        app.swipeUp()
+        snap("02-muscle-editor-scrolled")
+        let wholeRegion = app.buttons["muscle-region-triceps"]
+        if wholeRegion.waitForExistence(timeout: 3) || app.buttons["muscle-region-upperBack"].exists {
+            snap("02-muscle-editor-regions")
+        }
     }
 
     func testTourBody() {

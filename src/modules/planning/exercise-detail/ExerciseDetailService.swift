@@ -34,6 +34,34 @@ public struct ExerciseDetail: Equatable {
     public let todaySets: [PerformedSet]
     public let targetSets: Int
     public let prefill: SetFormPrefill
+    /// The muscles this exercise trains (chosen by the user, or automatic).
+    public let muscles: ExerciseMuscles
+
+    /// The aim split for the "Do today" card: a short pill and an optional hint.
+    public var aimSummary: AimSummary { AimSummary.make(from: aim) }
+}
+
+/// "Increase reps: beat 9 reps at 54 kg" as a pill ("Increase reps") and a hint ("Beat 9 reps at 54 kg").
+public struct AimSummary: Equatable {
+    public let pill: String
+    public let hint: String?
+
+    public init(pill: String, hint: String?) {
+        self.pill = pill
+        self.hint = hint
+    }
+
+    public static func make(from aim: String) -> AimSummary {
+        guard let colon = aim.range(of: ": ") else { return AimSummary(pill: aim, hint: nil) }
+        let pill = String(aim[..<colon.lowerBound])
+        let hint = String(aim[colon.upperBound...])
+        return AimSummary(pill: pill == "Bring to maintenance" ? "Maintain" : pill, hint: hint.prefix(1).uppercased() + hint.dropFirst())
+    }
+}
+
+/// The warm-up steps shown next to the working weight, as percentages of it.
+public enum WarmupLabels {
+    public static let percentages = [75, 90]
 }
 
 public final class ExerciseDetailService {
@@ -78,7 +106,8 @@ public final class ExerciseDetailService {
             history: Array(loggedBefore.reversed().prefix(Self.historySessions)),
             todaySets: try history.sets(exerciseId: exerciseId, on: today),
             targetSets: entry.sets,
-            prefill: SetFormPrefill(weightKg: target.workingWeight, reps: entry.maxReps))
+            prefill: SetFormPrefill(weightKg: target.workingWeight, reps: entry.maxReps),
+            muscles: try ExerciseMuscleService(db).muscles(exerciseId: exerciseId))
     }
 
     /// Saves the how-to text in the library, so every day that uses the exercise shows it.
