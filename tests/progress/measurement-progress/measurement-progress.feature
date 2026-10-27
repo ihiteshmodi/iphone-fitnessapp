@@ -44,3 +44,27 @@ Feature: Measurement progress
   Scenario: Add a new site to track
     When I add the site "Left Shin" with a first reading 11.0 and a target 11.5
     Then "Left Shin" appears on Progress with 0.50 inches to gain
+
+  Scenario Outline: Being past the target is fine for sites that should grow and not for sites that should shrink
+    Given "<site>" is a "<direction>" site with target <target> and current <current>
+    Then Progress shows "<status>"
+
+    Examples:
+      | site      | direction | target | current | status                    |
+      | Left Calf | grow      | 15.31  | 14.0    | 1.31 to gain              |
+      | Shoulders | grow      | 45.3   | 46.0    | 0.70 ahead of target      |
+      | Waist     | reduce    | 28.0   | 30.2    | 2.20 to lose              |
+      | Waist     | reduce    | 28.0   | 27.0    | 1.00 ahead of target      |
+
+  Scenario: Change which way a site should go
+    Given "Hips" has a target of 36.0 and a reading of 38.0 and is a grow site
+    When I set "Hips" to reduce
+    Then Progress shows "2.00 to lose"
+
+  Scenario: Sites that still need work come before sites that are ahead
+    Given "Shoulders" is 0.7 ahead of its target and "Left Calf" has 0.31 to gain
+    Then "Left Calf" is listed before "Shoulders"
+
+  Scenario: A new site starts as reduce when its target is below its first reading
+    When I add "Hips" with a first reading 38 and a target 36
+    Then "Hips" is a reduce site

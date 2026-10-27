@@ -8,6 +8,8 @@ final class WorkoutViewModel: ObservableObject {
     @Published private(set) var selectedDayId: Int?
     @Published private(set) var workout: Workout?
     @Published var errorMessage: String?
+    /// Kept only while the app is open: a fresh launch always starts on All.
+    @Published var filter: WorkoutFilter = .all
 
     private let services: Services
 
@@ -50,6 +52,9 @@ final class WorkoutViewModel: ObservableObject {
     // MARK: Hero
 
     var exercises: [WorkoutExercise] { workout?.exercises ?? [] }
+    var visibleExercises: [WorkoutExercise] { workout?.exercises(filter) ?? [] }
+    var remainingCount: Int { workout?.remainingCount ?? 0 }
+    var isAllDone: Bool { workout?.isAllDone ?? false }
     var isDeload: Bool { workout?.isDeload ?? false }
     var dayLabel: String { workout?.day.label ?? "" }
 
@@ -63,10 +68,15 @@ final class WorkoutViewModel: ObservableObject {
 
     var totalSets: Int { exercises.reduce(0) { $0 + $1.sets } }
 
-    var exercisesDone: Int { exercises.filter { $0.setsLoggedToday >= $0.sets }.count }
+    var exercisesDone: Int { exercises.filter(\.isDone).count }
 
     var toProgressCount: Int {
         exercises.filter { $0.recommendation == .increaseWeight || $0.recommendation == .increaseReps }.count
+    }
+
+    /// Exercises whose last session was a PR to act on.
+    var prCount: Int {
+        exercises.filter { if case .pr(_, _, _, _, let isToday) = $0.progression { return !isToday }; return false }.count
     }
 
     /// Counts partial exercises too, so the ring moves after every logged set.
@@ -81,7 +91,7 @@ final class WorkoutViewModel: ObservableObject {
     // MARK: Cards
 
     func meta(_ exercise: WorkoutExercise) -> String {
-        let reps = "\(Format.number(exercise.minReps))–\(exercise.maxReps)"
+        let reps = "\(Format.number(exercise.minReps))–\(Format.number(exercise.maxReps))"
         let target = "\(exercise.sets) × \(reps)"
         guard let muscle = exercise.muscle, !muscle.isEmpty else { return target }
         return "\(muscle) · \(target)"
@@ -94,13 +104,18 @@ final class WorkoutViewModel: ObservableObject {
     func ringLabel(_ exercise: WorkoutExercise) -> String { "\(exercise.setsLoggedToday)/\(exercise.sets)" }
 
     struct Badge: Equatable {
-        enum Tone { case green, amber, grey }
+        enum Tone { case green, amber, grey, gold }
         let text: String
         let tone: Tone
     }
 
     func badge(_ exercise: WorkoutExercise) -> Badge {
         if isDeload { return Badge(text: "Deload", tone: .amber) }
+        switch exercise.progression {
+        case .pr(let next, _, _, _, _): return Badge(text: "★ Go to \(Format.number(next))", tone: .gold)
+        case .repeatForCleanReps: return Badge(text: "Same weight, clean", tone: .amber)
+        case .none: break
+        }
         switch exercise.recommendation {
         case .increaseWeight: return Badge(text: "Increase weight", tone: .green)
         case .increaseReps: return Badge(text: "Increase reps", tone: .green)

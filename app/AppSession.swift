@@ -50,6 +50,13 @@ final class AppSession: ObservableObject {
     /// Looks at the app folder again, for a file that was copied in while the app was open.
     func recheck() { open() }
 
+    /// Refreshes the list of database files lying in the app folder (for restoring from More) without reopening anything.
+    func refreshFoundDatabases() {
+        guard let fileService else { return }
+        foundDatabases = fileService.foundDatabases()
+        folderListing = fileService.folderListing()
+    }
+
     /// Call after any write so screens refresh.
     func didChange() { revision += 1 }
 

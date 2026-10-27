@@ -65,11 +65,12 @@ final class ExerciseDetailTests: XCTestCase {
         XCTAssertEqual(try detail(planned).aim, "Increase reps: beat 9 reps at 54 kg")
     }
 
-    func testAimAtTheTopOfTheRangeIsIncreaseWeight() throws {
+    func testAimAtTheTopOfTheRangeIsIncreaseWeightWithTheNextWeight() throws {
         let planned = try PlannedExercise.make(db)
         try db.addSet(exercise: planned.exerciseId, on: "2026-10-18", weight: 54, reps: 10)
 
-        XCTAssertEqual(try detail(planned).aim, "Increase weight")
+        // 54 x 10 gives a 1RM of 72; at the minimum 6 reps that is 60 kg.
+        XCTAssertEqual(try detail(planned).aim, "Increase weight: go to 60 kg")
     }
 
     func testAimBelowTheRangeIsBringToMaintenance() throws {
@@ -89,7 +90,8 @@ final class ExerciseDetailTests: XCTestCase {
         XCTAssertNil(result.target.recommendation)
         XCTAssertEqual(result.target.workingWeight, 43.2)
         XCTAssertEqual(result.target.minReps, 4.5)
-        XCTAssertEqual(result.aim, "Deload: 4.5 to 10 reps at 43.2 kg")
+        XCTAssertEqual(result.target.maxReps, 7.5)
+        XCTAssertEqual(result.aim, "Deload: 4.5 to 7.5 reps at 43.2 kg")
     }
 
     func testHowToInstructionsComeFromTheLibrary() throws {
@@ -176,10 +178,18 @@ final class ExerciseDetailTests: XCTestCase {
         XCTAssertEqual(result.history.map(\.date), [date("2026-10-18")])
     }
 
-    func testSetFormIsPrefilledWithWorkingWeightAndMaximumReps() throws {
+    func testSetFormIsPrefilledWithWorkingWeightAndTheMiddleOfTheRepRange() throws {
         let result = try detail(try chestDipsWithLastSession())
 
-        XCTAssertEqual(result.prefill, SetFormPrefill(weightKg: 54, reps: 10))
+        XCTAssertEqual(result.prefill, SetFormPrefill(weightKg: 54, reps: 8))
+    }
+
+    func testTheMiddleRepsFollowTheRepRangeShownDuringDeload() throws {
+        let planned = try PlannedExercise.make(db, minReps: 8, maxReps: 16)
+        try db.addSet(exercise: planned.exerciseId, on: "2026-10-01", weight: 60, reps: 12)
+        try setDeload(db, enabled: true, repsMultiplier: 0.75)
+
+        XCTAssertEqual(try detail(planned).prefill.reps, 9, "6 to 12 reps are shown, so the middle is 9")
     }
 
     func testDeletingAMistakenSetRemovesItFromTheCardAndChart() throws {
@@ -209,7 +219,7 @@ final class ExerciseDetailTests: XCTestCase {
         XCTAssertNil(result.lastSession)
         XCTAssertNil(result.target.workingWeight)
         XCTAssertEqual(result.sessions, [])
-        XCTAssertEqual(result.prefill, SetFormPrefill(weightKg: nil, reps: 10))
+        XCTAssertEqual(result.prefill, SetFormPrefill(weightKg: nil, reps: 8))
     }
 
     func testAnExerciseThatIsNotOnTheDayIsRejected() throws {

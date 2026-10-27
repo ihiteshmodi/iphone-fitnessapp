@@ -10,6 +10,7 @@ final class Services: ObservableObject {
     let planEditor: PlanEditor
     let library: ExerciseRepository
     let logSets: LogSets
+    let formChecks: FormChecks
     let logBody: LogBodyMetrics
     let calories: CalorieService
     let nutrition: NutritionSettings
@@ -25,7 +26,8 @@ final class Services: ObservableObject {
         detail = ExerciseDetailService(db, clock: clock)
         planEditor = PlanEditor(db)
         library = ExerciseRepository(db)
-        logSets = LogSets(db)
+        logSets = LogSets(db, clock: clock)
+        formChecks = FormChecks(db)
         logBody = LogBodyMetrics(db)
         calories = CalorieService(db)
         nutrition = NutritionSettings(db)

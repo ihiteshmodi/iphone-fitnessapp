@@ -1,7 +1,8 @@
 import FitnessCore
 import SwiftUI
 
-/// The small "Muscles worked" card: zooms on the primary muscles and lists them. Tapping Edit opens the editor.
+/// The small "Muscles worked" card: one zoomed picture per side of the body that has a worked muscle (primary in the
+/// strong green, secondary lighter), and a legend. Tapping Edit opens the editor.
 struct MusclesWorkedCard: View {
     let muscles: ExerciseMuscles
     let onEdit: () -> Void

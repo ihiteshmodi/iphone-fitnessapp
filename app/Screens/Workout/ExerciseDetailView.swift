@@ -16,8 +16,11 @@ private struct ExerciseDetailContent: View {
     @EnvironmentObject private var session: AppSession
     @StateObject private var vm: ExerciseDetailViewModel
     @State private var showingAddSet = false
+    @State private var editingSet: EditableSet?
+    @State private var expandedSessions: Set<String> = []
     @State private var showingHowToEditor = false
     @State private var showingMuscleEditor = false
+    @State private var showingFormQuestion = false
 
     init(services: Services, exerciseId: Int, dayId: Int) {
         _vm = StateObject(wrappedValue: ExerciseDetailViewModel(services: services, exerciseId: exerciseId, dayId: dayId))
@@ -28,11 +31,13 @@ private struct ExerciseDetailContent: View {
             if vm.detail != nil {
                 VStack(spacing: 12) {
                     header
+                    progressionBanner
                     doToday
                     progress
                     howTo
                     musclesWorked
                     logSets
+                    earlierSessions
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
@@ -43,6 +48,24 @@ private struct ExerciseDetailContent: View {
         .task(id: session.revision) { vm.load() }
         .sheet(isPresented: $showingAddSet) {
             DetailAddSetSheet(vm: vm, onSaved: { session.didChange() })
+        }
+        .sheet(isPresented: $showingFormQuestion) {
+            FormQuestionSheet(setText: vm.topSetText, oneRepMax: vm.oneRepMaxText) { clean in
+                if vm.answerForm(clean: clean) {
+                    showingFormQuestion = false
+                    session.didChange()
+                }
+            }
+        }
+        // Wait for the Add set sheet to finish closing before the question comes up.
+        .onChange(of: vm.needsFormAnswer && !showingAddSet && editingSet == nil) { due in
+            guard due else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                showingFormQuestion = vm.needsFormAnswer && !showingAddSet && editingSet == nil
+            }
+        }
+        .sheet(item: $editingSet) { set in
+            DetailAddSetSheet(vm: vm, editing: set, onSaved: { session.didChange() })
         }
         .sheet(isPresented: $showingHowToEditor) {
             DetailHowToEditor(vm: vm, onSaved: { session.didChange() })
@@ -57,7 +80,7 @@ private struct ExerciseDetailContent: View {
             }
         }
         // The sheets show their own errors; two alerts bound to one message would fight.
-        .errorAlert(showingAddSet || showingHowToEditor || showingMuscleEditor ? .constant(nil) : $vm.errorMessage)
+        .errorAlert(showingAddSet || editingSet != nil || showingHowToEditor || showingMuscleEditor ? .constant(nil) : $vm.errorMessage)
     }
 
     // MARK: 1. Header
@@ -77,6 +100,49 @@ private struct ExerciseDetailContent: View {
         }
     }
 
+    // MARK: 1b. PR banner (loud on purpose: it is the main thing to act on)
+
+    @ViewBuilder
+    private var progressionBanner: some View {
+        if let banner = vm.banner {
+            let gold = banner.style == .pr
+            let tint = gold ? Theme.gold : Theme.amber
+            VStack(alignment: .leading, spacing: 6) {
+                Text(banner.kicker.uppercased())
+                    .font(.system(size: 11, weight: .heavy)).tracking(0.9).foregroundColor(tint)
+                Text(banner.headline)
+                    .font(.system(size: gold ? 22 : 20, weight: .heavy)).foregroundColor(tint)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(banner.detail)
+                    .font(.system(size: 13)).foregroundColor(gold ? Color(hex: 0xF6E3B0) : Color(hex: 0xD9C88F))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let label = banner.oneRepMaxLabel, let value = banner.oneRepMaxValue {
+                    Divider().overlay(Color.white.opacity(0.08)).padding(.top, 4)
+                    bannerRow(label, value, valueColor: Theme.text)
+                }
+                if let label = banner.nextWeightLabel, let value = banner.nextWeightValue {
+                    bannerRow(label, value, valueColor: Theme.gold)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(gold ? Theme.gold.opacity(0.14) : Theme.amber.opacity(0.07))
+            .overlay(RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(tint.opacity(gold ? 1 : 0.55), style: StrokeStyle(lineWidth: gold ? 1.5 : 1, dash: gold ? [] : [5, 4])))
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier(gold ? "pr-banner" : "repeat-banner")
+        }
+    }
+
+    private func bannerRow(_ label: String, _ value: String, valueColor: Color) -> some View {
+        HStack {
+            Text(label).font(.system(size: 12.5)).foregroundColor(Theme.muted)
+            Spacer()
+            Text(value).font(.system(size: 14, weight: .bold)).foregroundColor(valueColor)
+        }
+    }
+
     // MARK: 2. Do today (weight, aim, warm-ups)
 
     private var doToday: some View {
@@ -85,18 +151,19 @@ private struct ExerciseDetailContent: View {
                 SectionLabel("Do today")
                 Spacer()
                 if let aim = vm.aimSummary {
-                    Pill(text: aim.pill, tone: vm.aimTone).accessibilityIdentifier("aim-pill")
+                    Pill(text: vm.isPRNextWeight ? "★ New weight" : aim.pill, tone: vm.aimTone).accessibilityIdentifier("aim-pill")
                 }
             }
             if let weight = vm.workingWeightText {
                 HStack(alignment: .bottom, spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(weight).font(.system(size: 44, weight: .bold)).foregroundColor(Theme.text)
+                            Text(weight).font(.system(size: 44, weight: .bold)).foregroundColor(vm.isPRNextWeight ? Theme.gold : Theme.text)
                             Text("kg").font(.system(size: 18)).foregroundColor(Theme.muted)
                         }
                         if let hint = vm.aimSummary?.hint {
-                            Text(hint).font(.system(size: 13)).foregroundColor(Theme.green).accessibilityIdentifier("aim-hint")
+                            Text(hint).font(.system(size: 13)).foregroundColor(vm.isPRNextWeight ? Theme.gold : Theme.green)
+                                .accessibilityIdentifier("aim-hint")
                         }
                     }
                     Spacer()
@@ -185,11 +252,21 @@ private struct ExerciseDetailContent: View {
                 Spacer()
                 Text(vm.todayCountText).font(.system(size: 11, weight: .medium)).foregroundColor(Theme.green)
             }
+            if !vm.warmups.isEmpty { warmupReference }
             ForEach(Array(vm.todaySets.enumerated()), id: \.element.id) { index, set in
                 todayRow(number: index + 1, set: set)
             }
             ForEach(vm.emptySlotNumbers, id: \.self) { number in
                 emptyRow(number: number)
+            }
+            if let oneRepMax = vm.oneRepMaxText {
+                HStack {
+                    Text("Est. 1RM (Epley)").font(.system(size: 13)).foregroundColor(Theme.muted)
+                    Spacer()
+                    Text(oneRepMax).font(.system(size: 14, weight: .bold)).foregroundColor(Theme.text)
+                        .accessibilityIdentifier("one-rep-max")
+                }
+                .padding(.top, 4)
             }
             Button { showingAddSet = true } label: { Text("+ Add set") }
                 .buttonStyle(PrimaryButtonStyle())
@@ -197,6 +274,29 @@ private struct ExerciseDetailContent: View {
                 .accessibilityIdentifier("add-set-button")
         }
         .card()
+    }
+
+    /// The planned warm-ups: weights to follow, not logged and not counted in the 0/1 above.
+    private var warmupReference: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel("Warm up first · not logged")
+            ForEach(vm.warmups) { warmup in
+                HStack(spacing: 12) {
+                    Text("W")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Theme.muted)
+                        .frame(width: 28, height: 28)
+                        .overlay(Circle().strokeBorder(Theme.line, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))
+                    Text("\(warmup.kg) · \(warmup.percent)").font(.system(size: 14)).foregroundColor(Theme.muted)
+                    Spacer()
+                    Text("reference").font(.system(size: 11)).foregroundColor(Theme.muted)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("warmup-\(warmup.percent)")
+            }
+            Divider().overlay(Theme.line)
+            SectionLabel("Main set")
+        }
     }
 
     private func numberCircle(_ number: Int, done: Bool) -> some View {
@@ -215,6 +315,14 @@ private struct ExerciseDetailContent: View {
                 + Text("× \(set.reps) reps").font(.system(size: 14)).foregroundColor(Theme.muted))
             if set.isDeload { Pill(text: "Deload", tone: .amber) }
             Spacer()
+            Button {
+                editingSet = EditableSet(id: set.id, weightKg: set.weightKg, reps: set.reps, date: set.date)
+            } label: {
+                Image(systemName: "pencil").font(.system(size: 14)).foregroundColor(Theme.green)
+                    .frame(width: 36, height: 36)
+            }
+            .accessibilityLabel("Edit set \(number)")
+            .accessibilityIdentifier("edit-set-\(number)")
             Button {
                 if vm.deleteSet(id: set.id) { session.didChange() }
             } label: {
@@ -241,6 +349,76 @@ private struct ExerciseDetailContent: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("empty-set-\(number)")
+    }
+    // MARK: 7. Earlier sessions (correct or delete sets from other days)
+
+    private var earlierSessions: some View {
+        Group {
+            if !vm.earlierSessions.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionLabel("Earlier sessions")
+                    ForEach(vm.earlierSessions, id: \.date) { sessionDay in
+                        earlierSessionRow(sessionDay)
+                    }
+                    if vm.hasMoreEarlier {
+                        Button("Show all sessions") { vm.showAllEarlier() }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(Theme.green)
+                            .accessibilityIdentifier("show-all-sessions-button")
+                    }
+                }
+                .card()
+            }
+        }
+    }
+
+    private func earlierSessionRow(_ day: SetSession) -> some View {
+        let key = day.date.string
+        let open = expandedSessions.contains(key)
+        return VStack(alignment: .leading, spacing: 8) {
+            Button {
+                if open { expandedSessions.remove(key) } else { expandedSessions.insert(key) }
+            } label: {
+                HStack {
+                    Text(Format.longDate(day.date)).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
+                    Text("\(day.sets.count) \(day.sets.count == 1 ? "set" : "sets")").font(.system(size: 13)).foregroundColor(Theme.muted)
+                    Spacer()
+                    Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 12)).foregroundColor(Theme.muted)
+                }
+                .frame(minHeight: 32)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("session-\(key)")
+            if open {
+                ForEach(Array(day.sets.enumerated()), id: \.element.id) { index, set in
+                    earlierSetRow(number: index + 1, set: set)
+                }
+            }
+        }
+    }
+
+    private func earlierSetRow(number: Int, set: LoggedSet) -> some View {
+        HStack(spacing: 12) {
+            numberCircle(number, done: true)
+            (Text("\(Format.number(set.weightKg)) kg ").font(.system(size: 16, weight: .bold)).foregroundColor(Theme.text)
+                + Text("× \(set.reps) reps").font(.system(size: 14)).foregroundColor(Theme.muted))
+            Spacer()
+            Button {
+                editingSet = EditableSet(id: set.id, weightKg: set.weightKg, reps: set.reps, date: set.date)
+            } label: {
+                Image(systemName: "pencil").font(.system(size: 14)).foregroundColor(Theme.green).frame(width: 36, height: 36)
+            }
+            .accessibilityLabel("Edit set \(number) on \(set.date.string)")
+            .accessibilityIdentifier("edit-earlier-set-\(set.id)")
+            Button {
+                if vm.deleteSet(id: set.id) { session.didChange() }
+            } label: {
+                Image(systemName: "trash").font(.system(size: 14)).foregroundColor(Theme.red).frame(width: 36, height: 36)
+            }
+            .accessibilityLabel("Delete set \(number) on \(set.date.string)")
+            .accessibilityIdentifier("delete-earlier-set-\(set.id)")
+        }
     }
 }
 

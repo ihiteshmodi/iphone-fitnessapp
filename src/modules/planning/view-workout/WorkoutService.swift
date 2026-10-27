@@ -27,15 +27,20 @@ public final class WorkoutService {
                                            ignoreDeload: settings.ignoreDeloadSessions)
             let target = WorkoutTargetCalculator.target(heaviest: HeaviestSet.of(sets), minReps: entry.minReps,
                                                         maxReps: entry.maxReps, deload: settings.deload)
+            let sessions = SessionHistory.sessions(from: sets)
+            let progression = ProgressionCalculator.progression(
+                sessions: sessions, minReps: entry.minReps, maxReps: entry.maxReps,
+                answers: try FormChecks(db).answers(exerciseId: entry.exercise.id), today: today, deloadActive: settings.deload.enabled)
             let sparkline = SessionHistory.sessions(from: sets).suffix(Self.sparklineSessions).map(\.best.weightKg)
             return WorkoutExercise(
                 planEntryId: entry.planEntryId, exerciseId: entry.exercise.id, name: entry.exercise.name,
                 muscle: entry.exercise.muscle, instructions: entry.exercise.instructions,
-                sets: entry.sets, minReps: target.minReps, plannedMinReps: entry.minReps, maxReps: target.maxReps,
+                sets: entry.sets, warmupSets: entry.warmupSets, minReps: target.minReps, plannedMinReps: entry.minReps, maxReps: target.maxReps,
+                plannedMaxReps: entry.maxReps,
                 workingWeight: target.workingWeight, warmup75: target.warmup75, warmup90: target.warmup90,
                 recommendation: target.recommendation, repsAtMax: target.repsAtMax, dateOfMax: target.dateOfMax,
                 setsLoggedToday: try history.sets(exerciseId: entry.exercise.id, on: today).count,
-                sparkline: Array(sparkline))
+                sparkline: Array(sparkline), progression: progression)
         }
         return Workout(day: Self.planDay(dayRow, mode: settings.dayLabelMode), isDeload: settings.deload.enabled, exercises: exercises)
     }

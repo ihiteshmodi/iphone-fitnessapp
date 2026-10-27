@@ -30,3 +30,31 @@ Feature: Log sets
     Given a set "Triceps Pushdown" 450 kg × 10 was logged by mistake
     When I delete it
     Then it no longer affects the recommendation
+
+  Scenario: Reaching the top of the rep range asks one question about form
+    Given "Leg Extensions" is planned for 8 to 16 reps
+    When I log 60 kg × 16
+    Then the app asks "Did every rep have a full contraction?" once for the exercise
+    And answering stores Yes or No for that exercise on that day
+
+  Scenario Outline: When the question is asked
+    Given "Leg Extensions" is planned for 8 to 16 reps and deload is <deload>
+    When I log <reps> reps
+    Then the question is asked: <asked>
+
+    Examples:
+      | deload | reps | asked |
+      | off    | 16   | yes   |
+      | off    | 17   | yes   |
+      | off    | 15   | no    |
+      | on     | 12   | no    |
+
+  Scenario: The question is asked only once a day
+    Given I answered it for "Leg Extensions" today
+    When I log another set of 16 reps
+    Then it is not asked again
+
+  Scenario: The answer can be changed
+    Given I answered Yes
+    When I answer No for the same exercise and day
+    Then the stored answer is No

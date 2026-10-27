@@ -108,8 +108,11 @@ struct BodyValueEntrySheet: View {
     var initialText = ""
     /// Nil hides the date picker; the sheet then reports today's date to `onSave`.
     var initialDate: ISODate?
+    /// Reported instead of today's date when there is no date picker (for example a calorie day that is already chosen).
+    var fixedDay: ISODate?
     let today: ISODate
     var deleteTitle: String?
+    var deletePrompt = "Delete this entry?"
     var onDelete: (() throws -> Void)?
     let onSave: (Double, ISODate) throws -> Void
 
@@ -151,7 +154,7 @@ struct BodyValueEntrySheet: View {
                     Button("Save", action: save).fontWeight(.bold).accessibilityIdentifier("sheet-save-button")
                 }
             }
-            .confirmationDialog("Delete this entry?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            .confirmationDialog(deletePrompt, isPresented: $confirmingDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive, action: delete)
                 Button("Keep", role: .cancel) {}
             }
@@ -171,7 +174,7 @@ struct BodyValueEntrySheet: View {
             return
         }
         do {
-            try onSave(value, initialDate == nil ? today : BodyDates.day(from: date))
+            try onSave(value, initialDate == nil ? (fixedDay ?? today) : BodyDates.day(from: date))
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

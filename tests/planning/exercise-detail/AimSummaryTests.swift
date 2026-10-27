@@ -11,7 +11,7 @@ final class AimSummaryTests: XCTestCase {
     }
 
     func testRepsAtTheTopOfTheRangeMeanIncreaseWeightWithNoHint() throws {
-        XCTAssertEqual(try aim(weight: 45, reps: 10, min: 6, max: 10), AimSummary(pill: "Increase weight", hint: nil))
+        XCTAssertEqual(try aim(weight: 45, reps: 10, min: 6, max: 10), AimSummary(pill: "Increase weight", hint: "Go to 50 kg"))
     }
 
     func testRepsInsideTheRangeMeanIncreaseReps() throws {
@@ -37,7 +37,7 @@ final class AimSummaryTests: XCTestCase {
 
         let detail = try ExerciseDetailService(db, clock: planningClock()).detail(exerciseId: planned.exerciseId, dayId: planned.dayId)
 
-        XCTAssertEqual(detail.aimSummary, AimSummary(pill: "Deload", hint: "4.5 to 10 reps at 43.2 kg"))
+        XCTAssertEqual(detail.aimSummary, AimSummary(pill: "Deload", hint: "4.5 to 7.5 reps at 43.2 kg"))
     }
 
     func testSplittingTheAimText() {

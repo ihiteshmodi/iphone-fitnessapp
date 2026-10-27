@@ -42,3 +42,26 @@ Feature: View workout for a training day
     Given "Chest Dips Machine" has the library instruction "handle inner, squeeze very hard ..."
     When I open Day 3
     Then I see that instruction and muscle "Chest" on the exercise
+
+  Scenario: An exercise is done when all its main sets are logged today
+    Given "Leg Extensions" has 1 main set and "Seated Cable Row" has 2 main sets
+    And today I logged 1 set of each
+    Then "Leg Extensions" is done and "Seated Cable Row" is not
+
+  Scenario: Remaining hides the finished exercises
+    Given 4 of the 6 exercises on the day are done
+    When I choose "Remaining"
+    Then I see only the 2 exercises that are not done, in their normal order
+    And "All" shows all 6 again
+
+  Scenario: Remaining with everything done
+    Given every exercise on the day is done
+    When I choose "Remaining"
+    Then I see "All done" and a way back to "All"
+
+  Scenario: The app always opens on All, and keeps the choice while it is open
+    Given I chose "Remaining" on Day 2
+    When I switch to Day 3 without closing the app
+    Then Day 3 is also on "Remaining"
+    When I close the app and open it again
+    Then the day opens on "All"

@@ -10,8 +10,8 @@ final class RealDataParityTests: XCTestCase {
 
     override func setUpWithError() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let seed = root.appendingPathComponent("output/fitness.sqlite")
-        try XCTSkipUnless(FileManager.default.fileExists(atPath: seed.path), "output/fitness.sqlite not built")
+        let seed = root.appendingPathComponent("output/fitness.seed.sqlite")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: seed.path), "output/fitness.seed.sqlite not built")
 
         // Import and open exactly like the app does, so an older seed file is upgraded on the way in.
         workDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

@@ -5,6 +5,7 @@ struct PlanEntryRow {
     let planEntryId: Int
     let exercise: Exercise
     let sets: Int
+    let warmupSets: Int
     let minReps: Int
     let maxReps: Int
 }
@@ -47,7 +48,7 @@ struct PlanReader {
     }
 
     private static let entrySQL = """
-        SELECT e.id AS entry_id, e.sets, e.min_reps, e.max_reps,
+        SELECT e.id AS entry_id, e.sets, e.warmup_sets, e.min_reps, e.max_reps,
                x.id AS exercise_id, x.name, x.muscle, x.instructions, x.source
         FROM plan_entries e JOIN exercises x ON x.id = e.exercise_id
         """
@@ -62,7 +63,7 @@ struct PlanReader {
             planEntryId: row.int("entry_id"),
             exercise: Exercise(id: row.int("exercise_id"), name: row.text("name"), muscle: row.optionalText("muscle"),
                                instructions: row.optionalText("instructions"), source: row.text("source")),
-            sets: row.int("sets"), minReps: row.int("min_reps"), maxReps: row.int("max_reps"))
+            sets: row.int("sets"), warmupSets: row.int("warmup_sets"), minReps: row.int("min_reps"), maxReps: row.int("max_reps"))
     }
 }
 

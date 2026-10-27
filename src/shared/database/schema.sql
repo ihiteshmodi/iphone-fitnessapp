@@ -30,6 +30,8 @@ CREATE TABLE plan_entries (
     min_reps    INTEGER NOT NULL CHECK (min_reps >= 0),
     max_reps    INTEGER NOT NULL,
     rep_type    TEXT,
+    -- sets = main sets (logged and counted). warmup_sets are reference only: shown with weights, never logged.
+    warmup_sets INTEGER NOT NULL DEFAULT 0 CHECK (warmup_sets BETWEEN 0 AND 3),
     CHECK (min_reps <= max_reps),
     UNIQUE (day_id, exercise_id)
 );
@@ -57,6 +59,15 @@ CREATE TABLE set_logs (
 CREATE INDEX idx_set_logs_exercise_date ON set_logs (exercise_id, performed_on);
 CREATE INDEX idx_set_logs_date ON set_logs (performed_on);
 
+-- The answer to "did every rep have a full contraction?", asked once per exercise per day when the top of the rep
+-- range is reached. 1 = clean, 0 = not clean. No row means it was never asked (older sessions count as clean).
+CREATE TABLE form_checks (
+    exercise_id  INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    performed_on TEXT NOT NULL CHECK (performed_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    clean        INTEGER NOT NULL CHECK (clean IN (0, 1)),
+    PRIMARY KEY (exercise_id, performed_on)
+);
+
 CREATE TABLE body_weights (
     id          INTEGER PRIMARY KEY,
     measured_on TEXT NOT NULL CHECK (measured_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
@@ -72,16 +83,26 @@ CREATE TABLE body_measurements (
 );
 CREATE INDEX idx_body_measurements_site_date ON body_measurements (site, measured_on);
 
+-- direction: grow means at or above the target is achieved (shoulders, arms); reduce means at or below is (waist).
 CREATE TABLE measurement_targets (
     site   TEXT PRIMARY KEY COLLATE NOCASE,
     inches REAL NOT NULL CHECK (inches > 0),
-    set_on TEXT
+    set_on TEXT,
+    direction TEXT NOT NULL DEFAULT 'grow' CHECK (direction IN ('grow', 'reduce'))
 );
 
 CREATE TABLE calorie_entries (
     logged_on  TEXT PRIMARY KEY CHECK (logged_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
     calories   REAL NOT NULL CHECK (calories > 0),
     multiplier REAL NOT NULL DEFAULT 1 CHECK (multiplier > 0)
+);
+
+-- The calories per day that apply from a date onward (and the goal multiplier chosen with them). A day without a row
+-- in calorie_entries uses the newest default whose effective_from is on or before it.
+CREATE TABLE calorie_defaults (
+    effective_from TEXT PRIMARY KEY CHECK (effective_from GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    calories       REAL NOT NULL CHECK (calories > 0),
+    multiplier     REAL NOT NULL DEFAULT 1 CHECK (multiplier > 0)
 );
 
 CREATE TABLE settings (
@@ -101,4 +122,4 @@ INSERT INTO settings (key, value) VALUES
     ('protein_g_per_lb', '1.2'),
     ('fat_percent_of_calories', '25');
 
-PRAGMA user_version = 3;
+PRAGMA user_version = 7;

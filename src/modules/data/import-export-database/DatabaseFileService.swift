@@ -85,6 +85,41 @@ public struct DatabaseFileService {
                     PRIMARY KEY (exercise_id, part)
                 )
                 """)
+            // Version 4: calories per day that apply from a date. The newest calories ever typed become the first default.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS calorie_defaults (
+                    effective_from TEXT PRIMARY KEY CHECK (effective_from GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    calories       REAL NOT NULL CHECK (calories > 0),
+                    multiplier     REAL NOT NULL DEFAULT 1 CHECK (multiplier > 0)
+                )
+                """)
+            try db.execute("""
+                INSERT OR IGNORE INTO calorie_defaults (effective_from, calories, multiplier)
+                SELECT logged_on, calories, multiplier FROM calorie_entries ORDER BY logged_on DESC LIMIT 1
+                """)
+            // Version 5: each measured site grows or reduces. Waist-type sites are the ones where less is better.
+            let targetColumns = try db.query("PRAGMA table_info(measurement_targets)").map { $0.text("name") }
+            if !targetColumns.contains("direction") {
+                try db.execute("ALTER TABLE measurement_targets ADD COLUMN direction TEXT NOT NULL DEFAULT 'grow' CHECK (direction IN ('grow', 'reduce'))")
+                try db.execute("""
+                    UPDATE measurement_targets SET direction = 'reduce'
+                    WHERE site IN ('Waist', 'Waist (belly button)', 'Body Fat (belly button)')
+                    """)
+            }
+            // Version 6: warm-up sets per planned exercise. Existing sets stay main sets, with no warm-ups.
+            let entryColumns = try db.query("PRAGMA table_info(plan_entries)").map { $0.text("name") }
+            if !entryColumns.contains("warmup_sets") {
+                try db.execute("ALTER TABLE plan_entries ADD COLUMN warmup_sets INTEGER NOT NULL DEFAULT 0 CHECK (warmup_sets BETWEEN 0 AND 3)")
+            }
+            // Version 7: the clean-form answers.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS form_checks (
+                    exercise_id  INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+                    performed_on TEXT NOT NULL CHECK (performed_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    clean        INTEGER NOT NULL CHECK (clean IN (0, 1)),
+                    PRIMARY KEY (exercise_id, performed_on)
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

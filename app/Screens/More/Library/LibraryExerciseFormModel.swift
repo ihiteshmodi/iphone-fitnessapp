@@ -86,7 +86,8 @@ final class LibraryExerciseFormModel: ObservableObject {
                 try services.library.update(id: exercise.id, name: name, muscle: resolvedMuscle, instructions: instructions)
             case .createAndAdd(let dayId, _):
                 try services.planEditor.createExerciseAndAdd(dayId: dayId, name: name, muscle: resolvedMuscle, instructions: instructions,
-                                                             sets: scheme.sets, minReps: scheme.minReps, maxReps: scheme.maxReps)
+                                                             sets: scheme.sets, minReps: scheme.minReps, maxReps: scheme.maxReps,
+                                                             warmupSets: scheme.warmupSets)
             }
             link.didChange()
             return true

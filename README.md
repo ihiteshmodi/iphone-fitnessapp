@@ -4,32 +4,26 @@ An offline iPhone app that replaces a weekly "notes → spreadsheet → Python n
 Log sets on the phone, get the next workout for each training day, track body weight, calories and measurements.
 Everything lives in one SQLite file on the phone. No account, no backend.
 
-**Features:** workout per day with working weight, warm-ups and a progression recommendation; exercise screen with the aim, a best-set line chart and inline set logging; muscle diagram showing which muscles an exercise trains (automatic, editable per exercise); deload mode (display only) and an option to ignore deload sessions in progress; plan and exercise-library editing; calorie target with macros; measurement progress (direction-aware); volume per muscle; database import, export and upgrade.
+**Features:** workout per day with working weight, an All / Remaining filter, main and warm-up sets and a progression recommendation; PRs (top of the rep range with a clean-form check) shown in gold with the next weight worked out from the estimated 1RM; exercise screen with the aim, a best-set line chart and inline set logging; muscle diagram showing which muscles an exercise trains (automatic, editable per exercise); deload mode (display only) and an option to ignore deload sessions in progress; plan and exercise-library editing; calorie target with macros; measurement progress (direction-aware); volume per muscle; database import, export and upgrade.
 
 ## Screens
 
-These are the design mockups the app is built to match. They use sample data (see `docs/design/`), not real training data.
+Screenshots of the real app on an iPhone 15 Pro Max (iOS simulator), filled with generated sample data (invented weights, reps and measurements), not anyone's real training data.
 
 <table>
   <tr>
-    <td align="center"><img src="docs/screenshots/01-workout.png" width="230"><br><sub><b>Workout</b><br>pick a day, see every exercise</sub></td>
-    <td align="center"><img src="docs/screenshots/02-exercise.png" width="230"><br><sub><b>Exercise</b><br>weight, aim, warm-ups, line chart, how to, muscles, logging</sub></td>
-    <td align="center"><img src="docs/screenshots/03-muscles-card.png" width="230"><br><sub><b>Muscles worked card</b><br>zooms on what the exercise trains</sub></td>
+    <td align="center"><img src="docs/screenshots/01-workout.png" width="170"><br><sub><b>Workout</b><br>pick a day, see every exercise with its target</sub></td>
+    <td align="center"><img src="docs/screenshots/02-exercise.png" width="170"><br><sub><b>Exercise</b><br>weight to lift, warm-ups, best-set chart, how to</sub></td>
+    <td align="center"><img src="docs/screenshots/03-log-and-history.png" width="170"><br><sub><b>Log sets</b><br>muscles worked, set logging, earlier sessions to edit</sub></td>
+    <td align="center"><img src="docs/screenshots/04-muscle-editor.png" width="170"><br><sub><b>Muscle editor</b><br>pick a whole region or single muscles</sub></td>
+    <td align="center"><img src="docs/screenshots/05-body.png" width="170"><br><sub><b>Body</b><br>calorie target, weekly weight, daily calories</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/screenshots/04-muscle-editor.png" width="230"><br><sub><b>Muscle editor</b><br>pick a whole region or single parts</sub></td>
-    <td align="center"><img src="docs/screenshots/05-body.png" width="230"><br><sub><b>Body</b><br>calorie target, weight trend, macros</sub></td>
-    <td align="center"><img src="docs/screenshots/06-progress.png" width="230"><br><sub><b>Progress</b><br>measurements to target, volume per muscle</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/07-more.png" width="230"><br><sub><b>More</b><br>backup, deload, history start, plan</sub></td>
-    <td align="center"><img src="docs/screenshots/08-edit-plan.png" width="230"><br><sub><b>Edit plan</b><br>add days, name by number or weekday</sub></td>
-    <td align="center"><img src="docs/screenshots/09-library.png" width="230"><br><sub><b>Exercise library</b><br>names, muscles, how-to</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/10-measurement.png" width="230"><br><sub><b>Measurement</b><br>change current and target</sub></td>
-    <td align="center"><img src="docs/screenshots/11-calories.png" width="230"><br><sub><b>Calories and macro rules</b><br>editable</sub></td>
-    <td></td>
+    <td align="center"><img src="docs/screenshots/06-body-calories.png" width="170"><br><sub><b>Body, further down</b><br>macros, weigh-ins, calories by day</sub></td>
+    <td align="center"><img src="docs/screenshots/07-progress.png" width="170"><br><sub><b>Progress</b><br>measurements against targets, volume per muscle</sub></td>
+    <td align="center"><img src="docs/screenshots/08-more.png" width="170"><br><sub><b>More</b><br>backup, deload, history start</sub></td>
+    <td align="center"><img src="docs/screenshots/09-edit-plan.png" width="170"><br><sub><b>Edit plan</b><br>days, exercises, sets and rep ranges</sub></td>
+    <td align="center"><img src="docs/screenshots/10-library.png" width="170"><br><sub><b>Exercise library</b><br>names, muscle groups, how-to</sub></td>
   </tr>
 </table>
 

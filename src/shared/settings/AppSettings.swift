@@ -26,6 +26,8 @@ public struct AppSettings: Equatable {
     public var ignoreDeloadSessions: Bool
     public var proteinGramsPerLb: Double
     public var fatPercent: Double
+    /// How far a measurement may be from its target (in percent, in the wrong direction) and still count as on track.
+    public var measurementTolerancePercent: Double
 }
 
 /// Each setting is a separate key so one knob never changes another (deload vs history start).
@@ -49,8 +51,14 @@ public final class SettingsRepository {
             // Missing key (a database that was never upgraded) behaves like the default: ignore deload.
             ignoreDeloadSessions: values["ignore_deload_sessions"] != "0",
             proteinGramsPerLb: Double(values["protein_g_per_lb"] ?? "") ?? 1.2,
-            fatPercent: Double(values["fat_percent_of_calories"] ?? "") ?? 25
+            fatPercent: Double(values["fat_percent_of_calories"] ?? "") ?? 25,
+            measurementTolerancePercent: Double(values["measurement_tolerance_percent"] ?? "") ?? 3
         )
+    }
+
+    public func setMeasurementTolerancePercent(_ value: Double) throws {
+        guard value.isFinite, (0...50).contains(value) else { throw ValidationError("Tolerance must be between 0% and 50%") }
+        try save("measurement_tolerance_percent", String(value))
     }
 
     public func setHistoryStartDate(_ text: String) throws {

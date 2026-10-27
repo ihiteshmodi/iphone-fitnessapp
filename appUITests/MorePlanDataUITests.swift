@@ -61,6 +61,80 @@ final class MorePlanDataUITests: XCTestCase {
         XCTAssertTrue(picker.buttons["Numbers"].isSelected)
     }
 
+    func testEditPlanHasMainSetsAndWarmupSetsAndWarmupsAppearOnTheExerciseScreen() {
+        let app = launchApp()
+        openMoreTab(app)
+        app.buttons["edit-plan-row"].tap()
+        let day3 = app.buttons["plan-day-3"]
+        XCTAssertTrue(day3.waitForExistence(timeout: 10))
+        day3.tap()
+        let edit = app.buttons["edit-entry-button"].firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+
+        XCTAssertTrue(app.staticTexts["Main sets"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Warm-up sets"].exists)
+        XCTAssertEqual(app.staticTexts["stepper-value-Warm-up sets"].label, "0", "existing exercises start with no warm-ups")
+        app.buttons["Increase Warm-up sets"].tap()
+        app.buttons["Increase Warm-up sets"].tap()
+        XCTAssertEqual(app.staticTexts["stepper-value-Warm-up sets"].label, "2")
+        app.buttons["save-entry-button"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '2 warm-up'")).firstMatch.waitForExistence(timeout: 5))
+
+        // Put the shared test database back.
+        app.buttons["edit-entry-button"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Decrease Warm-up sets"].waitForExistence(timeout: 5))
+        app.buttons["Decrease Warm-up sets"].tap()
+        app.buttons["Decrease Warm-up sets"].tap()
+        app.buttons["save-entry-button"].tap()
+    }
+
+    func testWeekdayNamingShowsTheChosenWeekdayOnTheWorkoutTab() {
+        let app = launchApp()
+        openMoreTab(app)
+        app.buttons["edit-plan-row"].tap()
+
+        let mode = app.segmentedControls["plan-day-label-mode-picker"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 10))
+        mode.buttons["Name by weekdays"].tap()
+        let weekday = app.buttons["weekday-picker-1"]
+        XCTAssertTrue(weekday.waitForExistence(timeout: 5), "the weekday picker is visible without opening the day")
+        weekday.tap()
+        app.buttons["Monday"].tap()
+
+        app.tabButton("Workout").tap()
+        XCTAssertTrue(app.buttons["day-1"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["day-1"].label.contains("Mon"), "day 1 is named by its weekday")
+
+        // The More tab keeps Edit plan open; put the shared test database back.
+        openMoreTab(app)
+        let mode2 = app.segmentedControls["plan-day-label-mode-picker"]
+        if !mode2.waitForExistence(timeout: 3) { app.buttons["edit-plan-row"].tap() }
+        mode2.buttons["Name by numbers"].tap()
+    }
+
+    func testEditPastDataLetsMeAddAWeighInForAChosenDay() {
+        let app = launchApp()
+        openMoreTab(app)
+        let row = app.buttons["edit-past-data-row"]
+        scrollUntilHittable(row, in: app)
+        row.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["past-day-picker"].waitForExistence(timeout: 10))
+        let add = app.buttons["past-add-weight"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        let field = app.textFields["value-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("81.9")
+        app.buttons["sheet-save-button"].tap()
+
+        let saved = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'past-weight-'")).firstMatch
+        XCTAssertTrue(saved.waitForExistence(timeout: 5), "the new weigh-in is listed for the chosen day")
+        XCTAssertTrue(saved.label.contains("81.9"))
+    }
+
     func testCreateExerciseFromPlanAndFindItInLibrary() {
         let app = launchApp()
         openMoreTab(app)
@@ -82,14 +156,22 @@ final class MorePlanDataUITests: XCTestCase {
         XCTAssertTrue(nameField.waitForExistence(timeout: 5))
         nameField.tap()
         nameField.typeText("Landmine Press\n")
-        app.buttons["Shoulders"].tap()
+        // A Shoulders button also exists behind the sheet; the sheet's is the last one.
+        app.buttons.matching(identifier: "Shoulders").allElementsBoundByIndex.last?.tap()
         app.buttons["save-exercise-button"].tap()
 
         let addedRow = app.staticTexts["Landmine Press"]
         scrollUntilHittable(addedRow, in: app)
         XCTAssertTrue(addedRow.exists)
 
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        if back.exists {
+            back.tap()
+        } else {
+            // Some layouts (the iPhone Duo simulator) draw no back button; the edge swipe goes back too.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+                .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+        }
         app.buttons["library-row"].tap()
         let search = app.textFields["library-search-field"]
         XCTAssertTrue(search.waitForExistence(timeout: 5))

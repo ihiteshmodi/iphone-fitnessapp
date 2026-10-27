@@ -44,12 +44,18 @@ public struct WorkoutExercise: Equatable, Identifiable {
     public let name: String
     public let muscle: String?
     public let instructions: String?
+    /// Main sets: logged and counted.
     public let sets: Int
+    /// Warm-up sets: reference only, never logged.
+    public let warmupSets: Int
     /// Double because deload scales it (6 becomes 4.5). Display only.
     public let minReps: Double
     /// The value stored in the plan. The plan editor edits this, never the scaled `minReps`.
     public let plannedMinReps: Int
-    public let maxReps: Int
+    /// Scaled by deload like `minReps` (16 becomes 12). Display only.
+    public let maxReps: Double
+    /// The value stored in the plan, for the plan editor.
+    public let plannedMaxReps: Int
     public let workingWeight: Double?
     public let warmup75: Double?
     public let warmup90: Double?
@@ -60,10 +66,30 @@ public struct WorkoutExercise: Equatable, Identifiable {
     public let setsLoggedToday: Int
     /// Best-set weight of up to the last 6 sessions, oldest first.
     public let sparkline: [Double]
+    /// PR to act on, or repeat for clean reps. `.none` during deload.
+    public let progression: Progression
+
+    /// All its main sets are logged today.
+    public var isDone: Bool { setsLoggedToday >= sets }
+}
+
+/// Which exercises of a day the workout screen lists.
+public enum WorkoutFilter: Equatable {
+    case all
+    case remaining
 }
 
 public struct Workout: Equatable {
     public let day: PlanDay
     public let isDeload: Bool
     public let exercises: [WorkoutExercise]
+
+    public func exercises(_ filter: WorkoutFilter) -> [WorkoutExercise] {
+        filter == .all ? exercises : exercises.filter { !$0.isDone }
+    }
+
+    public var remainingCount: Int { exercises.filter { !$0.isDone }.count }
+
+    /// False for a day with no exercises, which has nothing to be done.
+    public var isAllDone: Bool { !exercises.isEmpty && remainingCount == 0 }
 }

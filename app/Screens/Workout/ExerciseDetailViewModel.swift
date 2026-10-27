@@ -5,9 +5,13 @@ import Foundation
 @MainActor
 final class ExerciseDetailViewModel: ObservableObject {
     @Published private(set) var detail: ExerciseDetail?
+    @Published private(set) var earlierSessions: [SetSession] = []
+    @Published private(set) var hasMoreEarlier = false
     @Published var errorMessage: String?
 
     private let services: Services
+    private var earlierLimit = ExerciseDetailViewModel.firstEarlierPage
+    private static let firstEarlierPage = 5
     let exerciseId: Int
     let dayId: Int
 
@@ -20,6 +24,10 @@ final class ExerciseDetailViewModel: ObservableObject {
     func load() {
         do {
             detail = try services.detail.detail(exerciseId: exerciseId, dayId: dayId)
+            // One extra session tells whether "Show all" has anything more to show.
+            let sessions = try services.logSets.sessions(exerciseId: exerciseId, excluding: today, limit: earlierLimit + 1)
+            hasMoreEarlier = sessions.count > earlierLimit
+            earlierSessions = Array(sessions.prefix(earlierLimit))
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -27,22 +35,46 @@ final class ExerciseDetailViewModel: ObservableObject {
 
     // MARK: Writes. Each returns true when the screen should call `session.didChange()`.
 
-    func logSet(weightText: String, repsText: String) -> Bool {
+    var today: ISODate { services.clock.today() }
+
+    func showAllEarlier() {
+        earlierLimit = Int.max - 1
+        load()
+    }
+
+    func logSet(weightText: String, repsText: String, on day: ISODate? = nil) -> Bool {
+        guard let (weight, reps) = parse(weightText: weightText, repsText: repsText) else { return false }
+        return perform { try services.logSets.logSet(.existing(id: exerciseId), weightKg: weight, reps: reps, on: day ?? today) }
+    }
+
+    func updateSet(id: Int, weightText: String, repsText: String, on day: ISODate) -> Bool {
+        guard let (weight, reps) = parse(weightText: weightText, repsText: repsText) else { return false }
+        return perform { try services.logSets.updateSet(id: id, weightKg: weight, reps: reps, on: day) }
+    }
+
+    private func parse(weightText: String, repsText: String) -> (Double, Int)? {
         guard let weight = Format.decimal(weightText) else {
             errorMessage = "Enter the weight in kg (0 for bodyweight)"
-            return false
+            return nil
         }
         guard let reps = Int(repsText.trimmingCharacters(in: .whitespaces)) else {
             errorMessage = "Enter the number of reps"
-            return false
+            return nil
         }
-        do {
-            try services.logSets.logSet(.existing(id: exerciseId), weightKg: weight, reps: reps, on: services.clock.today())
-            return true
-        } catch {
-            errorMessage = error.localizedDescription
-            return false
-        }
+        return (weight, reps)
+    }
+
+    /// Today's answer to "did every rep have a full contraction?". True when it is due.
+    var needsFormAnswer: Bool { detail?.needsFormAnswer ?? false }
+
+    /// The best set today, for the question: "60 kg × 16".
+    var topSetText: String {
+        guard let set = todaySets.max(by: { ($0.reps, $0.weightKg) < ($1.reps, $1.weightKg) }) else { return "" }
+        return "\(Format.number(set.weightKg)) kg × \(set.reps)"
+    }
+
+    func answerForm(clean: Bool) -> Bool {
+        perform { try services.formChecks.setClean(clean, exerciseId: exerciseId, on: today) }
     }
 
     func deleteSet(id: Int) -> Bool {
@@ -72,7 +104,7 @@ final class ExerciseDetailViewModel: ObservableObject {
 
     var caption: String {
         guard let detail else { return "" }
-        let reps = "\(Format.number(detail.target.minReps))–\(detail.target.maxReps) reps"
+        let reps = "\(Format.number(detail.target.minReps))–\(Format.number(detail.target.maxReps)) reps"
         let parts = [detail.exercise.muscle, "\(detail.target.sets) sets", reps].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.joined(separator: " · ")
     }
@@ -105,9 +137,51 @@ final class ExerciseDetailViewModel: ObservableObject {
     }
 
     var warmups: [Warmup] {
-        guard let target = detail?.target, let w75 = target.warmup75, let w90 = target.warmup90 else { return [] }
-        return zip(WarmupLabels.percentages, [w75, w90]).map { Warmup(percent: "\($0)%", kg: "\(Format.number($1)) kg") }
+        (detail?.target.warmups ?? []).map { Warmup(percent: "\($0.percent)%", kg: "\(Format.number($0.weightKg)) kg") }
     }
+
+    // MARK: PR banner
+
+    var progression: Progression { detail?.progression ?? .none }
+
+    struct Banner {
+        enum Style { case pr, repeatClean }
+        let style: Style
+        let kicker: String
+        let headline: String
+        let detail: String
+        /// "Est. 1RM from 60 kg × 16" and "92 kg".
+        let oneRepMaxLabel: String?
+        let oneRepMaxValue: String?
+        let nextWeightLabel: String?
+        let nextWeightValue: String?
+    }
+
+    var banner: Banner? {
+        switch progression {
+        case .none:
+            return nil
+        case .pr(let next, let oneRepMax, let weight, let reps, let isToday):
+            let lifted = "\(Format.number(weight)) kg × \(reps)"
+            let minReps = Format.number(detail?.target.minReps ?? 0)
+            return Banner(
+                style: .pr,
+                kicker: isToday ? "★ PR today · clean form" : "★ PR last time · clean form",
+                headline: isToday ? "Next time: \(Format.number(next)) kg" : "Increase weight to \(Format.number(next)) kg",
+                detail: isToday ? "You did \(lifted) at the top of your range." : "You did \(lifted) at the top of your range. Start at \(Format.number(next)) kg and aim for \(minReps) reps or more.",
+                oneRepMaxLabel: "Est. 1RM from \(lifted)", oneRepMaxValue: "\(Format.number(oneRepMax, maxDecimals: 1)) kg",
+                nextWeightLabel: "At \(minReps) reps the 1RM allows", nextWeightValue: "\(Format.number(next)) kg")
+        case .repeatForCleanReps(let weight):
+            return Banner(
+                style: .repeatClean,
+                kicker: "Repeat · aim for clean reps",
+                headline: "Stay at \(Format.number(weight)) kg",
+                detail: "Last time you reached the top reps but said the form was not clean. Hit them again with a full contraction on every rep, then it counts as a PR.",
+                oneRepMaxLabel: nil, oneRepMaxValue: nil, nextWeightLabel: nil, nextWeightValue: nil)
+        }
+    }
+
+    var isPRNextWeight: Bool { if case .pr(_, _, _, _, let isToday) = progression { return !isToday }; return false }
 
     // MARK: Aim, how to
 
@@ -118,9 +192,10 @@ final class ExerciseDetailViewModel: ObservableObject {
     }
 
     var aimTone: Pill.Tone {
+        if isPRNextWeight { return .gold }
         switch aimSummary?.pill {
         case "Increase weight", "Increase reps": return .green
-        case "Maintain", "Deload": return .amber
+        case "Maintain", "Deload", "Repeat": return .amber
         default: return .grey
         }
     }
@@ -133,7 +208,8 @@ final class ExerciseDetailViewModel: ObservableObject {
 
     var sessionPoints: [SessionPoint] {
         (detail?.sessions ?? []).map {
-            SessionPoint(id: $0.date.string, label: Format.shortDate($0.date), kg: $0.best.weightKg, repsText: "×\($0.best.reps)")
+            SessionPoint(id: $0.date.string, label: Format.shortDate($0.date), kg: $0.best.weightKg, repsText: "×\($0.best.reps)",
+                         mark: detail?.sessionMarks[$0.date])
         }
     }
 
@@ -184,6 +260,17 @@ final class ExerciseDetailViewModel: ObservableObject {
         guard let prefill = detail?.prefill else { return "" }
         let weight = prefill.weightKg.map { Format.number($0) } ?? "–"
         return "\(weight) kg × \(prefill.reps) reps"
+    }
+
+    /// "starts in the middle of 8–16" under the reps stepper.
+    var repRangeHint: String {
+        guard let target = detail?.target else { return "" }
+        return "starts in the middle of \(Format.number(target.minReps))–\(Format.number(target.maxReps))"
+    }
+
+    /// "≈ 92 kg" once a set is logged today, from the best set (Epley).
+    var oneRepMaxText: String? {
+        detail?.todayOneRepMax.map { "≈ \(Format.number($0, maxDecimals: 1)) kg" }
     }
 
     var prefillWeightText: String { detail?.prefill.weightKg.map { Format.number($0) } ?? "" }

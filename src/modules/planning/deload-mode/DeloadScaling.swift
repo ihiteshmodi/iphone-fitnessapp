@@ -15,4 +15,9 @@ public struct DeloadScaling: Equatable {
     public func minReps(planned: Int) -> Double {
         isActive ? Double(planned) * settings.repsMultiplier : Double(planned)
     }
+
+    /// The top of the rep range is lowered by the same multiplier as the bottom, so 8 to 16 becomes 6 to 12.
+    public func maxReps(planned: Int) -> Double {
+        isActive ? Double(planned) * settings.repsMultiplier : Double(planned)
+    }
 }

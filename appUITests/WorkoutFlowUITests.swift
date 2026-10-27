@@ -42,13 +42,121 @@ final class WorkoutFlowUITests: XCTestCase {
         let weight = app.textFields["weight-field"]
         XCTAssertTrue(weight.waitForExistence(timeout: 5))
         XCTAssertEqual(weight.value as? String, "54")
-        XCTAssertEqual(app.textFields["reps-field"].value as? String, "10")
+        XCTAssertEqual(app.textFields["reps-field"].value as? String, "8", "the middle of 6 to 10")
         attach(app, named: "add-set-sheet")
         app.buttons["save-set-button"].tap()
 
         let row = app.descendants(matching: .any)["today-set-1"]
         XCTAssertTrue(row.waitForExistence(timeout: 10))
+        // The saved set is 54 kg × 8, so the estimated 1RM is 54 × (1 + 8/30) = 68.4.
+        XCTAssertTrue(app.staticTexts["one-rep-max"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["one-rep-max"].label, "≈ 68.4 kg")
         attach(app, named: "detail-after-save")
+    }
+
+    func testArrowsChangeWeightAndRepsAndTheKeyboardStillWorks() throws {
+        let app = try launchApp()
+        app.buttons["day-3"].tap()
+        app.buttons["exercise-card-Chest Dips Machine"].tap()
+        let addSet = app.buttons["add-set-button"]
+        XCTAssertTrue(addSet.waitForExistence(timeout: 10))
+        for _ in 0..<6 where !addSet.isHittable { app.swipeUp() }
+        addSet.tap()
+
+        let weight = app.textFields["weight-field"]
+        let reps = app.textFields["reps-field"]
+        XCTAssertTrue(weight.waitForExistence(timeout: 5))
+        app.buttons["weight-field-plus"].tap()
+        XCTAssertEqual(weight.value as? String, "56.5")
+        app.buttons["weight-field-minus"].tap()
+        app.buttons["weight-field-minus"].tap()
+        XCTAssertEqual(weight.value as? String, "51.5")
+        app.buttons["reps-field-plus"].tap()
+        XCTAssertEqual(reps.value as? String, "9")
+        app.buttons["reps-field-minus"].tap()
+        app.buttons["reps-field-minus"].tap()
+        XCTAssertEqual(reps.value as? String, "7")
+
+        reps.tap()
+        reps.typeText("12")
+        XCTAssertEqual(reps.value as? String, "12", "tapping selects the number, so typing replaces it")
+    }
+
+    func testRemainingHidesFinishedExercises() throws {
+        let app = try launchApp()
+        app.buttons["day-3"].tap()
+        let cards = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'exercise-card-'"))
+        XCTAssertTrue(app.buttons["filter-remaining"].waitForExistence(timeout: 10))
+        let all = cards.count
+
+        let card = app.buttons["exercise-card-Chest Dips Machine"]
+        card.tap()
+        let addSet = app.buttons["add-set-button"]
+        XCTAssertTrue(addSet.waitForExistence(timeout: 10))
+        for _ in 0..<6 where !addSet.isHittable { app.swipeUp() }
+        // Chest Dips Machine has several main sets in the seed: log until its ring is full.
+        for _ in 0..<3 {
+            guard addSet.exists, addSet.isHittable else { break }
+            addSet.tap()
+            app.buttons["save-set-button"].tap()
+            _ = app.descendants(matching: .any)["today-set-1"].waitForExistence(timeout: 5)
+            for _ in 0..<6 where !addSet.isHittable { app.swipeUp() }
+        }
+        app.goBack()
+
+        app.buttons["filter-remaining"].tap()
+        XCTAssertFalse(app.buttons["exercise-card-Chest Dips Machine"].waitForExistence(timeout: 3), "a finished exercise is hidden")
+        XCTAssertLessThan(cards.count, all)
+        app.buttons["filter-all"].tap()
+        XCTAssertTrue(app.buttons["exercise-card-Chest Dips Machine"].waitForExistence(timeout: 5))
+    }
+
+    func testReachingTheTopRepsAsksAboutFormOnceAndRemembersTheAnswer() throws {
+        let app = try launchApp()
+        app.buttons["day-3"].tap()
+        app.buttons["exercise-card-Chest Dips Machine"].tap()
+        let addSet = app.buttons["add-set-button"]
+        XCTAssertTrue(addSet.waitForExistence(timeout: 10))
+        for _ in 0..<6 where !addSet.isHittable { app.swipeUp() }
+        addSet.tap()
+        // The plan is 6 to 10 reps and the form starts at 8: two arrows reach the top of the range.
+        XCTAssertTrue(app.buttons["reps-field-plus"].waitForExistence(timeout: 5))
+        app.buttons["reps-field-plus"].tap()
+        app.buttons["reps-field-plus"].tap()
+        app.buttons["save-set-button"].tap()
+
+        let yes = app.buttons["form-yes"]
+        XCTAssertTrue(yes.waitForExistence(timeout: 10), "the clean-form question comes up")
+        XCTAssertTrue(app.staticTexts["Did every rep have a full contraction?"].exists)
+        yes.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["today-set-1"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["form-yes"].exists, "answered, so it is gone")
+
+        // A second top-reps set the same day does not ask again.
+        for _ in 0..<6 where !addSet.isHittable { app.swipeUp() }
+        addSet.tap()
+        app.buttons["reps-field-plus"].tap()
+        app.buttons["reps-field-plus"].tap()
+        app.buttons["save-set-button"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["today-set-2"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["form-yes"].waitForExistence(timeout: 2), "asked only once a day")
+    }
+
+    func testLastSessionAtTheTopRepsShowsTheGoldBannerAndChip() throws {
+        let app = try launchApp()
+        app.buttons["day-3"].tap()
+        let card = app.buttons["exercise-card-Triceps Pushdown"]
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        XCTAssertTrue(card.label.contains("Go to"), "the list chip points at the heavier weight: \(card.label)")
+        attach(app, named: "pr-list")
+
+        card.tap()
+        let banner = app.descendants(matching: .any)["pr-banner"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 10), "the gold PR banner is the first thing on the screen")
+        XCTAssertTrue(banner.label.contains("Increase weight to"), "banner was: \(banner.label)")
+        attach(app, named: "pr-exercise")
+        app.swipeUp()
+        attach(app, named: "pr-exercise-scrolled")
     }
 
     func testRejectsZeroRepsWithoutSaving() throws {

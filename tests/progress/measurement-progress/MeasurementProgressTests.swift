@@ -27,9 +27,71 @@ final class MeasurementProgressTests: XCTestCase {
 
     func testShrinkGoalShowsInchesLeftToLoseNotANegativeGain() throws {
         try db.addMeasurement(on: "2026-10-01", site: "Waist", inches: 30.20)
-        try db.addTarget(site: "Waist", inches: 28.00)
+        try db.addTarget(site: "Waist", inches: 28.00, direction: "reduce")
 
         XCTAssertEqual(try progress(for: "Waist").status, .toLose(2.20))
+    }
+
+    func testAGrowSiteAboveItsTargetIsAheadNotToLose() throws {
+        try db.addMeasurement(on: "2026-10-01", site: "Shoulders", inches: 46.0)
+        try db.addTarget(site: "Shoulders", inches: 45.3)
+
+        let shoulders = try progress(for: "Shoulders")
+
+        XCTAssertEqual(shoulders.status, .ahead(0.70))
+        XCTAssertEqual(shoulders.direction, .grow)
+        XCTAssertEqual(shoulders.fraction, 1)
+    }
+
+    func testAReduceSiteBelowItsTargetIsAhead() throws {
+        try db.addMeasurement(on: "2026-10-01", site: "Waist", inches: 27.0)
+        try db.addTarget(site: "Waist", inches: 28.0, direction: "reduce")
+
+        XCTAssertEqual(try progress(for: "Waist").status, .ahead(1.00))
+        XCTAssertEqual(try progress(for: "Waist").fraction, 1)
+    }
+
+    func testStatusFollowsTheDirectionOfTheGoal() {
+        let examples: [(direction: MeasurementDirection, current: Double, target: Double, status: MeasurementStatus)] = [
+            (.grow, 14.0, 15.31, .toGain(1.31)),
+            (.grow, 46.0, 45.3, .ahead(0.70)),
+            (.grow, 45.3, 45.3, .atTarget),
+            (.reduce, 30.2, 28.0, .toLose(2.20)),
+            (.reduce, 27.0, 28.0, .ahead(1.00)),
+            (.reduce, 28.0, 28.0, .atTarget),
+        ]
+
+        for example in examples {
+            XCTAssertEqual(MeasurementGoal.status(current: example.current, target: example.target, direction: example.direction), example.status,
+                           "\(example.direction) \(example.current) -> \(example.target)")
+        }
+    }
+
+    func testChangingTheDirectionOfASite() throws {
+        try db.addMeasurement(on: "2026-10-01", site: "Hips", inches: 38)
+        try db.addTarget(site: "Hips", inches: 36)
+        XCTAssertEqual(try progress(for: "Hips").status, .ahead(2.00), "grow is the default")
+
+        try service.setDirection(site: "hips", .reduce)
+
+        XCTAssertEqual(try progress(for: "Hips").status, .toLose(2.00))
+        XCTAssertEqual(try service.detail(site: "Hips").direction, .reduce)
+    }
+
+    func testChangingTheDirectionNeedsATarget() throws {
+        try db.addMeasurement(on: "2026-10-01", site: "Hips", inches: 38)
+
+        XCTAssertThrowsError(try service.setDirection(site: "Hips", .reduce)) { error in
+            XCTAssertEqual(error as? ValidationError, ValidationError("Set a target for this site first"))
+        }
+    }
+
+    func testANewSiteWithATargetBelowItsFirstReadingStartsAsReduce() throws {
+        try service.addSite(name: "Hips", firstReading: 38, target: 36)
+        try service.addSite(name: "Left Shin", firstReading: 11, target: 11.5)
+
+        XCTAssertEqual(try progress(for: "Hips").direction, .reduce)
+        XCTAssertEqual(try progress(for: "Left Shin").direction, .grow)
     }
 
     func testTargetReached() throws {
@@ -40,10 +102,10 @@ final class MeasurementProgressTests: XCTestCase {
     }
 
     func testDifferencesUnderHalfAHundredthCountAsAtTarget() {
-        XCTAssertEqual(MeasurementGoal.status(current: 13.804, target: 13.80), .atTarget)
-        XCTAssertEqual(MeasurementGoal.status(current: 13.796, target: 13.80), .atTarget)
-        XCTAssertEqual(MeasurementGoal.status(current: 13.79, target: 13.80), .toGain(0.01))
-        XCTAssertEqual(MeasurementGoal.status(current: 13.81, target: 13.80), .toLose(0.01))
+        XCTAssertEqual(MeasurementGoal.status(current: 13.804, target: 13.80, direction: .grow), .atTarget)
+        XCTAssertEqual(MeasurementGoal.status(current: 13.796, target: 13.80, direction: .grow), .atTarget)
+        XCTAssertEqual(MeasurementGoal.status(current: 13.79, target: 13.80, direction: .grow), .toGain(0.01))
+        XCTAssertEqual(MeasurementGoal.status(current: 13.81, target: 13.80, direction: .reduce), .toLose(0.01))
     }
 
     func testOnlyTheNewestReadingPerSiteCounts() throws {
@@ -94,7 +156,7 @@ final class MeasurementProgressTests: XCTestCase {
         try db.addMeasurement(on: "2026-10-01", site: "Left Calf", inches: 14.0)
         try db.addTarget(site: "Left Calf", inches: 15.31)
         try db.addMeasurement(on: "2026-10-01", site: "Waist", inches: 30.2)
-        try db.addTarget(site: "Waist", inches: 28.0)
+        try db.addTarget(site: "Waist", inches: 28.0, direction: "reduce")
         try db.addMeasurement(on: "2026-10-01", site: "Neck", inches: 13.8)
         try db.addTarget(site: "Neck", inches: 13.8)
         try db.addTarget(site: "Arm", inches: 16)
@@ -102,13 +164,22 @@ final class MeasurementProgressTests: XCTestCase {
         XCTAssertEqual(try service.progress().map(\.site), ["Waist", "Left Calf", "Neck", "Arm"])
     }
 
+    func testSitesAheadOfTheirTargetHaveNothingLeftSoTheyComeAfterOnesStillToDo() throws {
+        try db.addMeasurement(on: "2026-10-01", site: "Shoulders", inches: 46.0)
+        try db.addTarget(site: "Shoulders", inches: 45.3)
+        try db.addMeasurement(on: "2026-10-01", site: "Left Calf", inches: 15.0)
+        try db.addTarget(site: "Left Calf", inches: 15.31)
+
+        XCTAssertEqual(try service.progress().map(\.site), ["Left Calf", "Shoulders"])
+    }
+
     func testProgressFractionForTheRing() {
-        XCTAssertEqual(MeasurementGoal.fraction(current: 14, target: 16), 0.875, accuracy: 1e-9)
-        XCTAssertEqual(MeasurementGoal.fraction(current: 28, target: 30), 28.0 / 30, accuracy: 1e-9)
-        XCTAssertEqual(MeasurementGoal.fraction(current: 30.2, target: 28), 28 / 30.2, accuracy: 1e-9)
-        XCTAssertEqual(MeasurementGoal.fraction(current: 13.8, target: 13.8), 1)
-        XCTAssertEqual(MeasurementGoal.fraction(current: nil, target: 13.8), 0)
-        XCTAssertEqual(MeasurementGoal.fraction(current: 14, target: nil), 0)
+        XCTAssertEqual(MeasurementGoal.fraction(current: 14, target: 16, direction: .grow), 0.875, accuracy: 1e-9)
+        XCTAssertEqual(MeasurementGoal.fraction(current: 28, target: 30, direction: .grow), 28.0 / 30, accuracy: 1e-9)
+        XCTAssertEqual(MeasurementGoal.fraction(current: 30.2, target: 28, direction: .reduce), 28 / 30.2, accuracy: 1e-9)
+        XCTAssertEqual(MeasurementGoal.fraction(current: 13.8, target: 13.8, direction: .grow), 1)
+        XCTAssertEqual(MeasurementGoal.fraction(current: nil, target: 13.8, direction: .grow), 0)
+        XCTAssertEqual(MeasurementGoal.fraction(current: 14, target: nil, direction: .grow), 0)
     }
 
     func testChangingATargetFromTheMeasurementScreen() throws {

@@ -33,22 +33,24 @@ final class DeloadModeTests: XCTestCase {
         XCTAssertEqual(exercise.warmup75, 32.4)
         XCTAssertEqual(exercise.warmup90, 38.88)
         XCTAssertEqual(exercise.minReps, 4.5)
-        XCTAssertEqual(exercise.maxReps, 10)
+        XCTAssertEqual(exercise.maxReps, 7.5, "the top of the range is scaled too")
         XCTAssertNil(exercise.recommendation)
     }
 
-    func testDefaultDeloadKeepsWeightAndLowersMinimumRepsTo75Percent() throws {
-        let rows: [(planned: Int, shown: Double)] = [(6, 4.5), (8, 6), (10, 7.5)]
+    func testDefaultDeloadKeepsWeightAndLowersBothEndsOfTheRepRangeTo75Percent() throws {
+        let rows: [(min: Int, max: Int, shownMin: Double, shownMax: Double)] = [(6, 10, 4.5, 7.5), (8, 16, 6, 12), (10, 12, 7.5, 9)]
         for row in rows {
             let database = try Database.inMemory()
-            let planned = try PlannedExercise.make(database, minReps: row.planned, maxReps: 12)
+            let planned = try PlannedExercise.make(database, minReps: row.min, maxReps: row.max)
             try database.addSet(exercise: planned.exerciseId, on: "2026-10-01", weight: 54, reps: 8)
             try SettingsRepository(database).setDeloadEnabled(true)
 
             let exercise = try XCTUnwrap(try WorkoutService(database, clock: planningClock()).workout(dayId: planned.dayId).exercises.first)
 
             XCTAssertEqual(exercise.workingWeight, 54)
-            XCTAssertEqual(exercise.minReps, row.shown, "planned \(row.planned)")
+            XCTAssertEqual(exercise.minReps, row.shownMin, "planned \(row.min) to \(row.max)")
+            XCTAssertEqual(exercise.maxReps, row.shownMax, "planned \(row.min) to \(row.max)")
+            XCTAssertEqual(exercise.plannedMaxReps, row.max, "the stored plan keeps its real numbers")
         }
     }
 
@@ -158,6 +160,7 @@ final class DeloadModeTests: XCTestCase {
         XCTAssertFalse(scaling.isActive)
         XCTAssertEqual(scaling.workingWeight(heaviest: 54), 54)
         XCTAssertEqual(scaling.minReps(planned: 6), 6)
+        XCTAssertEqual(scaling.maxReps(planned: 10), 10)
     }
 
     func testScalingMultipliesWhenDeloadIsOn() {
@@ -166,5 +169,6 @@ final class DeloadModeTests: XCTestCase {
         XCTAssertTrue(scaling.isActive)
         XCTAssertEqual(scaling.workingWeight(heaviest: 54), 54 * 0.8)
         XCTAssertEqual(scaling.minReps(planned: 6), 4.5)
+        XCTAssertEqual(scaling.maxReps(planned: 16), 12)
     }
 }

@@ -27,11 +27,16 @@ Feature: Muscles worked by an exercise
     And it lists "Primary: Triceps long head, Triceps lateral head"
     And it says "Automatic"
 
-  Scenario: The card zooms on the primary muscles only
+  Scenario: A secondary muscle on the other side of the body gets its own picture
     Given "Lat Pulldown" works the lats as primary and the biceps and rear delts as secondary
     When I open it
-    Then the card shows only the back of the body, framed on the lats
-    And it does not add a front picture just for the secondary biceps
+    Then the card shows a back picture framed on the lats and rear delts
+    And it shows a front picture framed on the secondary biceps
+
+  Scenario: Hamstrings added to Leg Extensions show the back as well
+    Given "Leg Extensions" has the quads as primary (front) and the hamstrings as secondary (back)
+    When I open it
+    Then the card shows a front picture and a back picture, with the hamstrings in the lighter green
 
   Scenario: Two pictures only when the primary muscles are on both sides
     Given an exercise whose primary muscles are the quads (front) and the glutes (back)

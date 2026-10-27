@@ -41,30 +41,31 @@ public final class PlanEditor {
 
     /// Appends the library exercise as the last one of the day and returns the plan entry id.
     @discardableResult
-    public func addExercise(dayId: Int, exerciseId: Int, sets: Int, minReps: Int, maxReps: Int) throws -> Int {
-        try validate(sets: sets, minReps: minReps, maxReps: maxReps)
+    public func addExercise(dayId: Int, exerciseId: Int, sets: Int, minReps: Int, maxReps: Int, warmupSets: Int = 0) throws -> Int {
+        try validate(sets: sets, minReps: minReps, maxReps: maxReps, warmupSets: warmupSets)
         try requireDay(dayId)
         guard try ExerciseRepository(db).exercise(id: exerciseId) != nil else { throw ValidationError("Exercise not found") }
-        return try insertEntry(dayId: dayId, exerciseId: exerciseId, sets: sets, minReps: minReps, maxReps: maxReps)
+        return try insertEntry(dayId: dayId, exerciseId: exerciseId, sets: sets, minReps: minReps, maxReps: maxReps, warmupSets: warmupSets)
     }
 
     /// Creates the library exercise (source "user") and adds it, all or nothing.
     @discardableResult
     public func createExerciseAndAdd(dayId: Int, name: String, muscle: String?, instructions: String?,
-                                     sets: Int, minReps: Int, maxReps: Int) throws -> Int {
-        try validate(sets: sets, minReps: minReps, maxReps: maxReps)
+                                     sets: Int, minReps: Int, maxReps: Int, warmupSets: Int = 0) throws -> Int {
+        try validate(sets: sets, minReps: minReps, maxReps: maxReps, warmupSets: warmupSets)
         try requireDay(dayId)
         return try db.transaction {
             let exercise = try ExerciseRepository(db).add(name: name, muscle: muscle, instructions: instructions)
-            return try insertEntry(dayId: dayId, exerciseId: exercise.id, sets: sets, minReps: minReps, maxReps: maxReps)
+            return try insertEntry(dayId: dayId, exerciseId: exercise.id, sets: sets, minReps: minReps, maxReps: maxReps, warmupSets: warmupSets)
         }
     }
 
-    public func updateEntry(entryId: Int, sets: Int, minReps: Int, maxReps: Int) throws {
-        try validate(sets: sets, minReps: minReps, maxReps: maxReps)
+    /// `sets` are the main sets (logged and counted); `warmupSets` are reference only. Without `warmupSets` the current number is kept.
+    public func updateEntry(entryId: Int, sets: Int, minReps: Int, maxReps: Int, warmupSets: Int? = nil) throws {
+        try validate(sets: sets, minReps: minReps, maxReps: maxReps, warmupSets: warmupSets ?? 0)
         _ = try dayOfEntry(entryId)
-        try db.execute("UPDATE plan_entries SET sets = ?, min_reps = ?, max_reps = ? WHERE id = ?",
-                       [.int(Int64(sets)), .int(Int64(minReps)), .int(Int64(maxReps)), .int(Int64(entryId))])
+        try db.execute("UPDATE plan_entries SET sets = ?, min_reps = ?, max_reps = ?, warmup_sets = COALESCE(?, warmup_sets) WHERE id = ?",
+                       [.int(Int64(sets)), .int(Int64(minReps)), .int(Int64(maxReps)), .optional(warmupSets), .int(Int64(entryId))])
     }
 
     public func removeEntry(entryId: Int) throws {
@@ -88,7 +89,8 @@ public final class PlanEditor {
 
     // MARK: Helpers
 
-    private func validate(sets: Int, minReps: Int, maxReps: Int) throws {
+    private func validate(sets: Int, minReps: Int, maxReps: Int, warmupSets: Int = 0) throws {
+        guard (0...3).contains(warmupSets) else { throw ValidationError("Warm-up sets must be between 0 and 3") }
         guard sets >= 1 else { throw ValidationError("Sets must be at least 1") }
         guard minReps >= 0 else { throw ValidationError("Min reps cannot be negative") }
         guard minReps <= maxReps else { throw ValidationError("Min reps cannot exceed max reps") }
@@ -107,14 +109,14 @@ public final class PlanEditor {
         return row.int("day_id")
     }
 
-    private func insertEntry(dayId: Int, exerciseId: Int, sets: Int, minReps: Int, maxReps: Int) throws -> Int {
+    private func insertEntry(dayId: Int, exerciseId: Int, sets: Int, minReps: Int, maxReps: Int, warmupSets: Int) throws -> Int {
         let duplicate = try db.query("SELECT 1 AS found FROM plan_entries WHERE day_id = ? AND exercise_id = ?",
                                      [.int(Int64(dayId)), .int(Int64(exerciseId))])
         guard duplicate.isEmpty else { throw ValidationError("Already on this day") }
         try db.execute("""
-            INSERT INTO plan_entries (day_id, position, exercise_id, sets, min_reps, max_reps)
-            VALUES (?1, (SELECT COALESCE(MAX(position), 0) + 1 FROM plan_entries WHERE day_id = ?1), ?2, ?3, ?4, ?5)
-            """, [.int(Int64(dayId)), .int(Int64(exerciseId)), .int(Int64(sets)), .int(Int64(minReps)), .int(Int64(maxReps))])
+            INSERT INTO plan_entries (day_id, position, exercise_id, sets, min_reps, max_reps, warmup_sets)
+            VALUES (?1, (SELECT COALESCE(MAX(position), 0) + 1 FROM plan_entries WHERE day_id = ?1), ?2, ?3, ?4, ?5, ?6)
+            """, [.int(Int64(dayId)), .int(Int64(exerciseId)), .int(Int64(sets)), .int(Int64(minReps)), .int(Int64(maxReps)), .int(Int64(warmupSets))])
         return db.lastInsertRowID
     }
 

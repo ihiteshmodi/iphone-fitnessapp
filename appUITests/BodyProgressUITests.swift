@@ -1,6 +1,6 @@
 import XCTest
 
-/// Body and Progress tabs against the real exported database (`output/fitness.sqlite`).
+/// Body and Progress tabs against the real exported database (`output/fitness.seed.sqlite`).
 final class BodyProgressUITests: XCTestCase {
     private var app: XCUIApplication!
 
@@ -43,6 +43,30 @@ final class BodyProgressUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["1.50"].waitForExistence(timeout: 5))
     }
 
+    func testRingsShowThePercentFromTargetAndTheToleranceCanBeChanged() {
+        openTab("Progress")
+        let calf = app.buttons["measurement-ring-Left Calf"]
+        XCTAssertTrue(calf.waitForExistence(timeout: 15))
+        XCTAssertTrue(calf.label.contains("−8.6%"), "Left Calf label was: \(calf.label)")
+
+        let tolerance = app.buttons["tolerance-button"]
+        XCTAssertTrue(tolerance.exists)
+        XCTAssertTrue(tolerance.label.contains("3"), "the default tolerance is 3%")
+        tolerance.tap()
+        let field = app.textFields["value-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        replaceText(in: field, with: "5")
+        app.buttons["sheet-save-button"].tap()
+
+        XCTAssertTrue(app.buttons["tolerance-button"].label.contains("5"))
+        // Put the shared test database back.
+        app.buttons["tolerance-button"].tap()
+        let again = app.textFields["value-field"]
+        XCTAssertTrue(again.waitForExistence(timeout: 5))
+        replaceText(in: again, with: "3")
+        app.buttons["sheet-save-button"].tap()
+    }
+
     func testVolumeChipSelectsMuscle() {
         openTab("Progress")
         let chips = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'volume-chip-'"))
@@ -70,7 +94,44 @@ final class BodyProgressUITests: XCTestCase {
         XCTAssertTrue(app.buttons["log-weight-button"].exists)
     }
 
+    func testEditingOneCalorieDayMarksItEditedAndTheBalanceCardShows() {
+        openTab("Body")
+        let edit = app.buttons["calories-edit-button"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 10))
+        edit.tap()
+        let calories = app.textFields["calories-field"]
+        XCTAssertTrue(calories.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.datePickers["default-start-date"].exists || app.buttons["default-start-date"].exists
+                      || app.otherElements["default-start-date"].exists, "the default has a start date")
+        replaceText(in: calories, with: "3000")
+        app.buttons["sheet-save-button"].tap()
+
+        let balance = app.staticTexts["balance-headline"]
+        for _ in 0..<4 where !balance.exists { app.swipeUp() }
+        XCTAssertTrue(balance.exists, "the 'what your weight says' card is on the Body screen")
+
+        let day = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'calorie-day-'")).firstMatch
+        for _ in 0..<6 where !(day.exists && day.isHittable) { app.swipeUp() }
+        XCTAssertTrue(day.exists)
+        day.tap()
+        let field = app.textFields["value-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        replaceText(in: field, with: "3200")
+        app.buttons["sheet-save-button"].tap()
+
+        let edited = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'calorie-day-' AND label CONTAINS 'Edited'")).firstMatch
+        XCTAssertTrue(edited.waitForExistence(timeout: 5), "the changed day is marked Edited")
+        XCTAssertTrue(edited.label.contains("3,200"))
+    }
+
     private func openTab(_ name: String) {
+        if name == "Progress" {
+            // Some simulator layouts (the iPhone Duo) open Body when Progress is tapped, so start on Progress instead.
+            app.terminate()
+            app.launchArguments = UITestSeed.launchArguments + ["-UITestInitialTab", "2"]
+            app.launch()
+            return
+        }
         let tab = app.tabButton(name)
         XCTAssertTrue(tab.waitForExistence(timeout: 10))
         tab.tap()

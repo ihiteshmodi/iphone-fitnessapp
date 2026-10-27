@@ -49,6 +49,15 @@ public final class LogBodyMetrics {
         }
     }
 
+    /// Weigh-ins of one day in the order they were logged, so a wrong one can be found and fixed.
+    public func weights(on date: ISODate) throws -> [BodyWeightEntry] {
+        try db.query("SELECT id, measured_on, weight_kg FROM body_weights WHERE measured_on = ? ORDER BY id",
+                     [.text(date.string)]).compactMap { row in
+            guard let day = ISODate(row.text("measured_on")) else { return nil }
+            return BodyWeightEntry(id: row.int("id"), date: day, kg: row.double("weight_kg"))
+        }
+    }
+
     private func validate(kg: Double) throws {
         guard kg.isFinite, kg > 0 else { throw ValidationError("Body weight must be above 0") }
     }

@@ -12,7 +12,7 @@ def rows(conn, sql):
 
 def test_schema_is_applied_with_settings_and_version(build):
     conn, _ = build()
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
     settings = dict(rows(conn, "SELECT key, value FROM settings"))
     assert settings["history_start_date"] == "2026-08-31"
     assert settings["day_label_mode"] == "number"
@@ -233,6 +233,20 @@ def test_target_keeps_latest_date_per_site(spec, build):
         ("Chest", 40.0, "2022-12-18"),
         ("waist", 29.0, "2024-01-01"),
     ]
+
+
+def test_waist_type_targets_are_reduce_sites_and_the_rest_grow(spec, build):
+    spec.master = [
+        target_row(D(2022, 12, 18), "Waist", 28.0),
+        target_row(D(2022, 12, 18), "waist (belly Button)", 30.0),
+        target_row(D(2022, 12, 18), "Shoulders", 45.3),
+    ]
+    conn, _ = build()
+    assert dict(rows(conn, "SELECT site, direction FROM measurement_targets")) == {
+        "Waist": "reduce",
+        "waist (belly Button)": "reduce",
+        "Shoulders": "grow",
+    }
 
 
 def test_plan_entries_are_loaded_by_exercise_name(spec, build):
