@@ -45,6 +45,9 @@ struct RootView: View {
                 VStack(spacing: 12) {
                     Text("Something went wrong").font(.headline).foregroundColor(Theme.text)
                     Text(message).font(.footnote).foregroundColor(Theme.muted).multilineTextAlignment(.center)
+                    Button("Try again") { session.recheck() }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Theme.green)
                 }
                 .padding()
             case .ready:

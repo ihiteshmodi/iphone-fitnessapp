@@ -15,6 +15,8 @@ public struct AppDatabaseLocation {
 
     public var databaseURL: URL { directory.appendingPathComponent("fitness.sqlite") }
     public var backupsDirectory: URL { directory.appendingPathComponent("Backups", isDirectory: true) }
+    /// Where LiveContainer's legacy file picker copies a chosen file.
+    public var inboxDirectory: URL { directory.appendingPathComponent("Inbox", isDirectory: true) }
     public var exists: Bool { FileManager.default.fileExists(atPath: databaseURL.path) }
 }
 
@@ -85,6 +87,36 @@ public struct DatabaseFileService {
                 """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
+    }
+
+    // MARK: Find
+
+    private static let databaseExtensions: Set<String> = ["sqlite", "sqlite3", "db"]
+    private static let listingLimit = 12
+
+    /// Fitness databases lying in the app folder under another name, for example a copy made by hand ("fitness 2.sqlite")
+    /// or the Inbox copy made by LiveContainer's legacy file picker. Newest first. The live database and backups are skipped.
+    public func foundDatabases() -> [URL] {
+        let candidates = [location.directory, location.inboxDirectory].flatMap { files(in: $0) }
+            .filter { Self.databaseExtensions.contains($0.pathExtension.lowercased()) }
+            .filter { $0.standardizedFileURL != location.databaseURL.standardizedFileURL }
+            .filter { (try? validate(fileAt: $0)) != nil }
+        return candidates.sorted { modified($0) > modified($1) }
+    }
+
+    /// Names of the files in the app folder (hidden ones left out), so the screen can show what the app sees.
+    public func folderListing() -> [String] {
+        Array(files(in: location.directory).map(\.lastPathComponent).sorted().prefix(Self.listingLimit))
+    }
+
+    private func files(in directory: URL) -> [URL] {
+        let urls = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isRegularFileKey],
+                                                                  options: [.skipsHiddenFiles])) ?? []
+        return urls.filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }
+    }
+
+    private func modified(_ url: URL) -> Date {
+        ((try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate) ?? .distantPast
     }
 
     // MARK: Validate
