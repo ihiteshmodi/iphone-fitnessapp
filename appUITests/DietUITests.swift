@@ -168,4 +168,99 @@ final class DietUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["recipe-calories"].waitForExistence(timeout: 5))
         XCTAssertEqual(calories(app.staticTexts["recipe-calories"]), 216, "100 g rice flour and 20 g oats make 2 pieces")
     }
+
+    // MARK: Plan and cycles
+
+    private func openPlan() {
+        XCTAssertTrue(total.waitForExistence(timeout: 15))
+        app.buttons["diet-segment-plan"].tap()
+    }
+
+    private func clearAndType(_ field: XCUIElement, _ text: String) {
+        field.tap()
+        let current = (field.value as? String) ?? ""
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+        field.typeText(text)
+    }
+
+    func testThePlanListsItsMealsAndChangesStartFromToday() {
+        openPlan()
+
+        XCTAssertTrue(app.descendants(matching: .any)["plan-item-Morning-Rolled oats"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["plan-edit-from"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["plan-item-Lunch-Mineral"].exists)
+    }
+
+    func testChangingAQuantityInThePlanChangesTodaysTotal() {
+        XCTAssertTrue(total.waitForExistence(timeout: 15))
+        let before = calories(total)
+        app.buttons["diet-segment-plan"].tap()
+        let item = app.descendants(matching: .any)["plan-item-Morning-Rolled oats"]
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        item.tap()
+
+        let quantity = app.textFields["plan-quantity-field"]
+        XCTAssertTrue(quantity.waitForExistence(timeout: 5))
+        clearAndType(quantity, "120")
+        app.buttons["plan-item-save"].tap()
+
+        app.buttons["diet-segment-today"].tap()
+        XCTAssertTrue(total.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(calories(total), before, "60 g more oats from today on")
+    }
+
+    func testACycleCanBeChosenInWeeksFromAPresetAndShowsWhereTodayIs() {
+        openPlan()
+        let mineral = app.descendants(matching: .any)["plan-item-Lunch-Mineral"]
+        XCTAssertTrue(mineral.waitForExistence(timeout: 5))
+        mineral.tap()
+
+        let summary = app.staticTexts["cycle-summary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertTrue(summary.label.contains("2 weeks on · 1 week off"), summary.label)
+
+        let preset = app.buttons["cycle-preset-3-1"]
+        scrollTo(preset)
+        preset.tap()
+        XCTAssertTrue(app.staticTexts["cycle-summary"].label.contains("3 weeks on · 1 week off"))
+        XCTAssertTrue(app.descendants(matching: .any)["cycle-calendar"].exists)
+
+        let save = app.buttons["plan-item-save"]
+        scrollTo(save)
+        save.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["plan-item-Lunch-Mineral"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["plan-item-Lunch-Mineral"].label.contains("3 weeks on · 1 week off"))
+    }
+
+    func testAFoodCanBeGivenWeekdaysOnly() {
+        openPlan()
+        let oats = app.descendants(matching: .any)["plan-item-Morning-Rolled oats"]
+        XCTAssertTrue(oats.waitForExistence(timeout: 5))
+        oats.tap()
+
+        let weekdays = app.buttons["cycle-mode-Weekdays"]
+        scrollTo(weekdays)
+        weekdays.tap()
+        let quick = app.buttons["cycle-quick-Weekends"]
+        scrollTo(quick)
+        quick.tap()
+
+        XCTAssertTrue(app.staticTexts["cycle-summary"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["cycle-summary"].label.contains("Weekends"))
+    }
+
+    func testTheDietTargetsCanBeChanged() {
+        openPlan()
+        let edit = app.buttons["plan-edit-rules"]
+        scrollTo(edit)
+        edit.tap()
+
+        let protein = app.textFields["rules-protein-field"]
+        XCTAssertTrue(protein.waitForExistence(timeout: 5))
+        clearAndType(protein, "190")
+        app.buttons["rules-save-button"].tap()
+
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Protein at least 190'")).firstMatch.waitForExistence(timeout: 5))
+    }
 }

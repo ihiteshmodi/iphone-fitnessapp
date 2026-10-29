@@ -5,6 +5,7 @@ import SwiftUI
 struct DietTodayView: View {
     @ObservedObject var model: DietViewModel
     let onAddExtra: () -> Void
+    let onEditPlan: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
@@ -14,8 +15,12 @@ struct DietTodayView: View {
                 if day.hasPlan {
                     ForEach(day.meals, id: \.name) { meal in mealCard(meal) }
                 } else {
-                    Text("There is no diet plan on this day. Plans start on a date and apply from then on.")
-                        .font(.system(size: 13)).foregroundColor(Theme.muted).card()
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("There is no diet plan on this day. Plans start on a date and apply from then on.")
+                            .font(.system(size: 13)).foregroundColor(Theme.muted)
+                        Button("Edit plan", action: onEditPlan).buttonStyle(PrimaryButtonStyle(ghost: true)).accessibilityIdentifier("diet-edit-plan")
+                    }
+                    .card()
                 }
                 extrasCard(day)
             }

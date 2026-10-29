@@ -12,6 +12,7 @@ struct DietTabView: View {
 
 enum DietSection: String, CaseIterable, Identifiable {
     case today = "Today"
+    case plan = "Plan"
     case foods = "Foods"
     var id: String { rawValue }
 }
@@ -20,12 +21,14 @@ private struct DietScreen: View {
     @EnvironmentObject private var session: AppSession
     @EnvironmentObject private var services: Services
     @StateObject private var model: DietViewModel
+    @StateObject private var planModel: DietPlanViewModel
     @StateObject private var foodsModel: FoodsViewModel
     @State private var section = DietSection.today
     @State private var addingExtra = false
 
     init(services: Services) {
         _model = StateObject(wrappedValue: DietViewModel(services: services))
+        _planModel = StateObject(wrappedValue: DietPlanViewModel(services: services))
         _foodsModel = StateObject(wrappedValue: FoodsViewModel(services: services))
     }
 
@@ -36,7 +39,8 @@ private struct DietScreen: View {
                     header
                     DietSegmentPicker(selection: $section)
                     switch section {
-                    case .today: DietTodayView(model: model, onAddExtra: { addingExtra = true })
+                    case .today: DietTodayView(model: model, onAddExtra: { addingExtra = true }, onEditPlan: { section = .plan })
+                    case .plan: DietPlanView(model: planModel)
                     case .foods: DietFoodsView(model: foodsModel)
                     }
                 }
@@ -48,6 +52,7 @@ private struct DietScreen: View {
         }
         .task(id: session.revision) { model.load() }
         .errorAlert($model.errorMessage)
+        .errorAlert($planModel.errorMessage)
         .sheet(isPresented: $addingExtra) {
             DietAddExtraSheet(services: services, date: model.date, recent: model.recentExtras) { session.didChange() }
         }
