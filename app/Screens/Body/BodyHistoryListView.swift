@@ -76,9 +76,17 @@ struct CalorieDayRow: View {
     private var sourceText: String {
         switch day.source {
         case .manual: return "Edited"
-        case .baseline: return "Default"
+        case .plan:
+            if day.skippedCount > 0 { return day.extraCount > 0 ? "Plan, \(day.skippedCount) skipped + extras" : "Plan, \(day.skippedCount) skipped" }
+            return day.extraCount > 0 ? "Plan + extras" : "Plan"
+        case .baseline: return day.extraCount > 0 ? "Default + extras" : "Default"
         case .none: return "Not set"
         }
+    }
+
+    private var sourceTone: Pill.Tone {
+        if day.source == .manual || day.extraCount > 0 { return .green }
+        return day.skippedCount > 0 ? .amber : .grey
     }
 
     var body: some View {
@@ -87,7 +95,7 @@ struct CalorieDayRow: View {
                 Text(Format.shortDate(day.date)).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
                 Spacer()
                 Text(day.calories.map { "\(BodyNumbers.grouped($0)) kcal" } ?? "–").font(.system(size: 14)).foregroundColor(Theme.text)
-                Pill(text: sourceText, tone: day.source == .manual ? .green : .grey)
+                Pill(text: sourceText, tone: sourceTone)
                 Text("✎").font(.system(size: 14, weight: .bold)).foregroundColor(Theme.green)
             }
             .padding(.vertical, 9)

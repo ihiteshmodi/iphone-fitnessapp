@@ -33,6 +33,8 @@ public struct CalorieDefault: Equatable {
 public enum CalorieSource: Equatable {
     /// Typed in for this one day.
     case manual
+    /// Added up from the diet plan in force that day, with its unticked items and extras.
+    case plan
     /// Taken from the default in force that day.
     case baseline
     /// No entry and no default yet.
@@ -43,17 +45,31 @@ public struct CalorieDay: Equatable, Identifiable {
     public let date: ISODate
     public let calories: Double?
     public let source: CalorieSource
+    /// Planned items unticked that day (plan days only).
+    public let skippedCount: Int
+    /// Extras added that day on top of the plan or the default.
+    public let extraCount: Int
     public var id: String { date.string }
+
+    public init(date: ISODate, calories: Double?, source: CalorieSource, skippedCount: Int = 0, extraCount: Int = 0) {
+        self.date = date
+        self.calories = calories
+        self.source = source
+        self.skippedCount = skippedCount
+        self.extraCount = extraCount
+    }
 }
 
 /// Reads weigh-ins, calories eaten and macro rules, and hands them to the pure `CalorieTarget` calculator.
 public final class CalorieService {
     private let db: Database
     private let nutrition: NutritionSettings
+    private let diet: DietDayService
 
     public init(_ db: Database) {
         self.db = db
         nutrition = NutritionSettings(db)
+        diet = DietDayService(db)
     }
 
     /// Mean weight of the 7 days ending at the latest weigh-in, and of the 7 days before that.
@@ -111,13 +127,18 @@ public final class CalorieService {
         try db.execute("DELETE FROM calorie_defaults WHERE effective_from = ?", [.text(date.string)])
     }
 
-    /// What one day counts as: the value typed for that day, else the default in force, else nothing.
+    /// What one day counts as: the value typed for that day, else the diet plan in force (with its extras), else the default
+    /// in force plus any extras, else nothing.
     public func day(_ date: ISODate) throws -> CalorieDay {
         if let typed = try db.query("SELECT calories FROM calorie_entries WHERE logged_on = ?", [.text(date.string)]).first {
             return CalorieDay(date: date, calories: typed.double("calories"), source: .manual)
         }
+        let eaten = try diet.day(date)
+        if eaten.hasPlan {
+            return CalorieDay(date: date, calories: eaten.total.calories, source: .plan, skippedCount: eaten.skippedCount, extraCount: eaten.extras.count)
+        }
         if let baseline = try defaultInForce(on: date) {
-            return CalorieDay(date: date, calories: baseline.calories, source: .baseline)
+            return CalorieDay(date: date, calories: baseline.calories + eaten.extrasNutrition.calories, source: .baseline, extraCount: eaten.extras.count)
         }
         return CalorieDay(date: date, calories: nil, source: .none)
     }
