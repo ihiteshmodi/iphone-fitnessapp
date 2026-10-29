@@ -117,4 +117,55 @@ final class DietUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["extra-preview-calories"].waitForExistence(timeout: 5))
         XCTAssertEqual(self.calories(app.staticTexts["extra-preview-calories"]), 120)
     }
+
+    // MARK: Foods and recipes
+
+    private func openFoods() {
+        XCTAssertTrue(total.waitForExistence(timeout: 15))
+        app.buttons["diet-segment-foods"].tap()
+    }
+
+    func testFoodsListsTheLibraryAndCanBeSearched() {
+        openFoods()
+        XCTAssertTrue(app.descendants(matching: .any)["food-row-Peanuts"].waitForExistence(timeout: 5))
+
+        let search = app.textFields["foods-search-field"]
+        search.tap()
+        search.typeText("oats")
+
+        XCTAssertTrue(app.descendants(matching: .any)["food-row-Rolled oats"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["food-row-Peanuts"].exists)
+    }
+
+    func testARecipeShowsWhatOnePieceMakesAndItsIngredients() {
+        openFoods()
+        let recipe = app.descendants(matching: .any)["food-row-Flatbread"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 5))
+        recipe.tap()
+
+        let kcal = app.staticTexts["recipe-calories"]
+        XCTAssertTrue(kcal.waitForExistence(timeout: 5))
+        XCTAssertEqual(calories(kcal), 145, "60 g rice flour and 20 g oats make 2 pieces")
+        XCTAssertTrue(app.descendants(matching: .any)["recipe-line-Rice flour"].exists)
+    }
+
+    func testChangingAnIngredientQuantityUpdatesTheRecipe() {
+        openFoods()
+        let recipe = app.descendants(matching: .any)["food-row-Flatbread"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 5))
+        recipe.tap()
+        let line = app.descendants(matching: .any)["recipe-line-Rice flour"]
+        XCTAssertTrue(line.waitForExistence(timeout: 5))
+        line.tap()
+
+        let quantity = app.textFields["ingredient-quantity-field"]
+        XCTAssertTrue(quantity.waitForExistence(timeout: 5))
+        quantity.tap()
+        quantity.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 4))
+        quantity.typeText("100")
+        app.buttons["ingredient-save-button"].tap()
+
+        XCTAssertTrue(app.staticTexts["recipe-calories"].waitForExistence(timeout: 5))
+        XCTAssertEqual(calories(app.staticTexts["recipe-calories"]), 216, "100 g rice flour and 20 g oats make 2 pieces")
+    }
 }

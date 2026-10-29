@@ -12,6 +12,7 @@ struct DietTabView: View {
 
 enum DietSection: String, CaseIterable, Identifiable {
     case today = "Today"
+    case foods = "Foods"
     var id: String { rawValue }
 }
 
@@ -19,11 +20,13 @@ private struct DietScreen: View {
     @EnvironmentObject private var session: AppSession
     @EnvironmentObject private var services: Services
     @StateObject private var model: DietViewModel
+    @StateObject private var foodsModel: FoodsViewModel
     @State private var section = DietSection.today
     @State private var addingExtra = false
 
     init(services: Services) {
         _model = StateObject(wrappedValue: DietViewModel(services: services))
+        _foodsModel = StateObject(wrappedValue: FoodsViewModel(services: services))
     }
 
     var body: some View {
@@ -34,6 +37,7 @@ private struct DietScreen: View {
                     DietSegmentPicker(selection: $section)
                     switch section {
                     case .today: DietTodayView(model: model, onAddExtra: { addingExtra = true })
+                    case .foods: DietFoodsView(model: foodsModel)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -50,7 +54,7 @@ private struct DietScreen: View {
     }
 
     private var header: some View {
-        BodyHeader(caption: model.caption, title: "Diet")
+        BodyHeader(caption: section == .foods ? foodsModel.countText : model.caption, title: "Diet")
     }
 }
 
