@@ -263,4 +263,34 @@ final class DietUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Protein at least 190'")).firstMatch.waitForExistence(timeout: 5))
     }
+
+    // MARK: Body tab
+
+    private func launchOnBody() {
+        app.terminate()
+        app.launchArguments = UITestSeed.launchArguments + ["-UITestInitialTab", "1"]
+        app.launch()
+    }
+
+    func testTheBodyTabOpensTodaysDietAndSaysWhereTheCaloriesComeFrom() {
+        launchOnBody()
+        let open = app.buttons["open-todays-diet-button"]
+        XCTAssertTrue(open.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["calorie-source-note"].exists, "the demo plan covers the recent days")
+
+        open.tap()
+
+        XCTAssertTrue(total.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["diet-date"].exists)
+    }
+
+    func testTappingADayInRecentCaloriesOpensThatDaysDiet() {
+        launchOnBody()
+        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'calorie-day-'")).firstMatch
+        scrollTo(row)
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        row.tap()
+
+        XCTAssertTrue(total.waitForExistence(timeout: 10))
+    }
 }

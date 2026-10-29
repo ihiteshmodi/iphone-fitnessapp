@@ -57,7 +57,9 @@ struct BodyHistoryListView: View {
     @ViewBuilder
     private var calorieRows: some View {
         ForEach(model.calorieDays(count: dayCount)) { day in
-            CalorieDayRow(day: day, identifier: "calorie-day-\(day.date.string)") { dayToEdit = day }
+            CalorieDayRow(day: day, identifier: "calorie-day-\(day.date.string)") {
+                if day.source == .plan { session.openDiet(on: day.date) } else { dayToEdit = day }
+            }
         }
         Button("Show earlier days") { dayCount += 60 }
             .font(.system(size: 14, weight: .semibold))
@@ -96,7 +98,7 @@ struct CalorieDayRow: View {
                 Spacer()
                 Text(day.calories.map { "\(BodyNumbers.grouped($0)) kcal" } ?? "–").font(.system(size: 14)).foregroundColor(Theme.text)
                 Pill(text: sourceText, tone: sourceTone)
-                Text("✎").font(.system(size: 14, weight: .bold)).foregroundColor(Theme.green)
+                Text(day.source == .plan ? "›" : "✎").font(.system(size: 14, weight: .bold)).foregroundColor(Theme.green)
             }
             .padding(.vertical, 9)
             .contentShape(Rectangle())

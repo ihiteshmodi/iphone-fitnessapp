@@ -29,7 +29,7 @@ struct BodyCaloriesSheet: View {
                         BodyField(label: "Fat % of calories", text: $fat, identifier: "fat-field")
                     }
                     previewCard
-                    Text("The new calories count from the start date onward. Earlier days keep what they had, and days you changed by hand keep their own value. Carbs fill what is left. Macros are shown when the multiplier is below 1 (cutting), as in your notebook.")
+                    Text("The new calories count from the start date onward on days that have no diet plan. Days with a diet plan count the diet instead, earlier days keep what they had, and days you typed by hand keep their own value. Carbs fill what is left. Macros are shown when the multiplier is below 1 (cutting), as in your notebook.")
                         .font(.system(size: 12)).foregroundColor(Theme.muted)
                 }
                 .padding(16)

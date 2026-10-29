@@ -44,6 +44,10 @@ private struct BodyScreen: View {
                         Text(loadError).font(.system(size: 13)).foregroundColor(Theme.red).card()
                     }
                     ringCard
+                    Button("Open today's diet") { session.openDiet(on: model.today) }
+                        .buttonStyle(PrimaryButtonStyle(ghost: true))
+                        .font(.system(size: 14))
+                        .accessibilityIdentifier("open-todays-diet-button")
                     HStack(spacing: 10) {
                         Button("✎ Daily calories") { sheet = .calories }
                             .accessibilityIdentifier("calories-edit-button")
@@ -108,6 +112,10 @@ private struct BodyScreen: View {
                 }
                 if let hint = model.ringHint {
                     Text(hint).font(.system(size: 12)).foregroundColor(Theme.muted)
+                }
+                if let note = model.calorieSourceNote {
+                    Text(note).font(.system(size: 11)).foregroundColor(Theme.muted)
+                        .accessibilityIdentifier("calorie-source-note")
                 }
             }
             Spacer(minLength: 0)
@@ -234,9 +242,13 @@ private struct BodyScreen: View {
                     .font(.system(size: 12, weight: .semibold))
                     .accessibilityIdentifier("see-all-calories")
             }
-            Text(model.defaultCaption).font(.system(size: 12)).foregroundColor(Theme.muted).padding(.bottom, 4)
+            Text(model.defaultCaption).font(.system(size: 12)).foregroundColor(Theme.muted).padding(.bottom, 2)
+            Text("Days with a diet plan count the diet. Tap one to open it, add extras or untick an item.")
+                .font(.system(size: 12)).foregroundColor(Theme.muted).padding(.bottom, 4)
             ForEach(model.calorieDays) { day in
-                CalorieDayRow(day: day, identifier: "calorie-day-\(day.date.string)") { sheet = .editDay(day) }
+                CalorieDayRow(day: day, identifier: "calorie-day-\(day.date.string)") {
+                    if day.source == .plan { session.openDiet(on: day.date) } else { sheet = .editDay(day) }
+                }
             }
         }
         .card()

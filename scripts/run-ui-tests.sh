@@ -20,9 +20,14 @@ LOGS=".uitest-logs"
 mkdir -p "$LOGS"
 
 # The simulator cannot read ~/Desktop, so the seed database is staged in /Users/Shared (see appUITests/UITestSeed.swift).
-cp output/fitness.seed.sqlite /Users/Shared/fitness-ui-seed.sqlite
-# The diet UI tests need a made-up diet in that copy (nothing personal; see tools/diet-import/demo_diet.py).
-python3 tools/diet-import/demo_diet.py --db /Users/Shared/fitness-ui-seed.sqlite --replace >/dev/null
+# Every class starts from a fresh copy. Only the diet tests get a made-up diet on top (nothing personal; see
+# tools/diet-import/demo_diet.py); the other classes check the app as it is without a diet plan.
+stage_database() {
+  cp output/fitness.seed.sqlite /Users/Shared/fitness-ui-seed.sqlite
+  if [ "$1" = "DietUITests" ]; then
+    python3 tools/diet-import/demo_diet.py --db /Users/Shared/fitness-ui-seed.sqlite --replace >/dev/null
+  fi
+}
 
 build_pid=""
 stop_everything() {
@@ -91,6 +96,7 @@ status=0
 echo "UI tests: $total tests in ${#classes[@]} class(es). Ctrl-C stops everything."
 
 for name in "${classes[@]}"; do
+  stage_database "$name"
   log="$LOGS/$name.log"
   rm -rf "$LOGS/$name.xcresult"; : >"$log"
   printf '\n== %s   started %s   (full log: %s)\n' "$name" "$(date +%H:%M:%S)" "$log"

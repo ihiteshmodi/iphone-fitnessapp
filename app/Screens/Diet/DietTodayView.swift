@@ -10,6 +10,7 @@ struct DietTodayView: View {
     var body: some View {
         VStack(spacing: 12) {
             dateBar
+            if let typed = model.typedCalories { typedNotice(typed) }
             if let day = model.day {
                 summaryCard(day)
                 if day.hasPlan {
@@ -25,6 +26,18 @@ struct DietTodayView: View {
                 extrasCard(day)
             }
         }
+    }
+
+    private func typedNotice(_ typed: Double) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("You typed \(Format.grouped(typed)) kcal for this day in Body. That total is what counts, not this diet.")
+                .font(.system(size: 13)).foregroundColor(Theme.amber)
+            Button("Use the diet instead") { model.useDietInstead() }
+                .buttonStyle(PrimaryButtonStyle(ghost: true)).font(.system(size: 14))
+                .accessibilityIdentifier("diet-use-diet-instead")
+        }
+        .card()
+        .accessibilityIdentifier("diet-typed-notice")
     }
 
     // MARK: Date

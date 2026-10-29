@@ -17,6 +17,8 @@ final class DietViewModel: ObservableObject {
     @Published private(set) var day: DietDay?
     @Published private(set) var weekExtras: ExtrasSummary?
     @Published private(set) var recentExtras: [RecentExtra] = []
+    /// Calories typed for this day in the Body tab; they win over the diet until cleared.
+    @Published private(set) var typedCalories: Double?
     @Published private(set) var rules = DietRules(proteinMinimumGrams: 180, fatPercentOfCalories: 20, fatCeilingGramsPerPound: 0.4)
     @Published private(set) var date: ISODate
     @Published var errorMessage: String?
@@ -36,6 +38,8 @@ final class DietViewModel: ObservableObject {
             weekExtras = try services.dietDays.extrasSummary(endingOn: date, days: 7)
             recentExtras = try services.dietDays.recentExtras(limit: 5)
             rules = try services.dietRules.load()
+            let counted = try services.calories.day(date)
+            typedCalories = counted.source == .manual ? counted.calories : nil
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -54,6 +58,11 @@ final class DietViewModel: ObservableObject {
     func toggle(_ line: DietLine) {
         if case .offCycle = line.state { return }
         perform { try self.services.dietDays.setEaten(line.state == .skipped, meal: line.meal, foodID: line.foodID, on: self.date) }
+    }
+
+    /// Clears the calories typed for this day so the diet counts again.
+    func useDietInstead() {
+        perform { try self.services.calories.deleteCalories(on: self.date) }
     }
 
     func remove(_ extra: DietExtra) {

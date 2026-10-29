@@ -51,11 +51,21 @@ private struct DietScreen: View {
             .toolbar(.hidden, for: .navigationBar)
         }
         .task(id: session.revision) { model.load() }
+        .onAppear(perform: openRequestedDay)
+        .onChange(of: session.dietDayToOpen) { _ in openRequestedDay() }
         .errorAlert($model.errorMessage)
         .errorAlert($planModel.errorMessage)
         .sheet(isPresented: $addingExtra) {
             DietAddExtraSheet(services: services, date: model.date, recent: model.recentExtras) { session.didChange() }
         }
+    }
+
+    /// Another screen (Body) asked to see a day here.
+    private func openRequestedDay() {
+        guard let day = session.dietDayToOpen else { return }
+        session.dietDayToOpen = nil
+        section = .today
+        model.show(day)
     }
 
     private var header: some View {
