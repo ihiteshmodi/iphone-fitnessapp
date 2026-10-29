@@ -117,6 +117,11 @@ public struct Food: Equatable, Identifiable {
     public let id: Int
     public let draft: FoodDraft
 
+    public init(id: Int, draft: FoodDraft) {
+        self.id = id
+        self.draft = draft
+    }
+
     public var name: String { draft.name }
     public var kind: FoodKind { draft.kind }
     public var unit: String { draft.unit }

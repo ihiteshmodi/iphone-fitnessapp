@@ -49,3 +49,13 @@ Feature: Pieces, grams and shares of a pack
       | amount |
       | 0      |
       | -2     |
+
+  Scenario: The entry modes a food offers
+    Then the packet offers Pieces, Grams and Share of pack
+    And a food in grams with no pieces offers Grams only
+    And a food counted in pieces, like a recipe, offers just its own count
+    And a food in grams with a pack size but no pieces offers Grams and Share of pack
+
+  Scenario: Each mode starts at a sensible amount and moves in sensible steps
+    Then Pieces start at 1 and move by 1, Grams start at 30 and move by 5, Share of pack starts at a quarter and moves by a quarter
+    And a count-based food starts at 1 and moves by 1

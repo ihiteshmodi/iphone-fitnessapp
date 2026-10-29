@@ -17,8 +17,10 @@ enum DietSection: String, CaseIterable, Identifiable {
 
 private struct DietScreen: View {
     @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var services: Services
     @StateObject private var model: DietViewModel
     @State private var section = DietSection.today
+    @State private var addingExtra = false
 
     init(services: Services) {
         _model = StateObject(wrappedValue: DietViewModel(services: services))
@@ -31,7 +33,7 @@ private struct DietScreen: View {
                     header
                     DietSegmentPicker(selection: $section)
                     switch section {
-                    case .today: DietTodayView(model: model)
+                    case .today: DietTodayView(model: model, onAddExtra: { addingExtra = true })
                     }
                 }
                 .padding(.horizontal, 16)
@@ -42,6 +44,9 @@ private struct DietScreen: View {
         }
         .task(id: session.revision) { model.load() }
         .errorAlert($model.errorMessage)
+        .sheet(isPresented: $addingExtra) {
+            DietAddExtraSheet(services: services, date: model.date, recent: model.recentExtras) { session.didChange() }
+        }
     }
 
     private var header: some View {

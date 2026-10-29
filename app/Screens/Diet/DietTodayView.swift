@@ -4,6 +4,7 @@ import SwiftUI
 /// The Today section: the day's total, the protein and fat targets, every planned item with a tick, and the extras.
 struct DietTodayView: View {
     @ObservedObject var model: DietViewModel
+    let onAddExtra: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
@@ -141,6 +142,11 @@ struct DietTodayView: View {
                 ForEach(day.extras) { extra in
                     DietExtraRow(extra: extra) { model.remove(extra) }
                 }
+                Button("+ Add extra", action: onAddExtra)
+                    .buttonStyle(PrimaryButtonStyle(ghost: true))
+                    .font(.system(size: 14))
+                    .padding(.horizontal, 6).padding(.vertical, 6)
+                    .accessibilityIdentifier("diet-add-extra")
                 if let week = model.weekExtrasText {
                     Text(week).font(.system(size: 12)).foregroundColor(Theme.muted).padding(10)
                         .accessibilityIdentifier("diet-week-extras")

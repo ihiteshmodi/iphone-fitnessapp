@@ -89,4 +89,37 @@ final class PortionsTests: XCTestCase {
 
         XCTAssertEqual(cost.amount, 1.142857, accuracy: 0.0001)
     }
+
+    // MARK: Entry modes
+
+    func testThePacketOffersPiecesGramsAndShareOfPack() {
+        XCTAssertEqual(Portions.modes(for: biscuits), [.pieces, .amount, .shareOfPack])
+    }
+
+    func testAFoodInGramsOffersOnlyWhatItHasInformationFor() throws {
+        let loose = try XCTUnwrap(try library.food(try library.add(FoodDraft(name: "Loose rice"))))
+        let bagged = try XCTUnwrap(try library.food(try library.add(FoodDraft(name: "Bagged rice", packSize: 500))))
+
+        XCTAssertEqual(Portions.modes(for: loose), [.amount])
+        XCTAssertEqual(Portions.modes(for: bagged), [.amount, .shareOfPack])
+    }
+
+    func testAFoodCountedInPiecesOffersJustItsOwnCount() throws {
+        let flatbread = try XCTUnwrap(try library.food(try library.add(FoodDraft(name: "Flatbread", kind: .recipe, unit: "piece", baseQuantity: 1, recipeMakes: 1))))
+
+        XCTAssertEqual(Portions.modes(for: flatbread), [.amount])
+        XCTAssertEqual(Portions.defaultValue(.amount, for: flatbread), 1)
+        XCTAssertEqual(Portions.step(.amount, for: flatbread), 1)
+    }
+
+    func testEachModeStartsAtASensibleAmountAndMovesInSensibleSteps() {
+        XCTAssertEqual([Portions.defaultValue(.pieces, for: biscuits), Portions.defaultValue(.amount, for: biscuits), Portions.defaultValue(.shareOfPack, for: biscuits)], [1, 30, 0.25])
+        XCTAssertEqual([Portions.step(.pieces, for: biscuits), Portions.step(.amount, for: biscuits), Portions.step(.shareOfPack, for: biscuits)], [1, 5, 0.25])
+    }
+
+    func testTheModeAndAValueMakeThePortionInput() {
+        XCTAssertEqual(Portions.input(.pieces, 4), .pieces(4))
+        XCTAssertEqual(Portions.input(.amount, 30), .amount(30))
+        XCTAssertEqual(Portions.input(.shareOfPack, 0.5), .shareOfPack(0.5))
+    }
 }

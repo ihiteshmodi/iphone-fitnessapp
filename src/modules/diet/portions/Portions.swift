@@ -50,4 +50,46 @@ public enum Portions {
         if let weight = pieceWeight(of: food) { return amount / weight }
         return weightUnits.contains(food.draft.unit) ? nil : amount
     }
+
+    // MARK: Entry modes
+
+    /// The ways an amount of this food can be typed. A food counted in pieces already is its own count, so it offers just that.
+    public static func modes(for food: Food) -> [PortionMode] {
+        guard weightUnits.contains(food.draft.unit) else { return [.amount] }
+        var modes: [PortionMode] = []
+        if pieceWeight(of: food) != nil { modes.append(.pieces) }
+        modes.append(.amount)
+        if food.draft.packSize != nil { modes.append(.shareOfPack) }
+        return modes
+    }
+
+    public static func defaultValue(_ mode: PortionMode, for food: Food) -> Double {
+        switch mode {
+        case .pieces: return 1
+        case .amount: return weightUnits.contains(food.draft.unit) ? 30 : 1
+        case .shareOfPack: return 0.25
+        }
+    }
+
+    public static func step(_ mode: PortionMode, for food: Food) -> Double {
+        switch mode {
+        case .pieces: return 1
+        case .amount: return weightUnits.contains(food.draft.unit) ? 5 : 1
+        case .shareOfPack: return 0.25
+        }
+    }
+
+    public static func input(_ mode: PortionMode, _ value: Double) -> PortionInput {
+        switch mode {
+        case .pieces: return .pieces(value)
+        case .amount: return .amount(value)
+        case .shareOfPack: return .shareOfPack(value)
+        }
+    }
+}
+
+public enum PortionMode: Equatable {
+    case pieces
+    case amount
+    case shareOfPack
 }
