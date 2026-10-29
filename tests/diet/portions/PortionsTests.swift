@@ -122,4 +122,15 @@ final class PortionsTests: XCTestCase {
         XCTAssertEqual(Portions.input(.amount, 30), .amount(30))
         XCTAssertEqual(Portions.input(.shareOfPack, 0.5), .shareOfPack(0.5))
     }
+
+    func testAFoodCountedInUnitsIgnoresAPieceWeightBecauseOneUnitIsOnePiece() throws {
+        let oreo = try XCTUnwrap(try library.food(try library.add(FoodDraft(
+            name: "Oreo", unit: "unit", baseQuantity: 1, labelCalories: 39.18, price: 2.09, packSize: 1, piecesPerPack: 1, pieceWeight: 8.28))))
+
+        XCTAssertNil(Portions.pieceWeight(of: oreo))
+        let portion = try Portions.portion(of: oreo, .pieces(4))
+        XCTAssertEqual(portion.amount, 4)
+        XCTAssertEqual(try library.nutrition(of: oreo.id, quantity: portion.amount).calories, 156.72, accuracy: 0.001)
+        XCTAssertEqual(try library.cost(of: oreo.id, quantity: 1).amount, 2.09, accuracy: 0.001)
+    }
 }

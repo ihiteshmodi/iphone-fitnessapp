@@ -18,8 +18,10 @@ public struct Portion: Equatable {
 public enum Portions {
     private static let weightUnits: Set<String> = ["g", "ml"]
 
-    /// What one piece weighs: the weight typed in, else the pack divided by the pieces in it.
+    /// What one piece weighs: the weight typed in, else the pack divided by the pieces in it. A food counted in units
+    /// (capsules, biscuits, pieces) has none: one unit already is one piece.
     public static func pieceWeight(of food: Food) -> Double? {
+        guard weightUnits.contains(food.draft.unit) else { return nil }
         if let typed = food.draft.pieceWeight { return typed }
         guard let pack = food.draft.packSize, let pieces = food.draft.piecesPerPack else { return nil }
         return pack / pieces

@@ -52,6 +52,9 @@ final class FoodFormModel: ObservableObject {
         notes = d.notes ?? ""
     }
 
+    /// Foods counted in units, capsules or pieces have no weight per piece: one of them is the piece.
+    var isCounted: Bool { unit != "g" && unit != "ml" }
+
     func choose(unit newUnit: String) {
         unit = newUnit
         let counted = newUnit != "g" && newUnit != "ml"
@@ -71,7 +74,8 @@ final class FoodFormModel: ObservableObject {
                   protein: try number(protein, "protein") ?? 0, carbs: try number(carbs, "carbs") ?? 0, fat: try number(fat, "fat") ?? 0,
                   fiber: try number(fiber, "fiber") ?? 0, satFat: try number(satFat, "saturated fat") ?? 0, sodium: try number(sodium, "sodium") ?? 0,
                   labelCalories: try number(calories, "calories"), price: try number(price, "the price"), packSize: try number(packSize, "the pack size"),
-                  piecesPerPack: try number(piecesPerPack, "the pieces in a pack"), pieceWeight: try number(pieceWeight, "the piece weight"),
+                  piecesPerPack: isCounted ? nil : try number(piecesPerPack, "the pieces in a pack"),
+                  pieceWeight: isCounted ? nil : try number(pieceWeight, "the piece weight"),
                   recipeMakes: nil, notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes)
     }
 
@@ -89,7 +93,8 @@ final class FoodFormModel: ObservableObject {
     var pieceCheck: String? {
         guard let draft = try? draft(), draft.baseQuantity > 0 else { return nil }
         let food = Food(id: 0, draft: draft)
-        guard let weight = Portions.pieceWeight(of: food) else { return nil }
+        let grams = isCounted ? 1 : Portions.pieceWeight(of: food)
+        guard let weight = grams else { return nil }
         let n = food.perBase.scaled(by: weight / draft.baseQuantity)
         return "\(Format.number(n.calories, maxDecimals: 0)) kcal · P \(Format.number(n.protein, maxDecimals: 1)) · C \(Format.number(n.carbs, maxDecimals: 1)) · F \(Format.number(n.fat, maxDecimals: 1))"
     }
@@ -141,10 +146,17 @@ struct DietFoodFormSheet: View {
                     unitChips
                     HStack(alignment: .top, spacing: 10) {
                         BodyField(label: "Pack size", text: $model.packSize, unit: model.unit, identifier: "food-pack-field")
-                        BodyField(label: "Pieces in pack", text: $model.piecesPerPack, identifier: "food-pieces-field")
+                        if !model.isCounted {
+                            BodyField(label: "Pieces in pack", text: $model.piecesPerPack, identifier: "food-pieces-field")
+                        }
                         BodyField(label: "Price", text: $model.price, unit: "₹", identifier: "food-price-field")
                     }
-                    BodyField(label: "Weight of one piece (optional)", text: $model.pieceWeight, unit: model.unit, identifier: "food-piece-weight-field")
+                    if !model.isCounted {
+                        BodyField(label: "Weight of one piece (optional)", text: $model.pieceWeight, unit: model.unit, identifier: "food-piece-weight-field")
+                    } else {
+                        Text("Counted in \(model.unit)s: price is for the pack size above, and nutrition below is for one \(model.unit).")
+                            .font(.system(size: 12)).foregroundColor(Theme.muted)
+                    }
                     if let note = model.pieceNote { Text(note).font(.system(size: 12)).foregroundColor(Theme.green) }
                     labelSection
                     BodyField(label: "Notes", text: $model.notes, identifier: "food-notes-field", keyboard: .default)
@@ -224,7 +236,7 @@ struct DietFoodFormSheet: View {
 
     private func pieceCheckCard(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            SectionLabel("Check: one piece")
+            SectionLabel(model.isCounted ? "Check: one \(model.unit)" : "Check: one piece")
             Text(text).font(.system(size: 15, weight: .bold)).foregroundColor(Theme.text)
         }
         .card()
