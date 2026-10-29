@@ -75,7 +75,7 @@ final class ScreenTourUITests: XCTestCase {
     func testTourProgress() {
         // Start on Progress directly: the iPhone Duo simulator opens Body when its Progress tab is tapped.
         app.terminate()
-        app.launchArguments = UITestSeed.launchArguments + ["-UITestInitialTab", "2"]
+        app.launchArguments = UITestSeed.launchArguments + ["-UITestInitialTab", "3"]
         app.launch()
         XCTAssertTrue(app.buttons["measurement-ring-Waist"].waitForExistence(timeout: 30))
         sleep(1)

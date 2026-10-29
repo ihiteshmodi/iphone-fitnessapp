@@ -198,18 +198,21 @@ def write(conn, data, plan_start, replace=False):
         for food in data.foods:
             cursor = conn.execute(
                 """INSERT INTO foods (name, kind, unit, base_qty, protein, carbs, fat, fiber, sat_fat, sodium, label_calories,
-                                      price, pack_size, recipe_makes, notes)
+                                      price, pack_size, pieces_per_pack, piece_weight, recipe_makes, notes)
                    VALUES (:name, :kind, :unit, :base_qty, :protein, :carbs, :fat, :fiber, :sat_fat, :sodium, :label_calories,
-                           :price, :pack_size, :recipe_makes, :notes)""", {"recipe_makes": None, **food})
+                           :price, :pack_size, :pieces_per_pack, :piece_weight, :recipe_makes, :notes)""",
+                {"recipe_makes": None, "pieces_per_pack": None, "piece_weight": None, **food})
             ids[food["name"]] = cursor.lastrowid
         for recipe in data.recipes:
             for position, (name, quantity) in enumerate(recipe["lines"], start=1):
                 conn.execute("INSERT INTO recipe_items (recipe_id, food_id, position, quantity) VALUES (?, ?, ?, ?)",
                              (ids[recipe["name"]], ids[name], position, quantity))
         conn.execute("INSERT INTO diet_plans (effective_from) VALUES (?)", (plan_start,))
-        for position, (meal, name, quantity) in enumerate(data.plan, start=1):
-            conn.execute("INSERT INTO diet_plan_items (plan_from, meal, position, food_id, quantity) VALUES (?, ?, ?, ?, ?)",
-                         (plan_start, meal, position, ids[name], quantity))
+        for position, (meal, name, quantity, *rest) in enumerate(data.plan, start=1):
+            cycle = rest[0] if rest else {}
+            conn.execute("""INSERT INTO diet_plan_items (plan_from, meal, position, food_id, quantity, cycle_mode, cycle_on, cycle_off, cycle_start)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                         (plan_start, meal, position, ids[name], quantity, cycle.get("mode", "daily"), cycle.get("on"), cycle.get("off"), cycle.get("start")))
         problems = conn.execute("PRAGMA foreign_key_check").fetchall()
         if problems:
             raise ImportProblem(f"Foreign key problems after import: {problems}")

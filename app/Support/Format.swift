@@ -49,6 +49,24 @@ enum Format {
     static func decimal(_ text: String) -> Double? {
         Double(text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "."))
     }
+
+    /// "1.2 g", "1 unit", "3 pieces", "1 capsule"
+    static func amount(_ quantity: Double, unit: String) -> String {
+        let value = number(quantity, maxDecimals: 2)
+        if unit == "g" || unit == "ml" { return "\(value) \(unit)" }
+        return "\(value) \(unit)\(quantity == 1 ? "" : "s")"
+    }
+
+    /// "₹176", or "₹176+" when some price in it is not known yet.
+    static func money(_ cost: Cost) -> String {
+        "₹\(grouped(cost.amount))\(cost.isComplete ? "" : "+")"
+    }
+
+    /// "Thursday, 29 Oct"
+    static func weekdayDate(_ date: ISODate) -> String {
+        let names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        return "\(names[date.weekday - 1]), \(shortDate(date))"
+    }
 }
 
 extension View {

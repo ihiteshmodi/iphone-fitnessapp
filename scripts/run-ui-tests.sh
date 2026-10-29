@@ -21,6 +21,8 @@ mkdir -p "$LOGS"
 
 # The simulator cannot read ~/Desktop, so the seed database is staged in /Users/Shared (see appUITests/UITestSeed.swift).
 cp output/fitness.seed.sqlite /Users/Shared/fitness-ui-seed.sqlite
+# The diet UI tests need a made-up diet in that copy (nothing personal; see tools/diet-import/demo_diet.py).
+python3 tools/diet-import/demo_diet.py --db /Users/Shared/fitness-ui-seed.sqlite --replace >/dev/null
 
 build_pid=""
 stop_everything() {
@@ -31,7 +33,7 @@ stop_everything() {
 trap 'stop_everything; exit 130' INT TERM
 trap 'xcrun simctl shutdown all >/dev/null 2>&1' EXIT
 
-classes=(WorkoutFlowUITests BodyProgressUITests MorePlanDataUITests)
+classes=(WorkoutFlowUITests BodyProgressUITests MorePlanDataUITests DietUITests)
 [ $# -gt 0 ] && classes=("$@")
 
 total=0

@@ -128,7 +128,7 @@ final class BodyProgressUITests: XCTestCase {
         if name == "Progress" {
             // Some simulator layouts (the iPhone Duo) open Body when Progress is tapped, so start on Progress instead.
             app.terminate()
-            app.launchArguments = UITestSeed.launchArguments + ["-UITestInitialTab", "2"]
+            app.launchArguments = UITestSeed.launchArguments + ["-UITestInitialTab", "3"]
             app.launch()
             return
         }
