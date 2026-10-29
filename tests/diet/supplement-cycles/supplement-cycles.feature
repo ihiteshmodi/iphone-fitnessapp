@@ -57,5 +57,5 @@ Feature: Items that follow a cycle
       | kind     | detail                          | message                              |
       | weeks    | 0 weeks on                      | Days or weeks on must be at least 1  |
       | weeks    | 1 week off starting a Tuesday   | A weekly cycle starts on a Monday    |
-      | days     | 0 days off                      | Days off must be at least 1          |
+      | days     | 0 days off                      | Days or weeks off must be at least 1 |
       | weekdays | no day chosen                   | Choose at least one weekday          |
