@@ -59,3 +59,35 @@ Feature: Items that follow a cycle
       | weeks    | 1 week off starting a Tuesday   | A weekly cycle starts on a Monday    |
       | days     | 0 days off                      | Days or weeks off must be at least 1 |
       | weekdays | no day chosen                   | Choose at least one weekday          |
+
+  Scenario Outline: A cycle is described in plain words
+    Given the cycle <cycle>
+    Then it reads "<summary>"
+
+    Examples:
+      | cycle                                | summary                  |
+      | every day                            | Every day                |
+      | 2 weeks on and 1 week off            | 2 weeks on · 1 week off  |
+      | 1 week on and 1 week off             | 1 week on · 1 week off   |
+      | 5 days on and 2 days off             | 5 days on · 2 days off   |
+      | 1 day on and 1 day off               | Every other day          |
+      | Monday, Wednesday and Friday         | Mon, Wed, Fri            |
+      | Monday to Friday                     | Weekdays                 |
+      | Saturday and Sunday                  | Weekends                 |
+      | training days                        | Training days            |
+
+  Scenario: Where the item is today in words
+    Given the cycle is 2 weeks on and 1 week off, first on week starting Monday 2026-10-26
+    Then on 2026-10-29 it reads "Day 4 of 14 · off from 9 Nov"
+    And on 2026-11-12 it reads "Off · back on 16 Nov"
+
+  Scenario: A calendar strip shows which days are on
+    Given the same cycle
+    When I draw 4 weeks from the week of 2026-10-26 with today 2026-10-29
+    Then the rows start on Mondays, the third row is all off and 2026-10-29 is marked as today
+
+  Scenario: Picking the cycle in the editor
+    When I choose weeks on and off with the date 2026-10-28, a Wednesday
+    Then the first on week starts on Monday 2026-10-26
+    And the preset 2 on and 1 off fills in 2 weeks on and 1 week off
+    And switching to weekdays and choosing none is rejected with "Choose at least one weekday"
