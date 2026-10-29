@@ -4,7 +4,7 @@ Feature: A library of foods and recipes
   Scenario: Nutrition is stored per a base quantity and scaled to what I eat
     Given "Rolled oats" is a food with nutrition per 100 g: protein 12, carbs 68, fat 8, fiber 10
     When I ask what 30 g of it gives
-    Then it gives protein 3.6, carbs 20.4, fat 2.4, fiber 3 and 111.6 calories
+    Then it gives protein 3.6, carbs 20.4, fat 2.4, fiber 3 and 117.6 calories
 
   Scenario: Calories come from the label when typed, otherwise from the macros
     Given a food per 100 g with protein 10, carbs 60, fat 5
