@@ -18,6 +18,10 @@ final class Services: ObservableObject {
     let volume: MuscleVolumeService
     let settings: SettingsRepository
     let muscles: ExerciseMuscleService
+    let foods: FoodLibrary
+    let dietPlans: DietPlanService
+    let dietDays: DietDayService
+    let dietRules: DietSettings
 
     init(db: Database, clock: AppClock) {
         self.db = db
@@ -35,5 +39,9 @@ final class Services: ObservableObject {
         volume = MuscleVolumeService(db)
         settings = SettingsRepository(db)
         muscles = ExerciseMuscleService(db)
+        foods = FoodLibrary(db)
+        dietPlans = DietPlanService(db)
+        dietDays = DietDayService(db)
+        dietRules = DietSettings(db)
     }
 }

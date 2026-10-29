@@ -1,11 +1,11 @@
-# Offline Fitness Tracker for iPhone: workouts, PRs, body and calories
+# Offline Fitness Tracker for iPhone: workouts, PRs, body, calories and diet
 
 ![Platform](https://img.shields.io/badge/platform-iOS%2016%2B-black)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI%20%2B%20SQLite-F05138)
 ![Data](https://img.shields.io/badge/data-offline%2C%20one%20SQLite%20file-2ee887)
 ![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
-> An offline iPhone app for strength training. Log your sets, see the weight to lift next for every exercise, spot your PRs at a glance, and track body weight, calories and measurements. Everything lives in one SQLite file on your phone: no account, no server.
+> An offline iPhone app for strength training. Log your sets, see the weight to lift next for every exercise, spot your PRs at a glance, track body weight, calories and measurements, and keep a daily diet whose calories feed your calorie target. Everything lives in one SQLite file on your phone: no account, no server.
 
 ## Screens
 
@@ -58,10 +58,19 @@ Screenshots of the real app.
 
 **Body and progress**
 - **Weigh-ins:** log your weight on any day, edit or delete old ones.
-- **Calories:** a daily default that starts on a date you choose, a change for any single day, and a calorie target with macros.
+- **Calories:** a daily default that starts on a date you choose, a change for any single day, and a calorie target with macros. Days that have a diet plan count the diet instead (see below), and a total you type for one day still wins.
 - **What your weight says:** your actual deficit or surplus from the weight trend, next to your planned mode.
 - **Measurements:** targets that grow or reduce, % from target, and a colour tolerance (green, amber, red).
 - **Volume per muscle:** training volume over time for each muscle group.
+
+**Diet**
+- **Food library:** foods, supplements and packaged snacks with nutrition (per 100 g, per serving or per piece) and price. Calories come from the label when you type them, otherwise from protein, carbs and fat. Editing a food updates every day that used it.
+- **Recipes:** a recipe is made of other foods, for one piece or a whole batch ("makes 9 pieces", "makes 1000 g"). Its nutrition and cost are worked out from the current ingredients.
+- **Daily plan:** your meals and quantities. A change starts on a date you choose (today by default) and never rewrites earlier days. The plan counts as eaten; untick an item to leave it out for one day only.
+- **Extras:** log something that is not in the plan by pieces, grams or share of a pack ("4 biscuits" from a 250 g pack of 35), see the result before saving, and re-add recent extras in one tap.
+- **Cycles:** an item can follow a cycle: weeks on and off counted Monday to Sunday (for example 2 on, 1 off), days on and off, chosen weekdays, or training days. Off days are greyed, not counted in calories or cost, and need no tick.
+- **Targets:** protein is a minimum (180 g by default). The fat limit is the smaller of 20% of the day's calories and a weight cap (7-day average weight in lb × 0.4 g). All three numbers are editable.
+- **Cost and calories:** every day shows its total calories, macros and cost. The Body tab, the weekly average and the calorie target use these days.
 
 **Data**
 - **One SQLite file** on the phone. Export it, restore it, or import another one. Older files are upgraded automatically.
@@ -75,7 +84,7 @@ git clone https://github.com/ihiteshmodi/iphone-fitnessapp.git
 cd iphone-fitnessapp
 
 swift test                # logic tests, no simulator needed
-# Expected (last lines): Executed 431 tests, with 10 tests skipped and 0 failures (0 unexpected)
+# Expected (last lines): Executed 533 tests, with 10 tests skipped and 0 failures (0 unexpected)
 #   the 10 skipped need a seeded database (see "Configuration")
 
 xcodegen generate         # creates FitnessApp.xcodeproj from project.yml
@@ -135,6 +144,22 @@ On iOS 16 and later you may also need to turn on **Developer Mode** (**Settings 
 
 ## Usage
 
+### Track your diet
+
+1. **Diet** tab → **Foods**: add your foods (**+ New food**) with their label values, and recipes (**+ New recipe**) with their ingredients.
+2. **Plan**: add each food to a meal with its quantity. Changes start on the date shown at the top (today by default). Tap an item to give it a cycle, such as 2 weeks on and 1 week off.
+3. **Today**: the plan counts as eaten. Tap an item to untick it for the day. **+ Add extra** logs anything else.
+
+Worked example (a 250 g pack of 35 biscuits, label per 100 g: 480 kcal, protein 7, carbs 70, fat 18; you ate 4):
+
+```text
+One piece:   250 ÷ 35 = 7.14 g
+4 pieces:    4 × 7.14 = 28.6 g
+Calories:    480 × 28.6 ÷ 100 = 137 kcal  (protein 2.0 g, carbs 20.0 g, fat 5.1 g)
+```
+
+Importing an existing spreadsheet of foods and a diet is possible with [`tools/diet-import`](tools/diet-import/README.md).
+
 ### Log a workout day
 
 1. **Workout** tab: pick a day. Each card shows the working weight and a chip: green *Increase reps*, amber *Same weight, clean*, or gold *★ Go to 72.5*.
@@ -167,6 +192,9 @@ There are no environment variables or secrets. The app is configured by settings
 | Ignore deload sessions in progress | More → Deload week | on | No |
 | Protein g per lb | Body → Macro rules | `1.2` | No |
 | Fat % of calories | Body → Macro rules | `25` | No |
+| Protein minimum (diet) | Diet → Plan → Targets | `180` g | No |
+| Fat share of calories (diet) | Diet → Plan → Targets | `20` % | No |
+| Fat ceiling per lb of body weight (diet) | Diet → Plan → Targets | `0.4` g | No |
 | Measurement tolerance | Progress → ±3% | `3` % (amber beyond it, red beyond 10%) | No |
 
 ### Build-time and launch options
@@ -176,13 +204,13 @@ There are no environment variables or secrets. The app is configured by settings
 | `output/fitness.sqlite` | If present at build time it is bundled and offered as **Load my data** on first launch | absent (button hidden) | No |
 | `output/fitness.seed.sqlite` | Test fixture built by `tools/seed-db`; used by the parity tests and the UI tests | absent (10 parity tests skip) | No |
 | `-UITestImportPath <file>` | Simulator tests only: import this database at launch | unset | No |
-| `-UITestInitialTab <0-3>` | Simulator tests only: start on a tab (0 Workout, 1 Body, 2 Progress, 3 More) | `0` | No |
+| `-UITestInitialTab <0-4>` | Simulator tests only: start on a tab (0 Workout, 1 Body, 2 Diet, 3 Progress, 4 More) | `0` | No |
 
 ## Reference
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 7)
+### Database tables (schema version 8)
 
 | Table | Holds |
 |---|---|
@@ -193,6 +221,9 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `exercise_muscles` | Muscles chosen per exercise (no rows means automatic) |
 | `body_weights`, `body_measurements`, `measurement_targets` | Weigh-ins, readings, targets with a grow or reduce direction |
 | `calorie_defaults`, `calorie_entries` | Calories per day from a start date, and single-day overrides |
+| `foods`, `recipe_items` | Foods, supplements and packaged snacks with nutrition and price; recipes and their ingredient lines |
+| `diet_plans`, `diet_plan_items` | The daily plan from a start date, with each item's meal, quantity and cycle |
+| `diet_day_skips`, `diet_extras` | Items unticked for one day, and extras eaten on top of the plan |
 | `settings` | The settings above |
 
 The schema lives in `src/shared/database/schema.sql`. Older files are upgraded in place when opened (versions 1 to 6 are covered by tests).
@@ -207,6 +238,12 @@ The schema lives in `src/shared/database/schema.sql`. Older files are upgraded i
 | Reps in Add set | Start at `ceil((min + max) ÷ 2)`, for example 8 to 16 gives 12 |
 | Warm-ups | 1: 75%. 2: 75% and 90%. 3: 60%, 75% and 90% of the working weight |
 | Calorie target | Maintenance = calories eaten minus the daily surplus implied by the change between the last two 7-day average weights (3,500 kcal per lb). Target = maintenance × goal multiplier |
+| Calories on a day | The value typed for that day, else the diet plan in force (ticked items plus extras), else the default plus any extras |
+| Food calories | The label value when typed, otherwise `4 × protein + 4 × carbs + 9 × fat` |
+| Recipe | Ingredients added up, divided by what the recipe makes. Always worked out from the current foods |
+| One piece | The weight typed for a piece, else `pack size ÷ pieces in the pack` |
+| Diet fat limit | The smaller of `fat % × calories ÷ 9` and `7-day average weight in lb × 0.4` |
+| Cycle | Weeks on and off count from a Monday and repeat; days on and off count from any date; weekdays and training days follow the calendar |
 | Measurement colour | Only the wrong direction counts: within the tolerance is green, beyond it amber, beyond 10% red |
 
 ### Errors the app shows (validation messages)
@@ -219,6 +256,11 @@ The schema lives in `src/shared/database/schema.sql`. Older files are upgraded i
 | `Min reps cannot exceed max reps` | Saving a plan entry |
 | `Tolerance must be between 0% and 50%` | Changing the measurement tolerance |
 | `Log body weight for both of the last two weeks` | Calorie target without enough weigh-ins |
+| `A food with that name already exists` / `Give the food a name` | Saving a food |
+| `Flour is used by a recipe, a plan or a logged day` | Deleting a food that is still in use |
+| `A recipe cannot contain itself` | Adding an ingredient that leads back to the recipe |
+| `Enter an amount above 0` / `Loose rice has no piece size` | Adding an extra |
+| `Choose at least one weekday` / `A weekly cycle starts on a Monday` | Saving a cycle |
 
 ## Database file
 
@@ -241,6 +283,7 @@ sqlite3 fitness.sqlite "select performed_on, weight_kg, reps from set_logs order
 | `app/` | SwiftUI app (screens, theme, view models) |
 | `appUITests/` | Simulator UI tests and the screenshot tours |
 | `tools/seed-db/` | Python tool that builds a seeded database from a spreadsheet |
+| `tools/diet-import/` | Python tool that imports a diet spreadsheet (foods, recipes, plan) into the database, and writes a made-up demo diet for the UI tests |
 | `tools/anatomy/` | The muscle diagram source; `node tools/anatomy/generate-swift.js` writes the Swift data file |
 | `docs/design/` | Impact maps, HTML mockups of every screen, and their screenshots |
 | `scripts/run-ui-tests.sh` | UI test runner with a live progress bar |

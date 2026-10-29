@@ -19,6 +19,12 @@ let package = Package(
             path: "tests",
             exclude: [
                 "data/import-export-database/import-export-database.feature",
+                "diet/daily-diet/daily-diet.feature",
+                "diet/diet-calories/diet-calories.feature",
+                "diet/diet-plan/diet-plan.feature",
+                "diet/food-library/food-library.feature",
+                "diet/portions/portions.feature",
+                "diet/supplement-cycles/supplement-cycles.feature",
                 "logging/edit-sets/edit-sets.feature",
                 "logging/edit-past-data/edit-past-data.feature",
                 "logging/log-body-metrics/log-body-metrics.feature",

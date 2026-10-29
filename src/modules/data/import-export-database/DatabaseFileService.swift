@@ -120,6 +120,80 @@ public struct DatabaseFileService {
                     PRIMARY KEY (exercise_id, performed_on)
                 )
                 """)
+            // Version 8: foods, recipes, the dated diet plan, unticked items, extras, and the diet rules.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS foods (
+                    id              INTEGER PRIMARY KEY,
+                    name            TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    kind            TEXT NOT NULL DEFAULT 'food' CHECK (kind IN ('food', 'topping', 'supplement', 'herb', 'liquid', 'packaged', 'recipe')),
+                    unit            TEXT NOT NULL DEFAULT 'g',
+                    base_qty        REAL NOT NULL DEFAULT 100 CHECK (base_qty > 0),
+                    protein         REAL NOT NULL DEFAULT 0 CHECK (protein >= 0),
+                    carbs           REAL NOT NULL DEFAULT 0 CHECK (carbs >= 0),
+                    fat             REAL NOT NULL DEFAULT 0 CHECK (fat >= 0),
+                    fiber           REAL NOT NULL DEFAULT 0 CHECK (fiber >= 0),
+                    sat_fat         REAL NOT NULL DEFAULT 0 CHECK (sat_fat >= 0),
+                    sodium          REAL NOT NULL DEFAULT 0 CHECK (sodium >= 0),
+                    label_calories  REAL CHECK (label_calories IS NULL OR label_calories >= 0),
+                    price           REAL CHECK (price IS NULL OR price >= 0),
+                    pack_size       REAL CHECK (pack_size IS NULL OR pack_size > 0),
+                    pieces_per_pack REAL CHECK (pieces_per_pack IS NULL OR pieces_per_pack > 0),
+                    piece_weight    REAL CHECK (piece_weight IS NULL OR piece_weight > 0),
+                    recipe_makes    REAL CHECK (recipe_makes IS NULL OR recipe_makes > 0),
+                    notes           TEXT
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS recipe_items (
+                    recipe_id INTEGER NOT NULL REFERENCES foods(id) ON DELETE CASCADE,
+                    food_id   INTEGER NOT NULL REFERENCES foods(id) ON DELETE RESTRICT,
+                    position  INTEGER NOT NULL DEFAULT 1,
+                    quantity  REAL NOT NULL CHECK (quantity > 0),
+                    PRIMARY KEY (recipe_id, food_id)
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS diet_plans (
+                    effective_from TEXT PRIMARY KEY CHECK (effective_from GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS diet_plan_items (
+                    id             INTEGER PRIMARY KEY,
+                    plan_from      TEXT NOT NULL REFERENCES diet_plans(effective_from) ON DELETE CASCADE,
+                    meal           TEXT NOT NULL,
+                    position       INTEGER NOT NULL,
+                    food_id        INTEGER NOT NULL REFERENCES foods(id) ON DELETE RESTRICT,
+                    quantity       REAL NOT NULL CHECK (quantity > 0),
+                    cycle_mode     TEXT NOT NULL DEFAULT 'daily' CHECK (cycle_mode IN ('daily', 'weeks', 'days', 'weekdays', 'training')),
+                    cycle_on       INTEGER CHECK (cycle_on IS NULL OR cycle_on >= 1),
+                    cycle_off      INTEGER CHECK (cycle_off IS NULL OR cycle_off >= 1),
+                    cycle_start    TEXT CHECK (cycle_start IS NULL OR cycle_start GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    cycle_weekdays INTEGER CHECK (cycle_weekdays IS NULL OR cycle_weekdays BETWEEN 1 AND 127)
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS diet_day_skips (
+                    day     TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    meal    TEXT NOT NULL,
+                    food_id INTEGER NOT NULL REFERENCES foods(id) ON DELETE CASCADE,
+                    PRIMARY KEY (day, meal, food_id)
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS diet_extras (
+                    id      INTEGER PRIMARY KEY,
+                    day     TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    food_id INTEGER NOT NULL REFERENCES foods(id) ON DELETE RESTRICT,
+                    amount  REAL NOT NULL CHECK (amount > 0),
+                    pieces  REAL CHECK (pieces IS NULL OR pieces > 0)
+                )
+                """)
+            try db.execute("CREATE INDEX IF NOT EXISTS diet_extras_by_day ON diet_extras(day)")
+            try db.execute("""
+                INSERT OR IGNORE INTO settings (key, value) VALUES
+                    ('protein_min_g', '180'), ('diet_fat_percent', '20'), ('fat_ceiling_g_per_lb', '0.4')
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

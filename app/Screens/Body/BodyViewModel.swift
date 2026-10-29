@@ -86,6 +86,13 @@ final class BodyViewModel: ObservableObject {
         return averagesNotice
     }
 
+    /// Says when the calories above come from the diet plan rather than a typed default.
+    var calorieSourceNote: String? {
+        let planDays = calorieDays.filter { $0.source == .plan }.count
+        guard planDays > 0 else { return nil }
+        return planDays == calorieDays.count ? "Counted from your diet" : "\(planDays) of the last \(calorieDays.count) days counted from your diet"
+    }
+
     // MARK: What your weight says
 
     var balance: CalorieTarget.Balance? {

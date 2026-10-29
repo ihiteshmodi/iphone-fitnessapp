@@ -12,13 +12,14 @@ def rows(conn, sql):
 
 def test_schema_is_applied_with_settings_and_version(build):
     conn, _ = build()
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
     settings = dict(rows(conn, "SELECT key, value FROM settings"))
     assert settings["history_start_date"] == "2026-08-31"
     assert settings["day_label_mode"] == "number"
     assert settings["ignore_deload_sessions"] == "1"
+    assert settings["protein_min_g"] == "180"
     assert "baseline_date" not in settings
-    assert len(settings) == 8
+    assert len(settings) == 11
 
 
 def test_imported_sets_are_not_tagged_as_deload(build):

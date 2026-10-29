@@ -15,6 +15,10 @@ final class AppSession: ObservableObject {
     @Published private(set) var phase: Phase = .loading
     @Published private(set) var revision = 0
     @Published private(set) var lastExport: ISODate?
+    /// The selected tab. Simulator tests can start on another tab (launch argument -UITestInitialTab); ignored in normal use.
+    @Published var selectedTab = UserDefaults.standard.integer(forKey: "UITestInitialTab")
+    /// Set by other screens to open the Diet tab on a day; the Diet screen takes it and clears it.
+    @Published var dietDayToOpen: ISODate?
     /// What the first screen shows when there is no database yet: any database file already in the app folder,
     /// the folder itself, and the names of the files in it, so a file copied in by hand is never invisible.
     @Published private(set) var foundDatabases: [URL] = []
@@ -55,6 +59,13 @@ final class AppSession: ObservableObject {
         guard let fileService else { return }
         foundDatabases = fileService.foundDatabases()
         folderListing = fileService.folderListing()
+    }
+
+    static let dietTab = 2
+
+    func openDiet(on day: ISODate) {
+        dietDayToOpen = day
+        selectedTab = Self.dietTab
     }
 
     /// Call after any write so screens refresh.
