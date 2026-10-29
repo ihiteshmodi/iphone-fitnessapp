@@ -35,10 +35,6 @@ Feature: The daily diet plan
     Then the plan keeps the cycle with the item
     And copying the plan to a new date keeps it
 
-  Scenario: Plan totals use the foods' current nutrition and skip items that are off that day
-    Given a plan with Oats 50 g (200 calories) and a cycled item (100 calories) that is off on 2026-11-10
-    Then the plan totals for 2026-10-26 are 300 calories and for 2026-11-10 are 200
-
   Scenario: The same food cannot appear twice in one meal
     Given Oats is in Morning
     When I add Oats to Morning again

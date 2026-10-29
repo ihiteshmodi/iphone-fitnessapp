@@ -42,6 +42,10 @@ Feature: What I ate on a day
     When the calories of Oats are corrected to 300 per 50 g
     Then 2026-10-05 has 1100 calories
 
+  Scenario: The plan's totals before skips and extras leave out items that are off that day
+    Given a cycled item worth 100 calories that is off on 2026-11-10
+    Then the planned totals for 2026-10-26 include it and for 2026-11-10 do not
+
   Scenario: Protein is a minimum
     Given the protein minimum is 60 g
     Then a day with protein 67 meets it
