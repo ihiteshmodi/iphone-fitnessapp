@@ -29,32 +29,100 @@ final class DailyDietTests: XCTestCase {
 
     private func day(_ text: String) throws -> DietDay { try diet.day(date(text)) }
 
+    /// Nothing counts until it is ticked, so most examples start from a fully ticked day.
+    private func eatEverything(on text: String) throws {
+        for meal in ["Morning", "Brunch"] { try diet.setMealEaten(true, meal: meal, on: date(text)) }
+    }
+
     // MARK: Totals
 
-    func testThePlanCountsAsEaten() throws {
+    func testNothingCountsUntilItIsTicked() throws {
+        let d = try day("2026-10-05")
+
+        XCTAssertEqual(d.total, Nutrition.zero)
+        XCTAssertEqual(d.planned.calories, 1000, accuracy: 0.001)
+        XCTAssertEqual([d.eatenCount, d.plannedCount], [0, 3])
+        XCTAssertTrue(d.meals.flatMap(\.lines).allSatisfy { $0.state == .notEaten })
+        XCTAssertEqual(d.meals.map(\.name), ["Morning", "Brunch"])
+    }
+
+    func testTheWholePlanTickedAddsUpEverything() throws {
+        try eatEverything(on: "2026-10-05")
         let d = try day("2026-10-05")
 
         XCTAssertEqual(d.total.calories, 1000, accuracy: 0.001)
         XCTAssertEqual(d.total.protein, 67, accuracy: 0.001)
         XCTAssertEqual(d.total.carbs, 120, accuracy: 0.001)
         XCTAssertEqual(d.total.fat, 16, accuracy: 0.001)
-        XCTAssertTrue(d.meals.flatMap(\.lines).allSatisfy { $0.state == .eaten })
-        XCTAssertEqual(d.meals.map(\.name), ["Morning", "Brunch"])
+        XCTAssertEqual(d.eatenCount, 3)
     }
 
-    func testUntickingAnItemRemovesItForThatDayOnly() throws {
-        try diet.setEaten(false, meal: "Brunch", foodID: shake, on: date("2026-10-05"))
-
-        XCTAssertEqual(try day("2026-10-05").total.calories, 200, accuracy: 0.001)
-        XCTAssertEqual(try day("2026-10-05").skippedCount, 1)
-        XCTAssertEqual(try day("2026-10-06").total.calories, 1000, accuracy: 0.001)
-
+    func testTickingAnItemCountsItForThatDayOnly() throws {
         try diet.setEaten(true, meal: "Brunch", foodID: shake, on: date("2026-10-05"))
-        XCTAssertEqual(try day("2026-10-05").total.calories, 1000, accuracy: 0.001)
+
+        XCTAssertEqual(try day("2026-10-05").total.calories, 800, accuracy: 0.001)
+        XCTAssertEqual(try day("2026-10-05").eatenCount, 1)
+        XCTAssertEqual(try day("2026-10-06").total.calories, 0, accuracy: 0.001)
+
+        try diet.setEaten(false, meal: "Brunch", foodID: shake, on: date("2026-10-05"))
+        XCTAssertEqual(try day("2026-10-05").total.calories, 0, accuracy: 0.001)
     }
 
-    func testUntickingSomethingNotInThePlanIsRejected() throws {
-        XCTAssertThrowsError(try diet.setEaten(false, meal: "Dinner", foodID: shake, on: date("2026-10-05"))) {
+    func testAWholeMealIsTickedAndUntickedInOneGo() throws {
+        try diet.setMealEaten(true, meal: "Brunch", on: date("2026-10-05"))
+        var d = try day("2026-10-05")
+
+        XCTAssertEqual(d.total.calories, 800, accuracy: 0.001)
+        XCTAssertEqual(d.meals.map(\.tickState), [.none, .all])
+        XCTAssertEqual(d.meals[1].eatenCalories, 800, accuracy: 0.001)
+        XCTAssertEqual(d.meals[1].plannedCalories, 800, accuracy: 0.001)
+
+        try diet.setEaten(false, meal: "Brunch", foodID: supplement, on: date("2026-10-05"))
+        d = try day("2026-10-05")
+        XCTAssertEqual(d.meals[1].tickState, .some)
+
+        try diet.setMealEaten(false, meal: "Brunch", on: date("2026-10-05"))
+        d = try day("2026-10-05")
+        XCTAssertEqual(d.meals[1].tickState, .none)
+        XCTAssertEqual(d.total.calories, 0, accuracy: 0.001)
+    }
+
+    func testTickingAMealLeavesOutItemsThatAreOffTheirCycle() throws {
+        try plans.changeItem(meal: "Brunch", foodID: supplement, from: date("2026-10-01"),
+                             cycle: try .weeks(on: 1, off: 1, firstMonday: date("2026-10-05")))
+
+        try diet.setMealEaten(true, meal: "Brunch", on: date("2026-10-12"))
+        let brunch = try XCTUnwrap(try day("2026-10-12").meals.last)
+
+        XCTAssertEqual(brunch.tickState, .all)
+        XCTAssertEqual(brunch.lines.map(\.state), [.eaten, .offCycle(backOn: date("2026-10-19"))])
+        XCTAssertEqual(try day("2026-10-12").eatenCount, 1)
+
+        try plans.changeItem(meal: "Brunch", foodID: supplement, from: date("2026-10-12"), cycle: .daily)
+        let later = try XCTUnwrap(try day("2026-10-12").meals.last)
+        XCTAssertEqual(later.lines.map(\.state), [.eaten, .notEaten], "no tick was stored for the item that was off")
+    }
+
+    func testAMealWithNothingToTickIsNotTickable() throws {
+        try plans.changeItem(meal: "Brunch", foodID: shake, from: date("2026-10-01"),
+                             cycle: try .weeks(on: 1, off: 1, firstMonday: date("2026-10-05")))
+        try plans.changeItem(meal: "Brunch", foodID: supplement, from: date("2026-10-01"),
+                             cycle: try .weeks(on: 1, off: 1, firstMonday: date("2026-10-05")))
+
+        let brunch = try XCTUnwrap(try day("2026-10-12").meals.last)
+
+        XCTAssertFalse(brunch.canTick)
+        XCTAssertEqual(brunch.tickState, .none)
+    }
+
+    func testTickingAMealThatIsNotInThePlanIsRejected() throws {
+        XCTAssertThrowsError(try diet.setMealEaten(true, meal: "Dinner", on: date("2026-10-05"))) {
+            XCTAssertEqual($0 as? ValidationError, ValidationError("That meal is not in the plan"))
+        }
+    }
+
+    func testTickingSomethingNotInThePlanIsRejected() throws {
+        XCTAssertThrowsError(try diet.setEaten(true, meal: "Dinner", foodID: shake, on: date("2026-10-05"))) {
             XCTAssertEqual($0 as? ValidationError, ValidationError("That item is not in the plan"))
         }
     }
@@ -63,17 +131,19 @@ final class DailyDietTests: XCTestCase {
         try plans.changeItem(meal: "Brunch", foodID: supplement, from: date("2026-10-01"),
                              cycle: try .weeks(on: 1, off: 1, firstMonday: date("2026-10-05")))
 
+        try eatEverything(on: "2026-10-12")
         let off = try XCTUnwrap(try day("2026-10-12").meals.flatMap(\.lines).first { $0.foodID == supplement })
 
         XCTAssertEqual(off.state, .offCycle(backOn: date("2026-10-19")))
         XCTAssertEqual(try day("2026-10-12").cost, Cost(amount: 65, isComplete: true), "the supplement's 2 is not counted")
-        XCTAssertEqual(try day("2026-10-12").skippedCount, 0, "off its cycle is not the same as unticked")
+        XCTAssertEqual(try day("2026-10-12").plannedCount, 2, "an item that is off its cycle is not part of the day's plan")
     }
 
     func testAnOnDayOfACycleShowsWhereItIsInTheCycle() throws {
         try plans.changeItem(meal: "Brunch", foodID: supplement, from: date("2026-10-01"),
                              cycle: try .weeks(on: 2, off: 1, firstMonday: date("2026-10-05")))
 
+        try diet.setEaten(true, meal: "Brunch", foodID: supplement, on: date("2026-10-08"))
         let line = try XCTUnwrap(try day("2026-10-08").meals.flatMap(\.lines).first { $0.foodID == supplement })
 
         XCTAssertEqual(line.state, .eaten)
@@ -90,7 +160,8 @@ final class DailyDietTests: XCTestCase {
 
     // MARK: Extras
 
-    func testExtrasAreAddedOnTopOfThePlan() throws {
+    func testExtrasAreAddedOnTopOfWhatIsTicked() throws {
+        try eatEverything(on: "2026-10-05")
         try diet.addExtra(foodID: biscuits, .pieces(4), on: date("2026-10-05"))
 
         let d = try day("2026-10-05")
@@ -104,6 +175,7 @@ final class DailyDietTests: XCTestCase {
     }
 
     func testAnExtraCanBeChangedOrRemoved() throws {
+        try eatEverything(on: "2026-10-05")
         let id = try diet.addExtra(foodID: biscuits, .pieces(4), on: date("2026-10-05"))
 
         try diet.updateExtra(id, .pieces(2))
@@ -114,7 +186,9 @@ final class DailyDietTests: XCTestCase {
         XCTAssertTrue(try day("2026-10-05").extras.isEmpty)
     }
 
-    func testCostAddsUpTheEatenItemsAndTheExtras() throws {
+    func testCostAddsUpTheTickedItemsAndTheExtras() throws {
+        try eatEverything(on: "2026-10-05")
+        try eatEverything(on: "2026-10-06")
         try diet.addExtra(foodID: biscuits, .pieces(4), on: date("2026-10-05"))
 
         XCTAssertEqual(try day("2026-10-05").cost.amount, 70, accuracy: 0.01)
@@ -122,6 +196,7 @@ final class DailyDietTests: XCTestCase {
     }
 
     func testEditingAFoodRecalculatesTheDaysThatUsedIt() throws {
+        try eatEverything(on: "2026-10-05")
         XCTAssertEqual(try day("2026-10-05").total.calories, 1000, accuracy: 0.001)
         var draft = try XCTUnwrap(try library.food(oats)).draft
         draft.labelCalories = 300
@@ -178,6 +253,7 @@ final class DailyDietTests: XCTestCase {
 
     func testProteinIsAMinimum() throws {
         try DietSettings(db).setProteinMinimum(60)
+        try eatEverything(on: "2026-10-05")
 
         XCTAssertTrue(try day("2026-10-05").targets.proteinMet)
 

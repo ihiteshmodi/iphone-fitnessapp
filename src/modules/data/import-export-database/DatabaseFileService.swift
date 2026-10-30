@@ -173,14 +173,6 @@ public struct DatabaseFileService {
                 )
                 """)
             try db.execute("""
-                CREATE TABLE IF NOT EXISTS diet_day_skips (
-                    day     TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
-                    meal    TEXT NOT NULL,
-                    food_id INTEGER NOT NULL REFERENCES foods(id) ON DELETE CASCADE,
-                    PRIMARY KEY (day, meal, food_id)
-                )
-                """)
-            try db.execute("""
                 CREATE TABLE IF NOT EXISTS diet_extras (
                     id      INTEGER PRIMARY KEY,
                     day     TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
@@ -194,6 +186,36 @@ public struct DatabaseFileService {
                 INSERT OR IGNORE INTO settings (key, value) VALUES
                     ('protein_min_g', '180'), ('diet_fat_percent', '20'), ('fat_ceiling_g_per_lb', '0.4')
                 """)
+            // Version 9: nothing counts until it is ticked. Items unticked for a day (version 8 stored those) become the
+            // exception, so every earlier day keeps exactly what it counted.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS diet_day_ticks (
+                    day     TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    meal    TEXT NOT NULL,
+                    food_id INTEGER NOT NULL REFERENCES foods(id) ON DELETE CASCADE,
+                    PRIMARY KEY (day, meal, food_id)
+                )
+                """)
+            let hasSkips = try !db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'diet_day_skips'").isEmpty
+            if hasSkips {
+                try db.execute("""
+                    WITH RECURSIVE
+                      latest(day) AS (
+                        SELECT MAX(d) FROM (
+                          SELECT MAX(day) AS d FROM diet_extras UNION ALL SELECT MAX(day) FROM diet_day_skips
+                          UNION ALL SELECT MAX(measured_on) FROM body_weights UNION ALL SELECT MAX(performed_on) FROM set_logs)),
+                      days(day) AS (
+                        SELECT MIN(effective_from) FROM diet_plans
+                        UNION ALL SELECT date(days.day, '+1 day') FROM days, latest WHERE days.day < latest.day)
+                    INSERT OR IGNORE INTO diet_day_ticks (day, meal, food_id)
+                    SELECT d.day, i.meal, i.food_id
+                    FROM days d
+                    JOIN diet_plan_items i ON i.plan_from = (SELECT MAX(effective_from) FROM diet_plans WHERE effective_from <= d.day)
+                    WHERE d.day IS NOT NULL
+                      AND NOT EXISTS (SELECT 1 FROM diet_day_skips s WHERE s.day = d.day AND s.meal = i.meal AND s.food_id = i.food_id)
+                    """)
+                try db.execute("DROP TABLE diet_day_skips")
+            }
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

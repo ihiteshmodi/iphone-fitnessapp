@@ -15,8 +15,8 @@ from ods_reader import load
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = PROJECT_ROOT / "src" / "shared" / "database" / "schema.sql"
-SCHEMA_VERSION = 8
-DIET_TABLES = ("foods", "recipe_items", "diet_plans", "diet_plan_items", "diet_day_skips", "diet_extras")
+SCHEMA_VERSION = 9
+DIET_TABLES = ("foods", "recipe_items", "diet_plans", "diet_plan_items", "diet_day_ticks", "diet_extras")
 
 DEFAULT_SHEETS = {"foods": "Database", "recipes": "Readymade_Recipe", "diet": "Diet_-_Maintain"}
 DEFAULT_UNITS = {"grams": "g", "gram": "g", "units": "unit", "unit": "unit", "ml": "ml"}
@@ -192,7 +192,7 @@ def write(conn, data, plan_start, replace=False):
         raise ImportProblem("Extras are logged against these foods; they would be lost, so --replace is refused")
     with conn:
         if replace:
-            for table in ("diet_day_skips", "diet_plan_items", "diet_plans", "recipe_items", "foods"):
+            for table in ("diet_day_ticks", "diet_plan_items", "diet_plans", "recipe_items", "foods"):
                 conn.execute(f"DELETE FROM {table}")
         ids = {}
         for food in data.foods:

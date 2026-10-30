@@ -164,8 +164,8 @@ CREATE TABLE diet_plan_items (
     cycle_weekdays INTEGER CHECK (cycle_weekdays IS NULL OR cycle_weekdays BETWEEN 1 AND 127)
 );
 
--- A planned item unticked for one day.
-CREATE TABLE diet_day_skips (
+-- A planned item ticked as eaten on one day. Nothing counts until it is ticked.
+CREATE TABLE diet_day_ticks (
     day     TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
     meal    TEXT NOT NULL,
     food_id INTEGER NOT NULL REFERENCES foods(id) ON DELETE CASCADE,
@@ -197,4 +197,4 @@ INSERT INTO settings (key, value) VALUES
     ('diet_fat_percent', '20'),
     ('fat_ceiling_g_per_lb', '0.4');
 
-PRAGMA user_version = 8;
+PRAGMA user_version = 9;

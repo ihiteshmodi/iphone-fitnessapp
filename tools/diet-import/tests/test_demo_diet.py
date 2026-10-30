@@ -21,7 +21,7 @@ def test_the_demo_diet_is_written_with_a_recipe_a_packaged_snack_and_a_cycled_su
 
 def test_the_demo_command_upgrades_an_older_database_and_can_be_repeated(app_db):
     conn = sqlite3.connect(app_db)
-    for table in ("diet_extras", "diet_day_skips", "diet_plan_items", "diet_plans", "recipe_items", "foods"):
+    for table in ("diet_extras", "diet_day_ticks", "diet_plan_items", "diet_plans", "recipe_items", "foods"):
         conn.execute(f"DROP TABLE {table}")
     conn.execute("PRAGMA user_version = 7")
     conn.commit()

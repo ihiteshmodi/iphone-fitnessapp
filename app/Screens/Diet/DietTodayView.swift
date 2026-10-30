@@ -128,11 +128,21 @@ struct DietTodayView: View {
 
     private func mealCard(_ meal: DietMeal) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                SectionLabel(meal.name)
-                Spacer()
-                Text("\(Format.grouped(meal.eatenCalories)) kcal").font(.system(size: 12)).foregroundColor(Theme.muted)
+            Button { model.toggle(meal) } label: {
+                HStack(spacing: 8) {
+                    mealCheckbox(meal)
+                    SectionLabel(meal.name)
+                    Spacer()
+                    Text("\(Format.grouped(meal.eatenCalories)) of \(Format.grouped(meal.plannedCalories)) kcal")
+                        .font(.system(size: 12)).foregroundColor(Theme.muted)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .disabled(!meal.canTick)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("diet-meal-\(meal.name)")
+            .accessibilityValue(meal.tickState == .all ? "all" : (meal.tickState == .some ? "some" : "none"))
             VStack(spacing: 0) {
                 ForEach(meal.lines) { line in
                     DietLineRow(line: line) { model.toggle(line) }
@@ -140,6 +150,24 @@ struct DietTodayView: View {
             }
             .card(padding: 4)
         }
+    }
+
+    /// One box for the whole meal: empty, a dash when some items are ticked, a tick when all are.
+    private func mealCheckbox(_ meal: DietMeal) -> some View {
+        ZStack {
+            switch meal.tickState {
+            case .all:
+                RoundedRectangle(cornerRadius: 7).fill(Theme.green)
+                Image(systemName: "checkmark").font(.system(size: 11, weight: .heavy)).foregroundColor(Theme.onGreen)
+            case .some:
+                RoundedRectangle(cornerRadius: 7).fill(Theme.green.opacity(0.18))
+                RoundedRectangle(cornerRadius: 7).stroke(Theme.green, lineWidth: 2)
+                Image(systemName: "minus").font(.system(size: 11, weight: .heavy)).foregroundColor(Theme.green)
+            case .none:
+                RoundedRectangle(cornerRadius: 7).stroke(meal.canTick ? Color(hex: 0x34403A) : Theme.line, lineWidth: 2)
+            }
+        }
+        .frame(width: 20, height: 20)
     }
 
     // MARK: Extras
@@ -189,8 +217,7 @@ struct DietLineRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(line.name).font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(line.state == .eaten ? Theme.text : Theme.muted)
-                            .strikethrough(line.state == .skipped)
+                            .foregroundColor(isOff ? Theme.muted : Theme.text)
                         if let cycle = line.cycle { Pill(text: cycle.isOn ? "⟳ On" : "⟳ Off week", tone: cycle.isOn ? .green : .amber) }
                     }
                     Text(subtitle).font(.system(size: 12)).foregroundColor(Theme.muted)
@@ -215,7 +242,7 @@ struct DietLineRow: View {
             case .eaten:
                 RoundedRectangle(cornerRadius: 8).fill(Theme.green)
                 Image(systemName: "checkmark").font(.system(size: 13, weight: .heavy)).foregroundColor(Theme.onGreen)
-            case .skipped:
+            case .notEaten:
                 RoundedRectangle(cornerRadius: 8).stroke(Color(hex: 0x34403A), lineWidth: 2)
             case .offCycle:
                 RoundedRectangle(cornerRadius: 8).stroke(Theme.muted, style: StrokeStyle(lineWidth: 2, dash: [3, 3]))
@@ -242,8 +269,8 @@ struct DietLineRow: View {
                         .font(.system(size: 10.5)).foregroundColor(Theme.muted)
                 }
             }
-        case .skipped:
-            Text("\(Format.grouped(line.nutrition.calories)) kcal").font(.system(size: 13)).foregroundColor(Theme.muted).strikethrough()
+        case .notEaten:
+            Text("\(Format.grouped(line.nutrition.calories)) kcal").font(.system(size: 13)).foregroundColor(Theme.muted)
         case .offCycle:
             Text("not counted").font(.system(size: 12)).foregroundColor(Theme.muted)
         }
@@ -252,7 +279,7 @@ struct DietLineRow: View {
     private var stateText: String {
         switch line.state {
         case .eaten: return "eaten"
-        case .skipped: return "skipped"
+        case .notEaten: return "not eaten"
         case .offCycle: return "off"
         }
     }

@@ -243,7 +243,7 @@ private struct BodyScreen: View {
                     .accessibilityIdentifier("see-all-calories")
             }
             Text(model.defaultCaption).font(.system(size: 12)).foregroundColor(Theme.muted).padding(.bottom, 2)
-            Text("Days with a diet plan count the diet. Tap one to open it, add extras or untick an item.")
+            Text("Days with a diet plan count the diet. Tap one to open it, tick what you ate or add extras.")
                 .font(.system(size: 12)).foregroundColor(Theme.muted).padding(.bottom, 4)
             ForEach(model.calorieDays) { day in
                 CalorieDayRow(day: day, identifier: "calorie-day-\(day.date.string)") {

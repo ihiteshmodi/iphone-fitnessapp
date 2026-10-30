@@ -24,21 +24,45 @@ final class DietUITests: XCTestCase {
         XCTAssertTrue(element("diet-line-Rolled oats").exists, "the plan's items are listed under their meals")
     }
 
-    func testUntickingAnItemTakesItsCaloriesOffTheDayAndTickingBringsThemBack() {
+    func testNothingCountsUntilItIsTickedAndTickingAnItemAddsItsCalories() {
         XCTAssertTrue(total.waitForExistence(timeout: 15))
-        let before = total.label
+        XCTAssertEqual(calories(total), 0, "nothing is ticked by default")
         let oats = app.buttons["diet-line-Rolled oats"]
         XCTAssertTrue(oats.exists)
+        XCTAssertEqual(oats.value as? String, "not eaten")
 
         oats.tap()
 
-        XCTAssertEqual(app.buttons["diet-line-Rolled oats"].value as? String, "skipped")
-        XCTAssertNotEqual(total.label, before, "the day has fewer calories without the oats")
+        XCTAssertEqual(app.buttons["diet-line-Rolled oats"].value as? String, "eaten")
+        XCTAssertGreaterThan(calories(total), 0)
 
         app.buttons["diet-line-Rolled oats"].tap()
 
+        XCTAssertEqual(app.buttons["diet-line-Rolled oats"].value as? String, "not eaten")
+        XCTAssertEqual(calories(total), 0)
+    }
+
+    func testOneBoxTicksAndUnticksAWholeMeal() {
+        XCTAssertTrue(total.waitForExistence(timeout: 15))
+        let meal = app.buttons["diet-meal-Morning"]
+        XCTAssertTrue(meal.exists)
+        XCTAssertEqual(meal.value as? String, "none")
+
+        meal.tap()
+
+        XCTAssertEqual(app.buttons["diet-meal-Morning"].value as? String, "all")
         XCTAssertEqual(app.buttons["diet-line-Rolled oats"].value as? String, "eaten")
-        XCTAssertEqual(total.label, before)
+        XCTAssertEqual(app.buttons["diet-line-Whey blend"].value as? String, "eaten")
+        XCTAssertGreaterThan(calories(total), 0)
+
+        app.buttons["diet-line-Whey blend"].tap()
+        XCTAssertEqual(app.buttons["diet-meal-Morning"].value as? String, "some")
+
+        app.buttons["diet-meal-Morning"].tap()
+        XCTAssertEqual(app.buttons["diet-meal-Morning"].value as? String, "all", "a meal that is only partly ticked is completed first")
+        app.buttons["diet-meal-Morning"].tap()
+        XCTAssertEqual(app.buttons["diet-meal-Morning"].value as? String, "none")
+        XCTAssertEqual(calories(total), 0)
     }
 
     func testTheDayCanBeChangedWithTheArrows() {
@@ -193,7 +217,9 @@ final class DietUITests: XCTestCase {
 
     func testChangingAQuantityInThePlanChangesTodaysTotal() {
         XCTAssertTrue(total.waitForExistence(timeout: 15))
+        app.buttons["diet-meal-Morning"].tap()
         let before = calories(total)
+        XCTAssertGreaterThan(before, 0)
         app.buttons["diet-segment-plan"].tap()
         let item = app.descendants(matching: .any)["plan-item-Morning-Rolled oats"]
         XCTAssertTrue(item.waitForExistence(timeout: 5))

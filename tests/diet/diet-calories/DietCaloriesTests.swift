@@ -27,14 +27,27 @@ final class DietCaloriesTests: XCTestCase {
 
     private func day(_ text: String) throws -> CalorieDay { try calories.day(date(text)) }
 
-    func testADayWithAPlanCountsTheDiet() throws {
+    private func tickPlan(on text: String) throws { try diet.setMealEaten(true, meal: "Day", on: date(text)) }
+
+    func testADayWithAPlanCountsWhatIsTicked() throws {
+        try tickPlan(on: "2026-10-27")
         let d = try day("2026-10-27")
 
         XCTAssertEqual(d.calories, 2800)
         XCTAssertEqual(d.source, .plan)
+        XCTAssertEqual([d.tickedCount, d.plannedCount], [2, 2])
+    }
+
+    func testAPlanDayWithNothingTickedCountsZeroNotTheDefault() throws {
+        let d = try day("2026-10-27")
+
+        XCTAssertEqual(d.calories, 0)
+        XCTAssertEqual(d.source, .plan)
+        XCTAssertEqual([d.tickedCount, d.plannedCount], [0, 2])
     }
 
     func testADayTypedByHandWinsOverTheDiet() throws {
+        try tickPlan(on: "2026-10-27")
         try calories.saveCalories(on: date("2026-10-27"), calories: 3100)
 
         XCTAssertEqual(try day("2026-10-27").calories, 3100)
@@ -49,15 +62,15 @@ final class DietCaloriesTests: XCTestCase {
         XCTAssertEqual(try day("2026-10-25").source, .baseline)
     }
 
-    func testSkippedItemsAndExtrasChangeTheDayAndAreShown() throws {
-        try diet.setEaten(false, meal: "Day", foodID: snack, on: date("2026-10-28"))
+    func testOnlyTickedItemsAndExtrasCountAndTheDayShowsHowMany() throws {
+        try diet.setEaten(true, meal: "Day", foodID: snack, on: date("2026-10-28"))
         try diet.addExtra(foodID: biscuit, .amount(1), on: date("2026-10-28"))
 
         let d = try day("2026-10-28")
 
-        XCTAssertEqual(d.calories, 2550)
+        XCTAssertEqual(d.calories, 550)
         XCTAssertEqual(d.source, .plan)
-        XCTAssertEqual(d.skippedCount, 1)
+        XCTAssertEqual([d.tickedCount, d.plannedCount], [1, 2])
         XCTAssertEqual(d.extraCount, 1)
     }
 
@@ -79,15 +92,18 @@ final class DietCaloriesTests: XCTestCase {
         XCTAssertEqual(try day("2026-10-25").extraCount, 0)
     }
 
-    func testAFutureDayCountsThePlanWithItemsThatAreOffTheirCycleLeftOut() throws {
+    func testAFutureDayCountsWhatIsTickedWithItemsThatAreOffTheirCycleLeftOut() throws {
         let cycled = try library.add(FoodDraft(name: "Cycled", unit: "unit", baseQuantity: 1, labelCalories: 100))
         try plans.addItem(foodID: cycled, quantity: 1, meal: "Day", cycle: try .weeks(on: 1, off: 1, firstMonday: date("2026-10-26")), from: date("2026-10-26"))
 
+        try tickPlan(on: "2026-11-02")
+        try tickPlan(on: "2026-11-09")
         XCTAssertEqual(try day("2026-11-02").calories, 2800, "an off week")
         XCTAssertEqual(try day("2026-11-09").calories, 2900, "on again")
     }
 
     func testTheWeeklyAverageAndTheCalorieTargetUseTheDietDays() throws {
+        for text in ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29"] { try tickPlan(on: text) }
         for offset in 0..<7 { try db.addBodyWeight(on: date("2026-10-29").adding(days: -offset).string, kg: 64) }
         for offset in 7..<14 { try db.addBodyWeight(on: date("2026-10-29").adding(days: -offset).string, kg: 64.2) }
 

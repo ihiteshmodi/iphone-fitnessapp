@@ -66,7 +66,7 @@ Screenshots of the real app.
 **Diet**
 - **Food library:** foods, supplements and packaged snacks with nutrition (per 100 g, per serving or per piece) and price. Calories come from the label when you type them, otherwise from protein, carbs and fat. Editing a food updates every day that used it.
 - **Recipes:** a recipe is made of other foods, for one piece or a whole batch ("makes 9 pieces", "makes 1000 g"). Its nutrition and cost are worked out from the current ingredients.
-- **Daily plan:** your meals and quantities. A change starts on a date you choose (today by default) and never rewrites earlier days. The plan counts as eaten; untick an item to leave it out for one day only.
+- **Daily plan:** your meals and quantities. A change starts on a date you choose (today by default) and never rewrites earlier days. Nothing counts until you tick it: tick an item, or one box to tick a whole meal, as you eat.
 - **Extras:** log something that is not in the plan by pieces, grams or share of a pack ("4 biscuits" from a 250 g pack of 35), see the result before saving, and re-add recent extras in one tap.
 - **Cycles:** an item can follow a cycle: weeks on and off counted Monday to Sunday (for example 2 on, 1 off), days on and off, chosen weekdays, or training days. Off days are greyed, not counted in calories or cost, and need no tick.
 - **Targets:** protein is a minimum (180 g by default). The fat limit is the smaller of 20% of the day's calories and a weight cap (7-day average weight in lb × 0.4 g). All three numbers are editable.
@@ -148,7 +148,7 @@ On iOS 16 and later you may also need to turn on **Developer Mode** (**Settings 
 
 1. **Diet** tab → **Foods**: add your foods (**+ New food**) with their label values, and recipes (**+ New recipe**) with their ingredients.
 2. **Plan**: add each food to a meal with its quantity. Changes start on the date shown at the top (today by default). Tap an item to give it a cycle, such as 2 weeks on and 1 week off.
-3. **Today**: the plan counts as eaten. Tap an item to untick it for the day. **+ Add extra** logs anything else.
+3. **Today**: nothing counts until you tick it. Tap an item to tick it as eaten, or tap the box next to a meal's name to tick or clear the whole meal. **+ Add extra** logs anything else.
 
 Worked example (a 250 g pack of 35 biscuits, label per 100 g: 480 kcal, protein 7, carbs 70, fat 18; you ate 4):
 
@@ -210,7 +210,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 8)
+### Database tables (schema version 9)
 
 | Table | Holds |
 |---|---|
@@ -223,7 +223,7 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `calorie_defaults`, `calorie_entries` | Calories per day from a start date, and single-day overrides |
 | `foods`, `recipe_items` | Foods, supplements and packaged snacks with nutrition and price; recipes and their ingredient lines |
 | `diet_plans`, `diet_plan_items` | The daily plan from a start date, with each item's meal, quantity and cycle |
-| `diet_day_skips`, `diet_extras` | Items unticked for one day, and extras eaten on top of the plan |
+| `diet_day_ticks`, `diet_extras` | Plan items ticked as eaten on a day, and extras eaten on top of the plan |
 | `settings` | The settings above |
 
 The schema lives in `src/shared/database/schema.sql`. Older files are upgraded in place when opened (versions 1 to 6 are covered by tests).
@@ -238,7 +238,7 @@ The schema lives in `src/shared/database/schema.sql`. Older files are upgraded i
 | Reps in Add set | Start at `ceil((min + max) ÷ 2)`, for example 8 to 16 gives 12 |
 | Warm-ups | 1: 75%. 2: 75% and 90%. 3: 60%, 75% and 90% of the working weight |
 | Calorie target | Maintenance = calories eaten minus the daily surplus implied by the change between the last two 7-day average weights (3,500 kcal per lb). Target = maintenance × goal multiplier |
-| Calories on a day | The value typed for that day, else the diet plan in force (ticked items plus extras), else the default plus any extras |
+| Calories on a day | The value typed for that day, else the ticked items of the diet plan in force plus extras (0 until something is ticked), else the default plus any extras |
 | Food calories | The label value when typed, otherwise `4 × protein + 4 × carbs + 9 × fat` |
 | Recipe | Ingredients added up, divided by what the recipe makes. Always worked out from the current foods |
 | One piece | The weight typed for a piece, else `pack size ÷ pieces in the pack` |

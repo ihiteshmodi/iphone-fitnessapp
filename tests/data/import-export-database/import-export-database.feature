@@ -43,3 +43,11 @@ Feature: Import and export the database
     When I tap Export
     Then the share sheet offers a dated copy "fitness-2026-10-25.sqlite"
     And the live database is not locked or changed
+
+  Scenario: Opening a database from before ticks keeps every earlier diet day as it was
+    Given a version 8 database with a diet plan from 2026-10-26, Oats unticked on 2026-10-29, and activity up to 2026-10-30
+    When the app opens it
+    Then every planned item is ticked on 2026-10-26 to 2026-10-30 except Oats on 2026-10-29
+    And days after 2026-10-30 have nothing ticked
+    And the old skipped-items table is gone
+    And opening it again changes nothing, so an item unticked afterwards stays unticked

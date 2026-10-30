@@ -136,7 +136,7 @@ def test_replacing_is_refused_when_extras_are_logged_against_the_foods(sheets, c
 
 def test_an_older_database_is_upgraded_with_the_diet_tables_and_keeps_its_data(app_db):
     conn = sqlite3.connect(app_db)
-    for table in ("diet_extras", "diet_day_skips", "diet_plan_items", "diet_plans", "recipe_items", "foods"):
+    for table in ("diet_extras", "diet_day_ticks", "diet_plan_items", "diet_plans", "recipe_items", "foods"):
         conn.execute(f"DROP TABLE {table}")
     conn.execute("DELETE FROM settings WHERE key IN ('protein_min_g', 'diet_fat_percent', 'fat_ceiling_g_per_lb')")
     conn.execute("INSERT INTO calorie_defaults (effective_from, calories) VALUES ('2026-10-26', 2839)")
@@ -146,7 +146,7 @@ def test_an_older_database_is_upgraded_with_the_diet_tables_and_keeps_its_data(a
 
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert set(import_diet.DIET_TABLES) <= tables
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 9
     assert conn.execute("SELECT calories FROM calorie_defaults").fetchone() == (2839,)
     assert conn.execute("SELECT value FROM settings WHERE key = 'protein_min_g'").fetchone() == ("180",)
 
