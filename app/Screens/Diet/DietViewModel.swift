@@ -57,7 +57,13 @@ final class DietViewModel: ObservableObject {
     /// Ticks or unticks a planned item for this day. An item that is off its cycle has nothing to tick.
     func toggle(_ line: DietLine) {
         if case .offCycle = line.state { return }
-        perform { try self.services.dietDays.setEaten(line.state == .skipped, meal: line.meal, foodID: line.foodID, on: self.date) }
+        perform { try self.services.dietDays.setEaten(line.state != .eaten, meal: line.meal, foodID: line.foodID, on: self.date) }
+    }
+
+    /// Ticks the whole meal, or clears it when everything in it is already ticked.
+    func toggle(_ meal: DietMeal) {
+        guard meal.canTick else { return }
+        perform { try self.services.dietDays.setMealEaten(meal.tickState != .all, meal: meal.name, on: self.date) }
     }
 
     /// Clears the calories typed for this day so the diet counts again.
@@ -85,7 +91,8 @@ final class DietViewModel: ObservableObject {
     var caption: String {
         guard let day else { return "" }
         if !day.hasPlan { return "No plan on this day" }
-        return day.skippedCount > 0 || !day.extras.isEmpty ? "Changed day" : "Planned day"
+        if day.plannedCount == 0 { return "Nothing planned today" }
+        return day.eatenCount == 0 ? "Nothing ticked yet" : "\(day.eatenCount) of \(day.plannedCount) ticked"
     }
 
     var totalText: String { day.map { Format.grouped($0.total.calories) } ?? "–" }
@@ -96,11 +103,10 @@ final class DietViewModel: ObservableObject {
         return min(max(day.total.calories / day.planned.calories, 0), 1)
     }
 
-    /// "Plan 2,839 − skipped 484 + extras 137"
+    /// "Ticked 1,300 of plan 2,839 + extras 137"
     var equation: String {
         guard let day else { return "" }
-        var parts = ["Plan \(Format.grouped(day.planned.calories))"]
-        if day.skippedCount > 0 { parts.append("− skipped \(Format.grouped(day.skipped.calories))") }
+        var parts = ["Ticked \(Format.grouped(day.eatenNutrition.calories)) of plan \(Format.grouped(day.planned.calories))"]
         if !day.extras.isEmpty { parts.append("+ extras \(Format.grouped(day.extrasNutrition.calories))") }
         return parts.joined(separator: " ")
     }

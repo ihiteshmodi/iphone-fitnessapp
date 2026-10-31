@@ -20,7 +20,7 @@
 ## Rules decided with the user
 
 - One plan every day. A plan applies from a date onward (the same idea as the calorie default).
-- Planned items count as eaten. Unticking is per day and per item. Changing a quantity for one day is not needed.
+- Nothing counts until it is ticked. Ticking is per day and per item, and one box ticks or clears a whole meal. Items that are off their cycle are never ticked. Changing a quantity for one day is not needed. (Earlier the plan counted as eaten by default; days from that time were converted so they keep what they counted.)
 - An extra is a food eaten on top of the plan, entered as pieces, grams or a share of a pack.
 - Calories of a food are the label value when it is typed, otherwise 4 x protein + 4 x carbs + 9 x fat.
 - A recipe is a food made of other foods. Its nutrition and cost are always worked out from the current ingredients.

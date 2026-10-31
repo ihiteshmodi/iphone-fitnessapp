@@ -21,7 +21,7 @@ public final class DietDayService {
         let book = try library.book()
         let plan = try plans.plan(inForceOn: date)
         let training = try plans.trainingWeekdays()
-        let skipped = Set(try db.query("SELECT meal, food_id FROM diet_day_skips WHERE day = ?", [.text(date.string)]).map { "\($0.text("meal"))|\($0.int("food_id"))" })
+        let ticked = Set(try db.query("SELECT meal, food_id FROM diet_day_ticks WHERE day = ?", [.text(date.string)]).map { "\($0.text("meal"))|\($0.int("food_id"))" })
 
         var meals: [DietMeal] = []
         for meal in plan?.meals ?? [] {
@@ -29,7 +29,7 @@ public final class DietDayService {
                 let food = try require(book.food(item.foodID))
                 let cycle = item.cycle.state(on: date, trainingWeekdays: training)
                 let state: DietItemState = !cycle.isOn ? .offCycle(backOn: cycle.nextChange)
-                    : skipped.contains("\(item.meal)|\(item.foodID)") ? .skipped : .eaten
+                    : ticked.contains("\(item.meal)|\(item.foodID)") ? .eaten : .notEaten
                 return DietLine(meal: item.meal, foodID: item.foodID, name: food.name, unit: food.unit, quantity: item.quantity, state: state,
                                 nutrition: try book.nutrition(of: item.foodID, quantity: item.quantity),
                                 cost: try book.cost(of: item.foodID, quantity: item.quantity),
@@ -41,16 +41,16 @@ public final class DietDayService {
         let extras = try extras(on: date, book: book)
         let lines = meals.flatMap(\.lines)
         let eaten = lines.filter { $0.state == .eaten }
-        let skippedLines = lines.filter { $0.state == .skipped }
         let isOn = lines.filter { if case .offCycle = $0.state { return false } else { return true } }
 
         let extrasNutrition = extras.reduce(Nutrition.zero) { $0 + $1.nutrition }
-        let total = eaten.reduce(extrasNutrition) { $0 + $1.nutrition }
+        let eatenNutrition = eaten.reduce(Nutrition.zero) { $0 + $1.nutrition }
+        let total = eatenNutrition + extrasNutrition
         let targets = DietTargets.evaluate(calories: total.calories, protein: total.protein, fat: total.fat,
                                            rules: try settings.load(), averageWeightKg: try averageWeightKg(on: date))
         return DietDay(date: date, hasPlan: plan != nil, meals: meals, extras: extras,
                        planned: isOn.reduce(Nutrition.zero) { $0 + $1.nutrition },
-                       skipped: skippedLines.reduce(Nutrition.zero) { $0 + $1.nutrition }, skippedCount: skippedLines.count,
+                       plannedCount: isOn.count, eatenCount: eaten.count, eatenNutrition: eatenNutrition,
                        extrasNutrition: extrasNutrition, total: total,
                        cost: (eaten.map(\.cost) + extras.map(\.cost)).reduce(Cost.free, +), targets: targets)
     }
@@ -82,15 +82,31 @@ public final class DietDayService {
 
     // MARK: Write
 
-    /// Unticking records that the item was not eaten on this day; ticking it again removes that record.
+    /// Ticking records that the item was eaten on this day; unticking removes that record.
     public func setEaten(_ eaten: Bool, meal: String, foodID: Int, on date: ISODate) throws {
         guard try plans.plan(inForceOn: date)?.items.contains(where: { $0.meal == meal && $0.foodID == foodID }) == true else {
             throw ValidationError("That item is not in the plan")
         }
+        try setTick(eaten, meal: meal, foodID: foodID, on: date)
+    }
+
+    /// Ticks or unticks every item of a meal that is on today. Items that are off their cycle are left alone.
+    public func setMealEaten(_ eaten: Bool, meal: String, on date: ISODate) throws {
+        let items = (try plans.plan(inForceOn: date)?.items ?? []).filter { $0.meal == meal }
+        guard !items.isEmpty else { throw ValidationError("That meal is not in the plan") }
+        let training = try plans.trainingWeekdays()
+        try db.transaction {
+            for item in items where item.cycle.isOn(on: date, trainingWeekdays: training) {
+                try setTick(eaten, meal: meal, foodID: item.foodID, on: date)
+            }
+        }
+    }
+
+    private func setTick(_ eaten: Bool, meal: String, foodID: Int, on date: ISODate) throws {
         if eaten {
-            try db.execute("DELETE FROM diet_day_skips WHERE day = ? AND meal = ? AND food_id = ?", [.text(date.string), .text(meal), .int(Int64(foodID))])
+            try db.execute("INSERT OR IGNORE INTO diet_day_ticks (day, meal, food_id) VALUES (?, ?, ?)", [.text(date.string), .text(meal), .int(Int64(foodID))])
         } else {
-            try db.execute("INSERT OR IGNORE INTO diet_day_skips (day, meal, food_id) VALUES (?, ?, ?)", [.text(date.string), .text(meal), .int(Int64(foodID))])
+            try db.execute("DELETE FROM diet_day_ticks WHERE day = ? AND meal = ? AND food_id = ?", [.text(date.string), .text(meal), .int(Int64(foodID))])
         }
     }
 
@@ -101,6 +117,20 @@ public final class DietDayService {
         try db.execute("INSERT INTO diet_extras (day, food_id, amount, pieces) VALUES (?, ?, ?, ?)",
                        [.text(date.string), .int(Int64(foodID)), .double(portion.amount), .optional(portion.pieces)])
         return db.lastInsertRowID
+    }
+
+    /// The extra as the edit sheet reopens it. Pieces when it is a whole number of pieces, otherwise the food's own amount
+    /// (grams, or the unit it is counted in). Nil when the extra is gone.
+    public func entry(of id: Int) throws -> ExtraEntry? {
+        guard let row = try db.query("SELECT day, food_id, amount, pieces FROM diet_extras WHERE id = ?", [.int(Int64(id))]).first,
+              let day = ISODate(row.text("day")) else { return nil }
+        let foodID = row.int("food_id")
+        let amount = row.double("amount")
+        if let pieces = row.optionalDouble("pieces"), abs(pieces - pieces.rounded()) < 0.01, pieces.rounded() >= 1,
+           let food = try library.food(foodID), Portions.modes(for: food).contains(.pieces) {
+            return ExtraEntry(id: id, foodID: foodID, date: day, mode: .pieces, value: pieces.rounded())
+        }
+        return ExtraEntry(id: id, foodID: foodID, date: day, mode: .amount, value: amount)
     }
 
     public func updateExtra(_ id: Int, _ input: PortionInput) throws {

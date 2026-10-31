@@ -16,12 +16,22 @@ final class AddExtraModel: ObservableObject {
     @Published var valueText = ""
 
     let date: ISODate
+    /// Set when an extra already on the day is being changed rather than added.
+    let editingID: Int?
     private let services: Services
 
-    init(services: Services, date: ISODate) {
+    init(services: Services, date: ISODate, editing entry: ExtraEntry? = nil) {
         self.services = services
-        self.date = date
+        self.date = entry?.date ?? date
+        editingID = entry?.id
+        guard let entry, let food = try? services.foods.food(entry.foodID) else { return }
+        selected = food
+        query = food.name
+        mode = entry.mode
+        valueText = Format.number(entry.value, maxDecimals: 2)
     }
+
+    var isEditing: Bool { editingID != nil }
 
     func search() {
         let text = query.trimmingCharacters(in: .whitespaces)
@@ -119,7 +129,16 @@ final class AddExtraModel: ObservableObject {
     func save() throws {
         guard let selected else { throw ValidationError("Choose a food first") }
         guard let value = Format.decimal(valueText) else { throw ValidationError("Enter the amount as a number") }
-        try services.dietDays.addExtra(foodID: selected.id, Portions.input(mode, value), on: date)
+        if let editingID {
+            try services.dietDays.updateExtra(editingID, Portions.input(mode, value))
+        } else {
+            try services.dietDays.addExtra(foodID: selected.id, Portions.input(mode, value), on: date)
+        }
+    }
+
+    func remove() throws {
+        guard let editingID else { return }
+        try services.dietDays.removeExtra(editingID)
     }
 }
 
@@ -141,8 +160,8 @@ struct DietAddExtraSheet: View {
     @State private var errorMessage: String?
     @State private var creatingFood = false
 
-    init(services: Services, date: ISODate, recent: [RecentExtra], onSaved: @escaping () -> Void) {
-        _model = StateObject(wrappedValue: AddExtraModel(services: services, date: date))
+    init(services: Services, date: ISODate, editing entry: ExtraEntry? = nil, recent: [RecentExtra] = [], onSaved: @escaping () -> Void) {
+        _model = StateObject(wrappedValue: AddExtraModel(services: services, date: date, editing: entry))
         self.recent = recent
         self.onSaved = onSaved
     }
@@ -152,15 +171,15 @@ struct DietAddExtraSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("for \(Format.weekdayDate(model.date))").font(.system(size: 12)).foregroundColor(Theme.muted)
-                    if model.selected == nil && !recent.isEmpty { recentChips }
-                    searchField
+                    if model.selected == nil && !recent.isEmpty && !model.isEditing { recentChips }
+                    if model.isEditing { editingHeader } else { searchField }
                     if model.selected == nil { resultsList }
                     if let food = model.selected { selectedSection(food) }
                 }
                 .padding(16)
             }
             .screenBackground()
-            .navigationTitle("Add extra")
+            .navigationTitle(model.isEditing ? "Edit extra" : "Add extra")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             .errorAlert($errorMessage)
@@ -190,6 +209,14 @@ struct DietAddExtraSheet: View {
 
     private func chipText(_ item: RecentExtra) -> String {
         "\(item.name) · \(Format.number(item.pieces ?? item.amount, maxDecimals: 1))"
+    }
+
+    /// The food of an extra being edited is fixed: to change the food, remove the extra and add another.
+    private var editingHeader: some View {
+        Text(model.selected?.name ?? "")
+            .font(.system(size: 20, weight: .bold)).foregroundColor(Theme.text)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("extra-editing-food")
     }
 
     private var searchField: some View {
@@ -256,9 +283,14 @@ struct DietAddExtraSheet: View {
         }
         stepper
         if let preview = model.preview { previewCard(preview) }
-        Button("Add to \(model.date == services.clock.today() ? "today" : Format.shortDate(model.date))", action: save)
+        Button(model.isEditing ? "Save" : "Add to \(model.date == services.clock.today() ? "today" : Format.shortDate(model.date))", action: save)
             .buttonStyle(PrimaryButtonStyle())
             .accessibilityIdentifier("extra-add-button")
+        if model.isEditing {
+            Button("Remove extra", action: remove)
+                .buttonStyle(BodyDestructiveButtonStyle())
+                .accessibilityIdentifier("extra-remove-button")
+        }
     }
 
     private var stepper: some View {
@@ -326,6 +358,16 @@ struct DietAddExtraSheet: View {
     private func save() {
         do {
             try model.save()
+            onSaved()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func remove() {
+        do {
+            try model.remove()
             onSaved()
             dismiss()
         } catch {

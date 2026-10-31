@@ -24,21 +24,45 @@ final class DietUITests: XCTestCase {
         XCTAssertTrue(element("diet-line-Rolled oats").exists, "the plan's items are listed under their meals")
     }
 
-    func testUntickingAnItemTakesItsCaloriesOffTheDayAndTickingBringsThemBack() {
+    func testNothingCountsUntilItIsTickedAndTickingAnItemAddsItsCalories() {
         XCTAssertTrue(total.waitForExistence(timeout: 15))
-        let before = total.label
+        XCTAssertEqual(calories(total), 0, "nothing is ticked by default")
         let oats = app.buttons["diet-line-Rolled oats"]
         XCTAssertTrue(oats.exists)
+        XCTAssertEqual(oats.value as? String, "not eaten")
 
         oats.tap()
 
-        XCTAssertEqual(app.buttons["diet-line-Rolled oats"].value as? String, "skipped")
-        XCTAssertNotEqual(total.label, before, "the day has fewer calories without the oats")
+        XCTAssertEqual(app.buttons["diet-line-Rolled oats"].value as? String, "eaten")
+        XCTAssertGreaterThan(calories(total), 0)
 
         app.buttons["diet-line-Rolled oats"].tap()
 
+        XCTAssertEqual(app.buttons["diet-line-Rolled oats"].value as? String, "not eaten")
+        XCTAssertEqual(calories(total), 0)
+    }
+
+    func testOneBoxTicksAndUnticksAWholeMeal() {
+        XCTAssertTrue(total.waitForExistence(timeout: 15))
+        let meal = app.buttons["diet-meal-Morning"]
+        XCTAssertTrue(meal.exists)
+        XCTAssertEqual(meal.value as? String, "none")
+
+        meal.tap()
+
+        XCTAssertEqual(app.buttons["diet-meal-Morning"].value as? String, "all")
         XCTAssertEqual(app.buttons["diet-line-Rolled oats"].value as? String, "eaten")
-        XCTAssertEqual(total.label, before)
+        XCTAssertEqual(app.buttons["diet-line-Whey blend"].value as? String, "eaten")
+        XCTAssertGreaterThan(calories(total), 0)
+
+        app.buttons["diet-line-Whey blend"].tap()
+        XCTAssertEqual(app.buttons["diet-meal-Morning"].value as? String, "some")
+
+        app.buttons["diet-meal-Morning"].tap()
+        XCTAssertEqual(app.buttons["diet-meal-Morning"].value as? String, "all", "a meal that is only partly ticked is completed first")
+        app.buttons["diet-meal-Morning"].tap()
+        XCTAssertEqual(app.buttons["diet-meal-Morning"].value as? String, "none")
+        XCTAssertEqual(calories(total), 0)
     }
 
     func testTheDayCanBeChangedWithTheArrows() {
@@ -92,6 +116,59 @@ final class DietUITests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any)["diet-extra-Tea biscuits"].waitForExistence(timeout: 5))
         XCTAssertLessThanOrEqual(abs(calories(total) - (before + 137)), 1, "the totals are shown rounded")
+    }
+
+    private func addTeaBiscuits(pieces: Int) {
+        let add = app.buttons["diet-add-extra"]
+        scrollTo(add)
+        add.tap()
+        let search = app.textFields["extra-search-field"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Tea")
+        app.buttons["extra-result-Tea biscuits"].tap()
+        let plus = app.buttons["extra-plus"]
+        XCTAssertTrue(plus.waitForExistence(timeout: 5))
+        for _ in 1..<pieces { plus.tap() }
+        app.buttons["extra-add-button"].tap()
+    }
+
+    func testAnExtraCanBeChangedFromThreePiecesToFourWithoutAddingAnother() {
+        XCTAssertTrue(total.waitForExistence(timeout: 15))
+        let before = calories(total)
+        addTeaBiscuits(pieces: 3)
+        let extra = app.buttons["diet-extra-Tea biscuits"]
+        XCTAssertTrue(extra.waitForExistence(timeout: 5))
+        XCTAssertLessThanOrEqual(abs(calories(total) - (before + 103)), 1, "3 pieces are 103 kcal")
+
+        extra.tap()
+
+        XCTAssertEqual(app.textFields["extra-amount-field"].value as? String, "3", "it reopens on the 3 pieces it was added with")
+        XCTAssertTrue(app.staticTexts["extra-editing-food"].exists)
+        app.buttons["extra-plus"].tap()
+        XCTAssertEqual(app.textFields["extra-amount-field"].value as? String, "4")
+        app.buttons["extra-add-button"].tap()
+
+        XCTAssertTrue(app.buttons["diet-extra-Tea biscuits"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "diet-extra-Tea biscuits").count, 1, "the extra was changed, not added again")
+        XCTAssertLessThanOrEqual(abs(calories(total) - (before + 137)), 1, "4 pieces are 137 kcal")
+    }
+
+    func testAnExtraCanBeRemovedFromItsEditSheet() {
+        XCTAssertTrue(total.waitForExistence(timeout: 15))
+        let before = calories(total)
+        addTeaBiscuits(pieces: 2)
+        let extra = app.buttons["diet-extra-Tea biscuits"]
+        XCTAssertTrue(extra.waitForExistence(timeout: 5))
+        extra.tap()
+
+        let remove = app.buttons["extra-remove-button"]
+        scrollTo(remove)
+        remove.tap()
+
+        XCTAssertTrue(app.staticTexts["diet-total-calories"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["diet-extra-Tea biscuits"].exists)
+        XCTAssertEqual(calories(total), before)
     }
 
     func testANewFoodCanBeCreatedFromTheSheetAndAddedStraightAway() {
@@ -193,7 +270,9 @@ final class DietUITests: XCTestCase {
 
     func testChangingAQuantityInThePlanChangesTodaysTotal() {
         XCTAssertTrue(total.waitForExistence(timeout: 15))
+        app.buttons["diet-meal-Morning"].tap()
         let before = calories(total)
+        XCTAssertGreaterThan(before, 0)
         app.buttons["diet-segment-plan"].tap()
         let item = app.descendants(matching: .any)["plan-item-Morning-Rolled oats"]
         XCTAssertTrue(item.waitForExistence(timeout: 5))

@@ -79,16 +79,18 @@ struct CalorieDayRow: View {
         switch day.source {
         case .manual: return "Edited"
         case .plan:
-            if day.skippedCount > 0 { return day.extraCount > 0 ? "Plan, \(day.skippedCount) skipped + extras" : "Plan, \(day.skippedCount) skipped" }
-            return day.extraCount > 0 ? "Plan + extras" : "Plan"
+            let ticked = day.plannedCount > 0 ? "Plan \(day.tickedCount)/\(day.plannedCount)" : "Plan"
+            return day.extraCount > 0 ? "\(ticked) + extras" : ticked
         case .baseline: return day.extraCount > 0 ? "Default + extras" : "Default"
         case .none: return "Not set"
         }
     }
 
     private var sourceTone: Pill.Tone {
-        if day.source == .manual || day.extraCount > 0 { return .green }
-        return day.skippedCount > 0 ? .amber : .grey
+        if day.source == .manual { return .green }
+        guard day.source == .plan, day.plannedCount > 0 else { return day.extraCount > 0 ? .green : .grey }
+        if day.tickedCount == 0 && day.extraCount == 0 { return .amber }
+        return day.tickedCount == day.plannedCount ? .green : .grey
     }
 
     var body: some View {

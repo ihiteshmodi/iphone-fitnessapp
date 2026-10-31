@@ -1,9 +1,10 @@
 import Foundation
 
 public enum DietItemState: Equatable {
+    /// Ticked for this day: it counts.
     case eaten
-    /// Unticked for this day.
-    case skipped
+    /// Not ticked (yet): it does not count.
+    case notEaten
     /// The item's cycle is off today; `backOn` is the next day it is taken.
     case offCycle(backOn: ISODate?)
 }
@@ -23,11 +24,30 @@ public struct DietLine: Equatable, Identifiable {
     public var id: String { "\(meal)|\(foodID)" }
 }
 
+/// How much of a meal is ticked, for its checkbox.
+public enum MealTickState: Equatable {
+    case none
+    case some
+    case all
+}
+
 public struct DietMeal: Equatable {
     public let name: String
     public let lines: [DietLine]
 
+    private var tickable: [DietLine] { lines.filter { if case .offCycle = $0.state { return false } else { return true } } }
+
     public var eatenCalories: Double { lines.filter { $0.state == .eaten }.reduce(0) { $0 + $1.nutrition.calories } }
+    /// What the meal would give with everything that is on today ticked.
+    public var plannedCalories: Double { tickable.reduce(0) { $0 + $1.nutrition.calories } }
+    /// False when every item is off its cycle today, so there is nothing to tick.
+    public var canTick: Bool { !tickable.isEmpty }
+
+    public var tickState: MealTickState {
+        let ticked = tickable.filter { $0.state == .eaten }.count
+        if ticked == 0 { return .none }
+        return ticked == tickable.count ? .all : .some
+    }
 }
 
 public struct DietExtra: Equatable, Identifiable {
@@ -46,15 +66,27 @@ public struct DietDay: Equatable {
     public let hasPlan: Bool
     public let meals: [DietMeal]
     public let extras: [DietExtra]
-    /// The plan's items that are on today, before anything is unticked and before extras.
+    /// What the plan's items that are on today would give if all were ticked, before extras.
     public let planned: Nutrition
-    public let skipped: Nutrition
-    public let skippedCount: Int
+    /// Items that are on today, and how many of them are ticked.
+    public let plannedCount: Int
+    public let eatenCount: Int
+    /// The ticked items alone.
+    public let eatenNutrition: Nutrition
     public let extrasNutrition: Nutrition
-    /// Eaten plan items plus extras.
+    /// Ticked plan items plus extras: what the day counts as.
     public let total: Nutrition
     public let cost: Cost
     public let targets: DietTargets
+}
+
+/// An extra as the edit sheet reopens it: the food, the day, and the amount in the mode it is easiest to change.
+public struct ExtraEntry: Equatable, Identifiable {
+    public let id: Int
+    public let foodID: Int
+    public let date: ISODate
+    public let mode: PortionMode
+    public let value: Double
 }
 
 public struct ExtrasSummary: Equatable {

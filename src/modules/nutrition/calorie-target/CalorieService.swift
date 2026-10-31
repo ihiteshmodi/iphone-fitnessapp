@@ -33,7 +33,7 @@ public struct CalorieDefault: Equatable {
 public enum CalorieSource: Equatable {
     /// Typed in for this one day.
     case manual
-    /// Added up from the diet plan in force that day, with its unticked items and extras.
+    /// Added up from the diet plan in force that day: the ticked items plus extras.
     case plan
     /// Taken from the default in force that day.
     case baseline
@@ -45,17 +45,19 @@ public struct CalorieDay: Equatable, Identifiable {
     public let date: ISODate
     public let calories: Double?
     public let source: CalorieSource
-    /// Planned items unticked that day (plan days only).
-    public let skippedCount: Int
+    /// Plan days only: the planned items that are on that day, and how many of them are ticked.
+    public let plannedCount: Int
+    public let tickedCount: Int
     /// Extras added that day on top of the plan or the default.
     public let extraCount: Int
     public var id: String { date.string }
 
-    public init(date: ISODate, calories: Double?, source: CalorieSource, skippedCount: Int = 0, extraCount: Int = 0) {
+    public init(date: ISODate, calories: Double?, source: CalorieSource, plannedCount: Int = 0, tickedCount: Int = 0, extraCount: Int = 0) {
         self.date = date
         self.calories = calories
         self.source = source
-        self.skippedCount = skippedCount
+        self.plannedCount = plannedCount
+        self.tickedCount = tickedCount
         self.extraCount = extraCount
     }
 }
@@ -127,15 +129,15 @@ public final class CalorieService {
         try db.execute("DELETE FROM calorie_defaults WHERE effective_from = ?", [.text(date.string)])
     }
 
-    /// What one day counts as: the value typed for that day, else the diet plan in force (with its extras), else the default
-    /// in force plus any extras, else nothing.
+    /// What one day counts as: the value typed for that day, else the ticked items of the diet plan in force plus extras
+    /// (0 when nothing is ticked yet), else the default in force plus any extras, else nothing.
     public func day(_ date: ISODate) throws -> CalorieDay {
         if let typed = try db.query("SELECT calories FROM calorie_entries WHERE logged_on = ?", [.text(date.string)]).first {
             return CalorieDay(date: date, calories: typed.double("calories"), source: .manual)
         }
         let eaten = try diet.day(date)
         if eaten.hasPlan {
-            return CalorieDay(date: date, calories: eaten.total.calories, source: .plan, skippedCount: eaten.skippedCount, extraCount: eaten.extras.count)
+            return CalorieDay(date: date, calories: eaten.total.calories, source: .plan, plannedCount: eaten.plannedCount, tickedCount: eaten.eatenCount, extraCount: eaten.extras.count)
         }
         if let baseline = try defaultInForce(on: date) {
             return CalorieDay(date: date, calories: baseline.calories + eaten.extrasNutrition.calories, source: .baseline, extraCount: eaten.extras.count)
