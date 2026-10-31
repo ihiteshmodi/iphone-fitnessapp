@@ -119,6 +119,20 @@ public final class DietDayService {
         return db.lastInsertRowID
     }
 
+    /// The extra as the edit sheet reopens it. Pieces when it is a whole number of pieces, otherwise the food's own amount
+    /// (grams, or the unit it is counted in). Nil when the extra is gone.
+    public func entry(of id: Int) throws -> ExtraEntry? {
+        guard let row = try db.query("SELECT day, food_id, amount, pieces FROM diet_extras WHERE id = ?", [.int(Int64(id))]).first,
+              let day = ISODate(row.text("day")) else { return nil }
+        let foodID = row.int("food_id")
+        let amount = row.double("amount")
+        if let pieces = row.optionalDouble("pieces"), abs(pieces - pieces.rounded()) < 0.01, pieces.rounded() >= 1,
+           let food = try library.food(foodID), Portions.modes(for: food).contains(.pieces) {
+            return ExtraEntry(id: id, foodID: foodID, date: day, mode: .pieces, value: pieces.rounded())
+        }
+        return ExtraEntry(id: id, foodID: foodID, date: day, mode: .amount, value: amount)
+    }
+
     public func updateExtra(_ id: Int, _ input: PortionInput) throws {
         guard let row = try db.query("SELECT food_id FROM diet_extras WHERE id = ?", [.int(Int64(id))]).first,
               let food = try library.food(row.int("food_id")) else { throw ValidationError("That extra is no longer there") }

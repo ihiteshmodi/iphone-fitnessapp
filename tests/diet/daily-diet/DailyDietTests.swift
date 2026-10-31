@@ -186,6 +186,79 @@ final class DailyDietTests: XCTestCase {
         XCTAssertTrue(try day("2026-10-05").extras.isEmpty)
     }
 
+    // MARK: Editing an extra
+
+    func testAnExtraReopensInPiecesAtTheCountItWasEnteredWithAndOneMorePieceIsOneChange() throws {
+        let id = try diet.addExtra(foodID: biscuits, .pieces(3), on: date("2026-10-05"))
+        let before = try XCTUnwrap(try day("2026-10-05").extras.first)
+
+        let entry = try XCTUnwrap(try diet.entry(of: id))
+        XCTAssertEqual(entry.mode, .pieces)
+        XCTAssertEqual(entry.value, 3, accuracy: 0.0001)
+        XCTAssertEqual(entry.foodID, biscuits)
+        XCTAssertEqual(entry.date, date("2026-10-05"))
+
+        try diet.updateExtra(id, .pieces(entry.value + 1))
+        let after = try XCTUnwrap(try day("2026-10-05").extras.first)
+
+        XCTAssertEqual(after.id, before.id)
+        XCTAssertEqual(after.foodID, biscuits)
+        XCTAssertEqual(after.amount, 28.5714, accuracy: 0.001)
+        XCTAssertEqual(after.pieces ?? 0, 4, accuracy: 0.0001)
+        XCTAssertEqual(after.nutrition.calories, 137.14, accuracy: 0.01)
+        XCTAssertEqual(try day("2026-10-05").extras.count, 1, "the extra was changed, not added again")
+    }
+
+    func testAnExtraThatIsNotAWholeNumberOfPiecesReopensInGrams() throws {
+        let id = try diet.addExtra(foodID: biscuits, .amount(30), on: date("2026-10-05"))
+
+        let entry = try XCTUnwrap(try diet.entry(of: id))
+
+        XCTAssertEqual(entry.mode, .amount, "30 g is 4.2 pieces, so grams is the honest way to show it")
+        XCTAssertEqual(entry.value, 30, accuracy: 0.0001)
+    }
+
+    func testAFoodWithoutAPieceSizeReopensInItsOwnUnit() throws {
+        let rice = try library.add(FoodDraft(name: "Loose rice", price: 60, packSize: 1000))
+        let id = try diet.addExtra(foodID: rice, .amount(30), on: date("2026-10-05"))
+
+        let entry = try XCTUnwrap(try diet.entry(of: id))
+
+        XCTAssertEqual(entry.mode, .amount)
+        XCTAssertEqual(entry.value, 30, accuracy: 0.0001)
+    }
+
+    func testAnExtraOfAFoodCountedInUnitsReopensInItsOwnCount() throws {
+        let oreo = try library.add(FoodDraft(name: "Oreo", unit: "unit", baseQuantity: 1, labelCalories: 39.18, price: 2.09, packSize: 1))
+        let id = try diet.addExtra(foodID: oreo, .pieces(2), on: date("2026-10-05"))
+
+        let entry = try XCTUnwrap(try diet.entry(of: id))
+
+        XCTAssertEqual(entry.mode, .amount)
+        XCTAssertEqual(entry.value, 2, accuracy: 0.0001)
+        try diet.updateExtra(id, .amount(3))
+        XCTAssertEqual(try day("2026-10-05").extras[0].nutrition.calories, 117.54, accuracy: 0.001)
+    }
+
+    func testAnEditedExtraMustBeAboveZeroAndKeepsItsOldAmountWhenRejected() throws {
+        let id = try diet.addExtra(foodID: biscuits, .pieces(3), on: date("2026-10-05"))
+
+        XCTAssertThrowsError(try diet.updateExtra(id, .pieces(0))) {
+            XCTAssertEqual($0 as? ValidationError, ValidationError("Enter an amount above 0"))
+        }
+        XCTAssertEqual(try XCTUnwrap(try day("2026-10-05").extras.first).pieces ?? 0, 3, accuracy: 0.0001)
+    }
+
+    func testAnExtraThatWasRemovedCannotBeEdited() throws {
+        let id = try diet.addExtra(foodID: biscuits, .pieces(3), on: date("2026-10-05"))
+        try diet.removeExtra(id)
+
+        XCTAssertNil(try diet.entry(of: id))
+        XCTAssertThrowsError(try diet.updateExtra(id, .pieces(4))) {
+            XCTAssertEqual($0 as? ValidationError, ValidationError("That extra is no longer there"))
+        }
+    }
+
     func testCostAddsUpTheTickedItemsAndTheExtras() throws {
         try eatEverything(on: "2026-10-05")
         try eatEverything(on: "2026-10-06")

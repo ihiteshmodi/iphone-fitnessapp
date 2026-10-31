@@ -80,6 +80,15 @@ public struct DietDay: Equatable {
     public let targets: DietTargets
 }
 
+/// An extra as the edit sheet reopens it: the food, the day, and the amount in the mode it is easiest to change.
+public struct ExtraEntry: Equatable, Identifiable {
+    public let id: Int
+    public let foodID: Int
+    public let date: ISODate
+    public let mode: PortionMode
+    public let value: Double
+}
+
 public struct ExtrasSummary: Equatable {
     public let days: Int
     public let nutrition: Nutrition

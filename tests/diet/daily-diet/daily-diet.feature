@@ -92,3 +92,25 @@ Feature: What I ate on a day
   Scenario: A food with no price shows an unknown cost, not zero
     Given a food has no price
     Then the day's cost is shown as incomplete
+
+  Scenario: An extra reopens the way it was entered, so one more piece is one tap
+    Given 3 pieces of "Tea biscuits" were added on 2026-10-05
+    When I open that extra to edit it
+    Then it opens in Pieces at 3
+    And changing it to 4 makes the extra 28.57 g, 137.1 calories, with its date and food unchanged
+
+  Scenario: An extra that is not a whole number of pieces reopens in grams
+    Given 30 g of "Tea biscuits" was added, which is 4.2 pieces
+    Then it opens in Grams at 30
+
+  Scenario: An extra of a food counted in units reopens in its own count
+    Given 2 units of a biscuit counted in units were added
+    Then it opens in units at 2
+
+  Scenario: An edited amount must be above zero
+    When I change an extra to 0
+    Then it is rejected with "Enter an amount above 0" and the extra keeps its old amount
+
+  Scenario: An extra whose food no longer exists cannot be edited
+    When I change an extra that was removed
+    Then it is rejected with "That extra is no longer there"

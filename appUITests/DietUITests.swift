@@ -118,6 +118,59 @@ final class DietUITests: XCTestCase {
         XCTAssertLessThanOrEqual(abs(calories(total) - (before + 137)), 1, "the totals are shown rounded")
     }
 
+    private func addTeaBiscuits(pieces: Int) {
+        let add = app.buttons["diet-add-extra"]
+        scrollTo(add)
+        add.tap()
+        let search = app.textFields["extra-search-field"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Tea")
+        app.buttons["extra-result-Tea biscuits"].tap()
+        let plus = app.buttons["extra-plus"]
+        XCTAssertTrue(plus.waitForExistence(timeout: 5))
+        for _ in 1..<pieces { plus.tap() }
+        app.buttons["extra-add-button"].tap()
+    }
+
+    func testAnExtraCanBeChangedFromThreePiecesToFourWithoutAddingAnother() {
+        XCTAssertTrue(total.waitForExistence(timeout: 15))
+        let before = calories(total)
+        addTeaBiscuits(pieces: 3)
+        let extra = app.buttons["diet-extra-Tea biscuits"]
+        XCTAssertTrue(extra.waitForExistence(timeout: 5))
+        XCTAssertLessThanOrEqual(abs(calories(total) - (before + 103)), 1, "3 pieces are 103 kcal")
+
+        extra.tap()
+
+        XCTAssertEqual(app.textFields["extra-amount-field"].value as? String, "3", "it reopens on the 3 pieces it was added with")
+        XCTAssertTrue(app.staticTexts["extra-editing-food"].exists)
+        app.buttons["extra-plus"].tap()
+        XCTAssertEqual(app.textFields["extra-amount-field"].value as? String, "4")
+        app.buttons["extra-add-button"].tap()
+
+        XCTAssertTrue(app.buttons["diet-extra-Tea biscuits"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "diet-extra-Tea biscuits").count, 1, "the extra was changed, not added again")
+        XCTAssertLessThanOrEqual(abs(calories(total) - (before + 137)), 1, "4 pieces are 137 kcal")
+    }
+
+    func testAnExtraCanBeRemovedFromItsEditSheet() {
+        XCTAssertTrue(total.waitForExistence(timeout: 15))
+        let before = calories(total)
+        addTeaBiscuits(pieces: 2)
+        let extra = app.buttons["diet-extra-Tea biscuits"]
+        XCTAssertTrue(extra.waitForExistence(timeout: 5))
+        extra.tap()
+
+        let remove = app.buttons["extra-remove-button"]
+        scrollTo(remove)
+        remove.tap()
+
+        XCTAssertTrue(app.staticTexts["diet-total-calories"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["diet-extra-Tea biscuits"].exists)
+        XCTAssertEqual(calories(total), before)
+    }
+
     func testANewFoodCanBeCreatedFromTheSheetAndAddedStraightAway() {
         XCTAssertTrue(total.waitForExistence(timeout: 15))
         let add = app.buttons["diet-add-extra"]

@@ -5,6 +5,7 @@ import SwiftUI
 struct DietTodayView: View {
     @ObservedObject var model: DietViewModel
     let onAddExtra: () -> Void
+    let onEditExtra: (DietExtra) -> Void
     let onEditPlan: () -> Void
 
     var body: some View {
@@ -186,7 +187,7 @@ struct DietTodayView: View {
                         .font(.system(size: 13)).foregroundColor(Theme.muted).padding(10)
                 }
                 ForEach(day.extras) { extra in
-                    DietExtraRow(extra: extra) { model.remove(extra) }
+                    DietExtraRow(extra: extra, onEdit: { onEditExtra(extra) }, onDelete: { model.remove(extra) })
                 }
                 Button("+ Add extra", action: onAddExtra)
                     .buttonStyle(PrimaryButtonStyle(ghost: true))
@@ -285,29 +286,38 @@ struct DietLineRow: View {
     }
 }
 
+/// One extra: tap it to change how much, or the cross to remove it.
 struct DietExtraRow: View {
     let extra: DietExtra
+    let onEdit: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(extra.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
-                Text(detail).font(.system(size: 12)).foregroundColor(Theme.muted)
+            Button(action: onEdit) {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(extra.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                        Text(detail).font(.system(size: 12)).foregroundColor(Theme.muted)
+                    }
+                    Spacer(minLength: 6)
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text("\(Format.grouped(extra.nutrition.calories)) kcal").font(.system(size: 13, weight: .bold)).foregroundColor(Theme.text)
+                        Text("P \(Format.number(extra.nutrition.protein, maxDecimals: 0)) · C \(Format.number(extra.nutrition.carbs, maxDecimals: 0)) · F \(Format.number(extra.nutrition.fat, maxDecimals: 0))")
+                            .font(.system(size: 10.5)).foregroundColor(Theme.muted)
+                    }
+                    Text("✎").font(.system(size: 14, weight: .bold)).foregroundColor(Theme.green)
+                }
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 6)
-            VStack(alignment: .trailing, spacing: 1) {
-                Text("\(Format.grouped(extra.nutrition.calories)) kcal").font(.system(size: 13, weight: .bold)).foregroundColor(Theme.text)
-                Text("P \(Format.number(extra.nutrition.protein, maxDecimals: 0)) · C \(Format.number(extra.nutrition.carbs, maxDecimals: 0)) · F \(Format.number(extra.nutrition.fat, maxDecimals: 0))")
-                    .font(.system(size: 10.5)).foregroundColor(Theme.muted)
-            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("diet-extra-\(extra.name)")
             Button(action: onDelete) { Image(systemName: "xmark.circle.fill").foregroundColor(Theme.muted) }
                 .accessibilityLabel("Remove \(extra.name)")
                 .accessibilityIdentifier("diet-remove-extra-\(extra.name)")
         }
         .padding(.vertical, 9).padding(.horizontal, 10)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("diet-extra-\(extra.name)")
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1).padding(.horizontal, 10) }
     }
 
