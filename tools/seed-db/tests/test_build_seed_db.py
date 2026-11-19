@@ -19,7 +19,7 @@ def test_schema_is_applied_with_settings_and_version(build):
     assert settings["ignore_deload_sessions"] == "1"
     assert settings["protein_min_g"] == "180"
     assert "baseline_date" not in settings
-    assert len(settings) == 11
+    assert len(settings) == 12
 
 
 def test_imported_sets_are_not_tagged_as_deload(build):
