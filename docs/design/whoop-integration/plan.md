@@ -41,7 +41,7 @@ Whoop knows when you fell asleep, so the gap since the last meal can be measured
 | Hard training | Finish hard sessions 2–3 h before bed | Uses the session end time |
 | Pre-bed protein | A slow protein before bed is optional (about 40 g) | A tip only, never a flag |
 
-**Needed in the app first:** the time a meal was eaten. Today a tick only records the day (extras have a morning/noon/evening/night tag), so the app cannot tell when dinner was eaten. Either store the time a meal is ticked, or give each meal a usual time with an "ate at" override. Ticking late the next morning (unconfirmed meals) must not count as the eating time.
+**Built as part of the Whoop integration (not before):** recording the time a meal was eaten. Today a tick only records the day (extras have a morning/noon/evening/night tag), so the app cannot tell when dinner was eaten. Either store the time a meal is ticked, or give each meal a usual time with an "ate at" override. Ticking late the next morning (unconfirmed meals) must not count as the eating time.
 
 ## Deliberately left out
 - **Sleep stage percentages and 90-minute cycle tracking.** The notes say tracker stage data is rough, and chasing it becomes an obsession (orthosomnia). Total sleep, timing and the HRV/RHR trend are enough.

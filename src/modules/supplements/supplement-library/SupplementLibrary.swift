@@ -69,7 +69,7 @@ public struct SupplementEntry: Decodable, Equatable, Identifiable {
     }
 }
 
-/// Every supplement the vault covers, read from a bundled file (the vault's content, so never committed).
+/// Every supplement the vault covers, read from the bundled output/supplement-library.json.
 public struct SupplementLibrary {
     private struct File: Decodable { let entries: [SupplementEntry] }
 

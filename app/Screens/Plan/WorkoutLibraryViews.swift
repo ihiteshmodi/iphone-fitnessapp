@@ -282,7 +282,7 @@ struct CoachPresetsCard: View {
 }
 
 
-/// Applies the nutrient values the owner approved, bundled as output/nutrient-values.csv (personal data, never committed).
+/// Applies the nutrient values the owner approved, bundled as output/nutrient-values.csv.
 struct NutrientDataCard: View {
     @EnvironmentObject private var services: Services
     @EnvironmentObject private var session: AppSession
