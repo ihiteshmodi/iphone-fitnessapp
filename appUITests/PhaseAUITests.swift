@@ -122,7 +122,8 @@ final class PhaseAUITests: XCTestCase {
 
         for tab in ["Today", "Trends", "Setup", "Labs", "Archived"] { XCTAssertTrue(app.buttons[tab].waitForExistence(timeout: 5), tab) }
         app.buttons["Labs"].tap()
-        XCTAssertTrue(app.staticTexts["Bloodwork-based items arrive with Blood Labs."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Nothing from your bloodwork'")).firstMatch
+            .waitForExistence(timeout: 5), "the seed has no draws, so the Labs tab says so")
     }
 
     func testTheCheckInRecordsAWalkAfterAMeal() {
