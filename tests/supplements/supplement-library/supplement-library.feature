@@ -31,3 +31,19 @@ Feature: Supplement library and checks
     Then vitamin D is 50 of 20 mcg (fat-soluble) and zinc 40 mg of 11 mg, at its 40 mg upper limit
     And at 3 tablets zinc is 55 mg, over the 40 mg upper limit
     And B6 shows two upper limits (100 mg US, 12 mg EU) and is not flagged until Labs settles it
+
+  # Added after checking against the 19 Nov database
+  Scenario: Product names match whole words only
+    Given the library has "ECA stack" (alias "eca") and "Vitamin D3" (alias "d3")
+    Then "D3 5000IU and K2 capsule" matches Vitamin D3
+    And "Becadexamine" matches nothing
+
+  Scenario: Doses are whole-day totals and recipes are looked into
+    Given Creatine 1 g at Brunch and 1 g at Dinner, and Fadogia inside a Shake recipe
+    Then the check says "Creatine - ASES 2 g is below 3-5 g"
+    And "Fadogia powder (in Shake) is not recommended"
+    And a library entry matched by two products is listed once under Test first
+
+  Scenario: Supplements in the first plan are the starting point
+    Given Glycine and Boron were both in the first plan on 10 Nov
+    Then "One new supplement at a time" does not appear

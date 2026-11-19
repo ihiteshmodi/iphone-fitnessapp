@@ -92,16 +92,28 @@ public struct SupplementLibrary {
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    /// The entry a product name refers to: the longest name or alias found in it.
+    /// The entry a product name refers to: the longest name or alias found in it as whole words,
+    /// so "Becadexamine" is not the ECA stack and "D3 5000IU" is vitamin D3.
     public func match(_ productName: String) -> SupplementEntry? {
-        let product = productName.lowercased()
+        let product = Self.words(productName)
         var best: (entry: SupplementEntry, length: Int)?
         for entry in entries {
-            for alias in [entry.name.lowercased()] + entry.aliases where alias.count >= 3 && product.contains(alias) {
-                if alias.count > (best?.length ?? 0) { best = (entry, alias.count) }
+            for alias in [entry.name] + entry.aliases {
+                let aliasWords = Self.words(alias)
+                guard !aliasWords.isEmpty, Self.contains(product, aliasWords), alias.count > (best?.length ?? 0) else { continue }
+                best = (entry, alias.count)
             }
         }
         return best?.entry
+    }
+
+    private static func words(_ text: String) -> [String] {
+        text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
+    }
+
+    private static func contains(_ words: [String], _ run: [String]) -> Bool {
+        guard run.count <= words.count else { return false }
+        return (0...(words.count - run.count)).contains { Array(words[$0..<($0 + run.count)]) == run }
     }
 }
 
@@ -118,20 +130,22 @@ public struct SupplementCheckRule: SetupRule {
         var problems: [String] = []
         var reasons: [String] = []
         var testFirst: [String] = []
-        for item in plan.items {
-            guard let food = book.food(item.foodID), food.kind == .supplement, let entry = library.match(food.name) else { continue }
+        var testedEntries: Set<String> = []
+        for taken in Self.dailySupplements(plan.items, book: book) {
+            let food = taken.food
+            guard let entry = library.match(food.name) else { continue }
             if entry.verdict == .notRecommended {
-                problems.append("\(food.name) is not recommended")
+                problems.append("\(food.name)\(taken.recipes.isEmpty ? "" : " (in \(taken.recipes.joined(separator: ", ")))") is not recommended")
                 reasons.append("\(entry.name): \(entry.why)")
                 continue
             }
             if let unit = entry.doseUnit, unit == food.unit, let low = entry.doseMin, let high = entry.doseMax {
-                let amount = item.quantity
+                let amount = taken.amount
                 let text = "\(food.name) \(Self.number(amount)) \(unit)"
                 if amount > high { problems.append("\(text) is above \(Self.number(low))-\(Self.number(high)) \(unit)") }
                 if amount < low { problems.append("\(text) is below \(Self.number(low))-\(Self.number(high)) \(unit)") }
             }
-            if !entry.testFirst.isEmpty { testFirst.append("\(entry.name): \(entry.testFirst.joined(separator: ", "))") }
+            if !entry.testFirst.isEmpty, testedEntries.insert(entry.id).inserted { testFirst.append("\(entry.name): \(entry.testFirst.joined(separator: ", "))") }
         }
         var items: [Insight] = []
         if !problems.isEmpty {
@@ -147,6 +161,32 @@ public struct SupplementCheckRule: SetupRule {
         return items
     }
 
+    struct DailySupplement {
+        let food: Food
+        var amount: Double
+        var recipes: [String]
+    }
+
+    /// Each supplement once with its whole-day amount, including what sits inside recipes (a shake made with Gokhru).
+    static func dailySupplements(_ items: [PlanItem], book: FoodBook) -> [DailySupplement] {
+        var byFood: [Int: DailySupplement] = [:]
+        var order: [Int] = []
+        func visit(_ foodID: Int, _ quantity: Double, recipe: String?, depth: Int) {
+            guard let food = book.food(foodID), depth < 5 else { return }
+            if food.isRecipe {
+                let share = quantity / (food.draft.recipeMakes ?? 1)
+                for line in book.lines[foodID] ?? [] { visit(line.foodID, line.quantity * share, recipe: food.name, depth: depth + 1) }
+                return
+            }
+            guard food.kind == .supplement else { return }
+            if byFood[foodID] == nil { order.append(foodID); byFood[foodID] = DailySupplement(food: food, amount: 0, recipes: []) }
+            byFood[foodID]?.amount += quantity
+            if let recipe, !(byFood[foodID]?.recipes.contains(recipe) ?? true) { byFood[foodID]?.recipes.append(recipe) }
+        }
+        for item in items { visit(item.foodID, item.quantity, recipe: nil, depth: 0) }
+        return order.compactMap { byFood[$0] }
+    }
+
     public static func number(_ value: Double) -> String { value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value) }
 }
 
@@ -160,12 +200,15 @@ public struct SupplementOnRampRule: SetupRule {
     public func evaluate(on day: ISODate, db: Database) throws -> [Insight] {
         guard let plan = try DietPlanService(db).plan(inForceOn: day) else { return [] }
         let book = try FoodLibrary(db).book()
+        // Supplements already in the first plan were taken before the app, so they are the starting point, not new.
+        guard let firstPlan = try db.query("SELECT MIN(plan_from) AS d FROM diet_plan_items").first?.optionalText("d").flatMap(ISODate.init) else { return [] }
         let added = try plan.items.compactMap { item -> (name: String, from: ISODate)? in
             guard let food = book.food(item.foodID), food.kind == .supplement,
                   let first = try db.query("SELECT MIN(plan_from) AS d FROM diet_plan_items WHERE food_id = ?", [.int(Int64(food.id))]).first?
                     .optionalText("d").flatMap(ISODate.init) else { return nil }
             return (food.name, first)
         }
+        .filter { $0.from > firstPlan }
         .sorted { $0.from > $1.from }
         guard added.count >= 2, day.days(since: added[0].from) <= 28,
               added[0].from.days(since: added[1].from) < Self.minimumGapDays else { return [] }

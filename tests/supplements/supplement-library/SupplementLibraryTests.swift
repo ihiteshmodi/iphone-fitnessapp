@@ -7,6 +7,8 @@ final class SupplementLibraryTests: XCTestCase {
       {"id": "creatine", "name": "Creatine monohydrate", "aliases": ["creatine"], "category": "Training", "verdict": "recommended",
        "verdict_text": "worth taking", "why": "Most studied.", "dose_text": "3-5 g a day", "dose_min": 3, "dose_max": 5, "dose_unit": "g",
        "test_first": [], "source": "05.09.01"},
+      {"id": "eca", "name": "ECA stack", "aliases": ["eca"], "category": "Fat loss", "verdict": "not_recommended", "why": "Heart risk.", "source": "05.13"},
+      {"id": "d3", "name": "Vitamin D3", "aliases": ["d3"], "category": "Vitamins", "verdict": "recommended", "why": "Common gap.", "source": "05.07"},
       {"id": "fadogia", "name": "Fadogia agrestis", "aliases": ["fadogia"], "category": "Testosterone", "verdict": "not_recommended",
        "verdict_text": "avoid", "why": "Animal studies only and testicular toxicity.", "test_first": [], "source": "05.11.03"},
       {"id": "b12", "name": "Vitamin B12", "aliases": ["b12", "methylcobalamin"], "category": "Vitamins", "verdict": "conditional",
@@ -34,6 +36,11 @@ final class SupplementLibraryTests: XCTestCase {
         XCTAssertNil(library.match("Himalayan Salt"))
     }
 
+    func testAliasesMatchWholeWordsOnly() {
+        XCTAssertEqual(library.match("D3 5000IU and K2 capsule")?.id, "d3")
+        XCTAssertNil(library.match("Becadexamine"))
+    }
+
     private func planSupplement(_ name: String, unit: String, quantity: Double, from day: String = "2026-11-01") throws {
         let id = try FoodLibrary(db).add(FoodDraft(name: name, kind: .supplement, unit: unit, baseQuantity: 1))
         try DietPlanService(db).addItem(foodID: id, quantity: quantity, meal: "Brunch", from: date(day))
@@ -50,15 +57,42 @@ final class SupplementLibraryTests: XCTestCase {
         XCTAssertTrue(checks.detail.contains("Fadogia 600 is not recommended"), checks.detail)
     }
 
+    func testTheDoseIsTheDayTotalAndSupplementsInsideRecipesAreChecked() throws {
+        try planSupplement("Creatine - ASES", unit: "g", quantity: 1)
+        let plans = DietPlanService(db)
+        let creatine = try XCTUnwrap(try FoodLibrary(db).food(named: "Creatine - ASES")).id
+        try plans.addItem(foodID: creatine, quantity: 1, meal: "Dinner", from: date("2026-11-01"))
+        let foods = FoodLibrary(db)
+        let fadogia = try foods.add(FoodDraft(name: "Fadogia powder", kind: .supplement, unit: "g", baseQuantity: 1))
+        let shake = try foods.add(FoodDraft(name: "Shake", kind: .recipe, unit: "glass", baseQuantity: 1, recipeMakes: 2))
+        try foods.setIngredients(of: shake, [RecipeLine(foodID: fadogia, quantity: 4)])
+        try plans.addItem(foodID: shake, quantity: 1, meal: "Dinner", from: date("2026-11-01"))
+
+        let checks = try XCTUnwrap(try SupplementCheckRule(library: library).evaluate(on: date("2026-11-19"), db: db).first { $0.title == "Supplement checks" })
+
+        XCTAssertTrue(checks.detail.contains("Creatine - ASES 2 g is below 3-5 g"), checks.detail)
+        XCTAssertTrue(checks.detail.contains("Fadogia powder (in Shake) is not recommended"), checks.detail)
+    }
+
+    func testSupplementsInTheFirstPlanAreTheStartingPointNotNew() throws {
+        try planSupplement("Glycine - ASES", unit: "g", quantity: 3, from: "2026-11-10")
+        try planSupplement("Boron", unit: "unit", quantity: 1, from: "2026-11-10")
+
+        XCTAssertTrue(try SupplementOnRampRule().evaluate(on: date("2026-11-19"), db: db).isEmpty)
+    }
+
     func testTestFirstSupplementsArePointedToBloodwork() throws {
         try planSupplement("Vitamin B12 1500 mcg", unit: "unit", quantity: 1)
+        try planSupplement("B12 spray", unit: "unit", quantity: 1)
 
         let tip = try XCTUnwrap(try SupplementCheckRule(library: library).evaluate(on: date("2026-11-19"), db: db).first { $0.title == "Test first" })
         XCTAssertEqual(tip.severity, .tip)
         XCTAssertTrue(tip.detail.contains("B12, MMA"))
+        XCTAssertEqual(tip.detail.components(separatedBy: "B12, MMA").count, 2, "each library entry is listed once")
     }
 
     func testOneNewSupplementAtATime() throws {
+        try planSupplement("Creatine - ASES", unit: "g", quantity: 3, from: "2026-10-26")
         try planSupplement("Glycine - ASES", unit: "g", quantity: 3, from: "2026-11-10")
         try planSupplement("Boron", unit: "unit", quantity: 1, from: "2026-11-17")
 
