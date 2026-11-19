@@ -55,3 +55,15 @@ Feature: The daily diet plan
       | quantity | 0            | Enter a quantity above 0      |
       | meal     | empty        | Give the meal a name          |
       | food     | not in library | That food is not in the library |
+
+  Scenario: A new meal can go between two meals, from the day it is added
+    Given the plan from 2026-11-01 has Brunch then Dinner
+    When I add Lentils to a new meal "Mid-meal" placed second, from 2026-11-19
+    Then from 2026-11-19 the meals are Brunch, Mid-meal, Dinner
+    And 2026-11-18 still has Brunch then Dinner
+
+  Scenario: Meals can be moved, keeping the foods inside each meal in order
+    Given the plan from 2026-11-01 has Brunch (Oats, Rice) then Dinner (Lentils)
+    When I move Dinner to the top from 2026-11-19
+    Then from 2026-11-19 the meals are Dinner, Brunch with Oats still before Rice
+    And moving a meal that is not in the plan says "That meal is not in the plan"

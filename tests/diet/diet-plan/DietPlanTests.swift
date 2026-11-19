@@ -142,4 +142,29 @@ final class DietPlanTests: XCTestCase {
         }
         XCTAssertEqual(try plans.startDates(), [date("2026-10-01")], "a rejected change leaves no new plan behind")
     }
+
+    // MARK: Meal order
+
+    func testANewMealCanGoBetweenTwoMealsFromTheDayItIsAdded() throws {
+        try start("2026-11-01", items: [("Brunch", oats, 1), ("Dinner", rice, 1)])
+
+        try plans.addItem(foodID: lentils, quantity: 1, meal: "Mid-meal", mealIndex: 1, from: date("2026-11-19"))
+
+        XCTAssertEqual(try plans.plan(inForceOn: date("2026-11-19"))?.meals.map(\.name), ["Brunch", "Mid-meal", "Dinner"])
+        XCTAssertEqual(try plans.plan(inForceOn: date("2026-11-18"))?.meals.map(\.name), ["Brunch", "Dinner"])
+    }
+
+    func testMealsCanBeMovedKeepingTheirFoodsInOrder() throws {
+        try start("2026-11-01", items: [("Brunch", oats, 1), ("Brunch", rice, 1), ("Dinner", lentils, 1)])
+
+        try plans.moveMeal("Dinner", to: 0, from: date("2026-11-19"))
+
+        let moved = try XCTUnwrap(try plans.plan(inForceOn: date("2026-11-19")))
+        XCTAssertEqual(moved.meals.map(\.name), ["Dinner", "Brunch"])
+        XCTAssertEqual(moved.meals[1].items.map(\.foodID), [oats, rice])
+        XCTAssertEqual(try plans.plan(inForceOn: date("2026-11-18"))?.meals.map(\.name), ["Brunch", "Dinner"])
+        XCTAssertThrowsError(try plans.moveMeal("Supper", to: 0, from: date("2026-11-19"))) {
+            XCTAssertEqual($0 as? ValidationError, ValidationError("That meal is not in the plan"))
+        }
+    }
 }

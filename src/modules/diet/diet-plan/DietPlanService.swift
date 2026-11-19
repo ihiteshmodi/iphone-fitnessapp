@@ -54,7 +54,8 @@ public final class DietPlanService {
 
     // MARK: Edit from a date
 
-    public func addItem(foodID: Int, quantity: Double, meal: String, cycle: CycleRule = .daily, from date: ISODate) throws {
+    /// `mealIndex` places a meal that is new to the plan (0 = first); an existing meal keeps its place.
+    public func addItem(foodID: Int, quantity: Double, meal: String, cycle: CycleRule = .daily, mealIndex: Int? = nil, from date: ISODate) throws {
         let meal = meal.trimmingCharacters(in: .whitespaces)
         guard quantity.isFinite, quantity > 0 else { throw ValidationError("Enter a quantity above 0") }
         guard !meal.isEmpty else { throw ValidationError("Give the meal a name") }
@@ -64,7 +65,17 @@ public final class DietPlanService {
         try db.transaction {
             try ensurePlan(from: date)
             guard try find(meal: meal, foodID: foodID, in: date) == nil else { throw ValidationError("\(food.text("name")) is already in \(meal)") }
+            let isNewMeal = try !items(of: date).contains { $0.meal == meal }
             try insert(foodID: foodID, quantity: quantity, meal: meal, cycle: cycle, into: date)
+            if isNewMeal, let mealIndex { try reorder(meal, to: mealIndex, in: date) }
+        }
+    }
+
+    /// Moves a whole meal to `index` (0 = first) from a date; the foods inside each meal keep their order.
+    public func moveMeal(_ meal: String, to index: Int, from date: ISODate) throws {
+        try db.transaction {
+            try ensurePlan(from: date)
+            try reorder(meal, to: index, in: date)
         }
     }
 
@@ -130,6 +141,17 @@ public final class DietPlanService {
             SELECT ?, meal, position, food_id, quantity, cycle_mode, cycle_on, cycle_off, cycle_start, cycle_weekdays
             FROM diet_plan_items WHERE plan_from = ? ORDER BY position, id
             """, [.text(date.string), .text(source.effectiveFrom.string)])
+    }
+
+    /// Positions are renumbered so meals appear in the new order (a meal's place is where its first item sits).
+    private func reorder(_ meal: String, to index: Int, in plan: ISODate) throws {
+        var meals = DietPlan(effectiveFrom: plan, items: try items(of: plan)).meals
+        guard let from = meals.firstIndex(where: { $0.name == meal }) else { throw ValidationError("That meal is not in the plan") }
+        let moving = meals.remove(at: from)
+        meals.insert(moving, at: min(max(index, 0), meals.count))
+        for (position, item) in meals.flatMap(\.items).enumerated() {
+            try db.execute("UPDATE diet_plan_items SET position = ? WHERE id = ?", [.int(Int64(position + 1)), .int(Int64(item.id))])
+        }
     }
 
     private func find(meal: String, foodID: Int, in plan: ISODate) throws -> Int? {

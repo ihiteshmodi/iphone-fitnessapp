@@ -10,6 +10,8 @@ struct DietPlanItemSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var meal: String
+    /// Where a new meal goes: nil = after the last one.
+    @State private var mealIndex: Int?
     @State private var query = ""
     @State private var results: [Food] = []
     @State private var food: Food?
@@ -69,9 +71,40 @@ struct DietPlanItemSheet: View {
         }
     }
 
+    private var isNewMeal: Bool {
+        let name = meal.trimmingCharacters(in: .whitespaces)
+        return item == nil && !name.isEmpty && !model.mealNames.contains(name)
+    }
+
+    /// For a meal that is not in the plan yet: First, or after any existing meal.
+    private var placementChips: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel("Place it")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    placementChip("First", index: 0)
+                    ForEach(Array(model.mealNames.enumerated()), id: \.offset) { offset, name in
+                        placementChip("After \(name)", index: offset == model.mealNames.count - 1 ? nil : offset + 1)
+                    }
+                }
+            }
+        }
+    }
+
+    private func placementChip(_ title: String, index: Int?) -> some View {
+        Button(title) { mealIndex = index }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(mealIndex == index ? Theme.onGreen : Theme.muted)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(mealIndex == index ? Theme.green : Theme.card)
+            .overlay(Capsule().stroke(Theme.line)).clipShape(Capsule())
+            .accessibilityIdentifier("plan-place-\(title)")
+    }
+
     private var mealField: some View {
         VStack(alignment: .leading, spacing: 8) {
             BodyField(label: "Meal", text: $meal, identifier: "plan-meal-field", keyboard: .default)
+            if isNewMeal && !model.mealNames.isEmpty { placementChips }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(model.mealNames, id: \.self) { name in
@@ -124,7 +157,7 @@ struct DietPlanItemSheet: View {
             return
         }
         let saved = item.map { model.change($0, quantity: value, cycle: rule, meal: meal) }
-            ?? model.add(foodID: food.id, quantity: value, meal: meal, cycle: rule)
+            ?? model.add(foodID: food.id, quantity: value, meal: meal, cycle: rule, mealIndex: isNewMeal ? mealIndex : nil)
         if saved {
             onSaved()
             dismiss()

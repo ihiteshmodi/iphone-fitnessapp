@@ -60,8 +60,14 @@ final class DietPlanViewModel: ObservableObject {
 
     // MARK: Edits
 
-    func add(foodID: Int, quantity: Double, meal: String, cycle: CycleRule) -> Bool {
-        run { try self.services.dietPlans.addItem(foodID: foodID, quantity: quantity, meal: meal, cycle: cycle, from: self.editFrom) }
+    func add(foodID: Int, quantity: Double, meal: String, cycle: CycleRule, mealIndex: Int? = nil) -> Bool {
+        run { try self.services.dietPlans.addItem(foodID: foodID, quantity: quantity, meal: meal, cycle: cycle, mealIndex: mealIndex, from: self.editFrom) }
+    }
+
+    /// Moves a meal one place up (-1) or down (+1), from the edit date.
+    func moveMeal(_ name: String, by offset: Int) {
+        guard let index = mealNames.firstIndex(of: name) else { return }
+        _ = run { try self.services.dietPlans.moveMeal(name, to: index + offset, from: self.editFrom) }
     }
 
     func change(_ item: PlanItem, quantity: Double, cycle: CycleRule, meal: String) -> Bool {
@@ -177,6 +183,18 @@ struct DietPlanView: View {
             HStack {
                 SectionLabel(meal.name)
                 Spacer()
+                if model.mealNames.first != meal.name {
+                    Button { model.moveMeal(meal.name, by: -1); session.didChange() } label: { Image(systemName: "arrow.up") }
+                        .font(.system(size: 12, weight: .semibold))
+                        .accessibilityLabel("Move \(meal.name) up")
+                        .accessibilityIdentifier("plan-move-up-\(meal.name)")
+                }
+                if model.mealNames.last != meal.name {
+                    Button { model.moveMeal(meal.name, by: 1); session.didChange() } label: { Image(systemName: "arrow.down") }
+                        .font(.system(size: 12, weight: .semibold))
+                        .accessibilityLabel("Move \(meal.name) down")
+                        .accessibilityIdentifier("plan-move-down-\(meal.name)")
+                }
                 Button("+ Add") { addingToMeal = MealTarget(name: meal.name) }
                     .font(.system(size: 12, weight: .semibold))
                     .accessibilityIdentifier("plan-add-\(meal.name)")
