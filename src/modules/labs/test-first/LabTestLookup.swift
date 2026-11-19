@@ -24,7 +24,7 @@ public struct LabTestLookup {
         guard !found.isEmpty else { return test }
         return try found.map { part, marker in
             guard let latest = try draws.history(of: marker.id).first else { return "\(part) not tested yet" }
-            return "\(marker.name) \(LabInsightsRule.number(latest.value)) \(latest.unit) on \(Self.long(latest.date))\(status(latest, marker))"
+            return "\(marker.name) \(LabInsightsRule.number(latest.value)) \(latest.unit) on \(latest.date.dayMonthYear)\(status(latest, marker))"
         }.joined(separator: "; ")
     }
 
@@ -70,12 +70,15 @@ public struct LabTestLookup {
         case .noOptimalBand, .notComparable: return ""
         }
     }
+}
 
-    private static let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+extension ISODate {
+    private static let monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-    private static func long(_ day: ISODate) -> String {
-        let parts = day.string.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3, (1...12).contains(parts[1]) else { return day.string }
-        return "\(parts[2]) \(months[parts[1] - 1]) \(parts[0])"
+    /// "3 May 2026", for text the labs features write.
+    var dayMonthYear: String {
+        let parts = string.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3, (1...12).contains(parts[1]) else { return string }
+        return "\(parts[2]) \(Self.monthNames[parts[1] - 1]) \(parts[0])"
     }
 }

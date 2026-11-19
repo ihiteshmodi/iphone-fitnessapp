@@ -77,6 +77,7 @@ struct LabsView: View {
     @StateObject private var model: LabsModel
     @State private var addingDraw = false
     @State private var editingSettings = false
+    @State private var exportURL: URL?
 
     init(services: Services, catalogue: LabCatalogue) {
         _model = StateObject(wrappedValue: LabsModel(services: services, catalogue: catalogue))
@@ -103,9 +104,17 @@ struct LabsView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { editingSettings = true } label: { Image(systemName: "gearshape") }
-                    .accessibilityIdentifier("labs-settings-button")
+                HStack(spacing: 14) {
+                    Button(action: export) { Image(systemName: "square.and.arrow.up") }
+                        .accessibilityLabel("Export labs for AI review")
+                        .accessibilityIdentifier("labs-export-button")
+                    Button { editingSettings = true } label: { Image(systemName: "gearshape") }
+                        .accessibilityIdentifier("labs-settings-button")
+                }
             }
+        }
+        .sheet(isPresented: Binding(get: { exportURL != nil }, set: { if !$0 { exportURL = nil } })) {
+            if let exportURL { ShareSheet(items: [exportURL]) }
         }
         .onAppear { model.load() }
         .sheet(isPresented: $addingDraw, onDismiss: model.load) {
@@ -115,6 +124,19 @@ struct LabsView: View {
             LabsSettingsSheet(settings: model.services.labSettings)
         }
         .errorAlert($model.errorMessage)
+    }
+
+    /// Writes every draw and open item to labs-review-<date>.md for the labs-review skill.
+    private func export() {
+        do {
+            let text = try LabsReviewService(model.services.db, catalogue: model.catalogue)
+                .markdown(on: model.today, insights: try model.services.insights.labs(on: model.today))
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("labs-review-\(model.today.string).md")
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            exportURL = url
+        } catch {
+            model.errorMessage = error.localizedDescription
+        }
     }
 
     private func doctorBanner(_ item: Insight) -> some View {
