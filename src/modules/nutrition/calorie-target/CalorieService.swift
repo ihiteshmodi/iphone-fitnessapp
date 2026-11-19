@@ -51,6 +51,7 @@ public struct CalorieDay: Equatable, Identifiable {
     /// Extras added that day on top of the plan or the default.
     public let extraCount: Int
     public var id: String { date.string }
+    public var isUnloggedDietDay: Bool { source == .plan && tickedCount == 0 && extraCount == 0 }
 
     public init(date: ISODate, calories: Double?, source: CalorieSource, plannedCount: Int = 0, tickedCount: Int = 0, extraCount: Int = 0) {
         self.date = date
@@ -90,12 +91,13 @@ public final class CalorieService {
         return WeeklyAverages(latestWeighIn: latest, currentAverageKg: current, pastAverageKg: past)
     }
 
-    /// Target from the week's average calories (the 7 days the weight average covers). When none of those days has
-    /// calories yet (a first default that starts today), the newest default stands in for them.
+    /// Target from the average calories of the 7 days ending the day before the latest weigh-in: a morning weigh-in
+    /// reflects what was eaten up to the night before, and the weigh-in day itself is usually still being logged.
+    /// When none of those days has calories yet (a first default that starts today), the newest default stands in.
     public func currentAdvice() throws -> CalorieAdvice {
         let averages = try weeklyAverages()
         let newestDefault = try defaults().first
-        guard let eaten = try averageCalories(endingOn: averages.latestWeighIn, days: 7) ?? newestDefault?.calories else {
+        guard let eaten = try averageCalories(endingOn: averages.latestWeighIn.adding(days: -1), days: 7) ?? newestDefault?.calories else {
             throw ValidationError("Log the calories you ate per day")
         }
         return try advice(averages: averages, caloriesEaten: eaten, multiplier: try multiplier(on: averages.latestWeighIn))
@@ -151,8 +153,9 @@ public final class CalorieService {
     }
 
     /// Mean of the days that have calories, over the `days` days ending at `end`; nil when none do.
+    /// A diet day with nothing ticked and no extras was not logged, so it is left out rather than counted as 0.
     public func averageCalories(endingOn end: ISODate, days count: Int) throws -> Double? {
-        let values = try days(endingOn: end, count: count).compactMap(\.calories)
+        let values = try days(endingOn: end, count: count).filter { !$0.isUnloggedDietDay }.compactMap(\.calories)
         return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
     }
 

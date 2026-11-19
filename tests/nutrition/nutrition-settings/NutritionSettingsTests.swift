@@ -91,9 +91,9 @@ final class NutritionSettingsTests: XCTestCase {
     func testEditingCaloriesEatenChangesTheTarget() throws {
         try addTwoWeeksOfWeights()
         let service = CalorieService(db)
-        try service.saveCalories(on: date("2026-10-23"), calories: 2948.5)
+        try service.saveCalories(on: date("2026-10-22"), calories: 2948.5)
 
-        try service.saveCalories(on: date("2026-10-23"), calories: 3100)
+        try service.saveCalories(on: date("2026-10-22"), calories: 3100)
 
         let target = try service.currentAdvice().target
         XCTAssertEqual(target.caloriesEaten, 3100)
