@@ -31,6 +31,9 @@ final class Services: ObservableObject {
     let refeeds: RefeedService
     /// The vault's supplement library, bundled from output/supplement-library.json when present.
     let supplementLibrary: SupplementLibrary?
+    /// The bloodwork and genetics catalogue, bundled from output/labs-catalogue.json when present; Labs is hidden without it.
+    let labCatalogue: LabCatalogue?
+    let labSettings: LabSettings
 
     init(db: Database, clock: AppClock) {
         self.db = db
@@ -60,9 +63,17 @@ final class Services: ObservableObject {
             .flatMap { try? Data(contentsOf: $0) }.flatMap { try? SupplementLibrary(data: $0) }
         supplementLibrary = library
         let supplementRules: [SetupRule] = [SupplementOnRampRule()] + (library.map { [SupplementCheckRule(library: $0)] } ?? [])
+        let labs = Bundle.main.url(forResource: "labs-catalogue", withExtension: "json")
+            .flatMap { try? Data(contentsOf: $0) }.flatMap { try? LabCatalogue(data: $0) }
+        labCatalogue = labs
+        labSettings = LabSettings(db)
         insights = InsightService(db, daily: NutritionRules.daily + CheckInRules.daily + TrainingRules.daily,
-                                  setup: NutritionRules.setup + TrainingRules.setup + RefeedRules.setup + supplementRules)
+                                  setup: NutritionRules.setup + TrainingRules.setup + RefeedRules.setup + supplementRules,
+                                  labs: labs.map { [LabInsightsRule(catalogue: $0)] } ?? [])
         checkIn = CheckInService(db)
         refeeds = RefeedService(db)
     }
+
+    var labDraws: LabDrawService? { labCatalogue.map { LabDrawService(db, catalogue: $0) } }
+    var genetics: GeneticsService? { labCatalogue.map { GeneticsService(db, catalogue: $0) } }
 }

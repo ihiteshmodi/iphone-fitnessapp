@@ -22,6 +22,7 @@ struct MoreTabView: View {
                     deloadCard
                     CoachPresetsCard()
                     NutrientDataCard()
+                    LabHistoryCard()
                     toolsCard
                     historyCard
                     pastDataCard

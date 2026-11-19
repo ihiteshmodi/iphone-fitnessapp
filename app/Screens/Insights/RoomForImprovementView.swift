@@ -9,6 +9,7 @@ enum InsightTab: String, CaseIterable {
 final class RoomForImprovementModel: ObservableObject {
     @Published private(set) var todayItems: [Insight] = []
     @Published private(set) var setupItems: [Insight] = []
+    @Published private(set) var labItems: [Insight] = []
     @Published private(set) var trends: [TrendRow] = []
     @Published private(set) var archived: [ArchivedRule] = []
     @Published var trendDays = 30
@@ -24,6 +25,7 @@ final class RoomForImprovementModel: ObservableObject {
         do {
             todayItems = try rooms.today(on: today)
             setupItems = try rooms.setup(on: today)
+            labItems = try rooms.labs(on: today)
             trends = try rooms.trends(endingOn: today.adding(days: -1), days: trendDays)
             archived = try rooms.archived()
         } catch {
@@ -55,8 +57,12 @@ final class RoomForImprovementModel: ObservableObject {
 struct RoomForImprovementView: View {
     @StateObject private var model: RoomForImprovementModel
     @State private var tab = InsightTab.today
+    private let services: Services
 
-    init(services: Services) { _model = StateObject(wrappedValue: RoomForImprovementModel(services: services)) }
+    init(services: Services) {
+        self.services = services
+        _model = StateObject(wrappedValue: RoomForImprovementModel(services: services))
+    }
 
     var body: some View {
         ScrollView {
@@ -70,7 +76,7 @@ struct RoomForImprovementView: View {
                 case .today: items(model.todayItems, empty: "Nothing to fix from today or yesterday.")
                 case .setup: items(model.setupItems, empty: "Your plan passes every check.")
                 case .trends: trendsSection
-                case .labs: note("Bloodwork-based items arrive with Blood Labs.")
+                case .labs: items(model.labItems, empty: services.labCatalogue == nil ? "The labs catalogue is not in this build." : "Nothing from your bloodwork. Add a draw in Body → Bloodwork.")
                 case .archived: archivedSection
                 }
             }
@@ -109,7 +115,7 @@ struct RoomForImprovementView: View {
                     .accessibilityIdentifier("turn-on-deload")
             }
             HStack(spacing: 8) {
-                if item.kind == .today {
+                if item.kind == .today || item.kind == .labs {
                     Button("Dismiss") { model.dismiss(item) }.accessibilityIdentifier("dismiss-\(item.id)")
                 } else {
                     Button("Accept") { model.accept(item) }.accessibilityIdentifier("accept-\(item.id)")

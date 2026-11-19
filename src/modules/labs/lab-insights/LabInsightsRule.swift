@@ -41,7 +41,7 @@ private struct Evaluation {
             guard let urgency = entry.row.urgency else { return nil }
             return Insight(ruleID: "lab-gene-\(entry.gene.id)", kind: .labs, severity: .fix,
                            title: "\(urgency.title): \(entry.gene.name) \(entry.row.genotype)",
-                           detail: ([entry.row.meaning] + (entry.row.actions ?? [])).compactMap { $0 }.joined(separator: " "),
+                           detail: LabInsightsRule.lines(entry.row.meaning ?? "", entry.row.actions ?? []),
                            why: entry.gene.source.map { "Vault \($0)" } ?? "Vault genetics", day: entry.enteredOn)
         }
         items += try DrawPlanner(catalogue: catalogue, draws: draws, sex: sex).retests().compactMap { due in
@@ -55,11 +55,11 @@ private struct Evaluation {
 
     private func readingItems(_ marker: LabMarker, _ result: LabResult) -> [Insight] {
         let reading = LabReader.read(value: result.value, unit: result.unit, marker: marker, sex: sex)
-        let value = "\(LabInsightsRule.number(result.value)) \(result.unit) on \(result.date.string)"
+        let value = "\(LabInsightsRule.number(result.value)) \(result.unit) on \(result.date.string)."
         var items: [Insight] = []
         if let worst = reading.doctorLines.first {
             items.append(Insight(ruleID: "lab-doctor-\(marker.id)", kind: .labs, severity: .fix, title: "\(worst.urgency.title): \(marker.name)",
-                                 detail: "\(value). " + reading.doctorLines.map(\.text).joined(separator: " "),
+                                 detail: LabInsightsRule.lines(value, reading.doctorLines.map(\.text)),
                                  why: worst.source.map { "Vault \($0)" } ?? "Vault doctor line", day: result.date))
         }
         switch reading.status {
@@ -67,10 +67,10 @@ private struct Evaluation {
             let side = reading.status == .low ? "low" : "high"
             let actions = marker.whatToDo.filter { ($0.when == nil || $0.when == side || $0.when == "any") && shows($0.tag) }.map(\.text)
             items.append(Insight(ruleID: "lab-band-\(marker.id)", kind: .labs, severity: .improve, title: "\(marker.name) \(side)",
-                                 detail: ([value] + actions).joined(separator: " "), why: "Vault \(marker.lesson)", day: result.date))
+                                 detail: LabInsightsRule.lines(value, actions), why: "Vault \(marker.lesson)", day: result.date))
         case .disputed:
             items.append(Insight(ruleID: "lab-disputed-\(marker.id)", kind: .labs, severity: .tip, title: "\(marker.name) in a disputed zone",
-                                 detail: "\(value) is inside some of the vault's optimal bands and not others (\(reading.disputes.joined(separator: ", "))). No flag.",
+                                 detail: "\(value.dropLast()) is inside some of the vault's optimal bands and not others (\(reading.disputes.joined(separator: ", "))). No flag.",
                                  why: "Vault \(marker.lesson)", day: result.date))
         default:
             break
@@ -119,5 +119,12 @@ extension LabInsightsRule {
         var text = String(format: "%.2f", value)
         while text.contains(".") && (text.hasSuffix("0") || text.hasSuffix(".")) { text.removeLast() }
         return text
+    }
+}
+
+extension LabInsightsRule {
+    /// A heading line, then one bullet per vault line, so long advice stays readable on a card.
+    static func lines(_ heading: String, _ bullets: [String]) -> String {
+        ([heading] + bullets.map { "• \($0)" }).filter { !$0.isEmpty }.joined(separator: "\n")
     }
 }

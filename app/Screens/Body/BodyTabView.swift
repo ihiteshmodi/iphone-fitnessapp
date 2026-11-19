@@ -69,6 +69,7 @@ private struct BodyScreen: View {
                     macrosCard
                     if !model.weights.isEmpty { recentCard }
                     recentCaloriesCard
+                    if !model.isShowingPastDay { LabsEntryCard() }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)

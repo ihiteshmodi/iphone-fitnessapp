@@ -51,6 +51,10 @@ targets:
           LABS="${SRCROOT}/output/labs-catalogue.json"
           LABS_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/labs-catalogue.json"
           if [ -f "$LABS" ]; then cp -f "$LABS" "$LABS_DEST"; else rm -f "$LABS_DEST"; fi
+          # The owner's past lab results (personal health data, git-ignored; never committed).
+          HISTORY="${SRCROOT}/output/lab-history.csv"
+          HISTORY_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/lab-history.csv"
+          if [ -f "$HISTORY" ]; then cp -f "$HISTORY" "$HISTORY_DEST"; else rm -f "$HISTORY_DEST"; fi
     dependencies:
       - package: FitnessCore
     info:

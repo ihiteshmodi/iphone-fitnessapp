@@ -45,6 +45,13 @@ enum Format {
         "\(shortDate(date)) \(date.string.prefix(4))"
     }
 
+    /// "2022-11-27" -> "Nov '22", for chart axes spanning years.
+    static func monthYear(_ date: ISODate) -> String {
+        let parts = date.string.split(separator: "-")
+        guard parts.count == 3, let month = Int(parts[1]), (1...12).contains(month) else { return date.string }
+        return "\(months[month - 1]) '\(parts[0].suffix(2))"
+    }
+
     /// Accepts "54", "54.5" and "54,5" (decimal comma keyboards).
     static func decimal(_ text: String) -> Double? {
         Double(text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "."))
