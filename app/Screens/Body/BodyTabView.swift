@@ -60,6 +60,9 @@ private struct BodyScreen: View {
                     .buttonStyle(PrimaryButtonStyle(ghost: true))
                     .font(.system(size: 14))
 
+                    if !model.isShowingPastDay {
+                        RefeedsCard(today: model.today, maintenance: model.target?.maintenanceCalories)
+                    }
                     weeksSection
                     if model.weights.isEmpty { emptyWeightCard } else { weightCard }
                     balanceCard

@@ -370,6 +370,14 @@ public struct DatabaseFileService {
                     PRIMARY KEY (week_start, sign)
                 )
                 """)
+            // Version 18: refeeds.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS refeed_days (
+                    day     TEXT PRIMARY KEY CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    planned INTEGER NOT NULL DEFAULT 0 CHECK (planned IN (0, 1)),
+                    mark    TEXT CHECK (mark IS NULL OR mark IN ('refeed', 'normal', 'skipped'))
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

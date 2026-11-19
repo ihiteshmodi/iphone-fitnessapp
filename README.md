@@ -63,6 +63,7 @@ Screenshots of the real app.
 - **Weigh-ins:** log your weight on any day, edit or delete old ones.
 - **Calories:** a daily default that starts on a date you choose, a change for any single day, and a calorie target with macros. Days that have a diet plan count the diet instead (see below), and a total you type for one day still wins.
 - **Effective calories:** digestion uses part of what you eat (protein 25%, carbs 7.5%, fat 1.5%, alcohol 0%: the middle of the vault's ranges). The Body card shows total and effective side by side; *Details* breaks the cost down by macro and chooses whether targets and maintenance use total or effective calories. Saved diets show both too.
+- **Refeeds (while cutting):** a card on Body lets you pick refeed weekdays or dates, with the vault's guidance (1–2 days at maintenance, extra mostly carbs, protein and fat unchanged). On a refeed day it shows the maintenance target and you mark it *Refeed done*, *Normal day* or *Skipped*. After 6 weeks of cutting Room for improvement suggests a 1–2 week diet break (stronger at 12), and cut-rate checks wait 3 days after a refeed.
 - **What your weight says:** your actual deficit or surplus from the weight trend, next to your planned mode.
 - **Break mode:** start a break today or plan one with dates (More → Break mode). Break days need no food, workouts or weigh-ins and are left out of the calorie maths. Afterwards the Body tab says *Recalibrating* until there are 14 days of weigh-ins after the break (two clean weeks to compare), and keeps a *Before your break* card with maintenance, what you were eating, whether you were cutting or bulking, and your weight before and after.
 - **Calorie history:** step back (‹ ›) or pick any past day on the Body tab to see maintenance, calories eaten, deficit or surplus, the target and cutting macros as they stood that day, worked out only from weigh-ins and food up to then.
@@ -231,7 +232,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 17)
+### Database tables (schema version 18)
 
 | Table | Holds |
 |---|---|
@@ -253,6 +254,7 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `break_periods` | Break mode: start and end day of each break (no end while it is still on) |
 | `insight_dismissals`, `insight_rules` | Room for improvement: items dismissed for a day, and rules accepted or marked as not applying |
 | `checkins`, `meal_walks`, `recovery_signs` | The optional check-in: urine and sweat per day, walks after meals, weekly recovery signs |
+| `refeed_days` | Refeed dates chosen while cutting and what each day was marked |
 | `settings` | The settings above |
 
 The schema lives in `src/shared/database/schema.sql`. Older files are upgraded in place when opened (versions 1 to 6 are covered by tests).

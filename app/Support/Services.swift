@@ -28,6 +28,7 @@ final class Services: ObservableObject {
     let routines: RoutineService
     let insights: InsightService
     let checkIn: CheckInService
+    let refeeds: RefeedService
 
     init(db: Database, clock: AppClock) {
         self.db = db
@@ -54,7 +55,8 @@ final class Services: ObservableObject {
         savedWorkouts = SavedWorkoutService(db)
         routines = RoutineService(db)
         insights = InsightService(db, daily: NutritionRules.daily + CheckInRules.daily + TrainingRules.daily,
-                                  setup: NutritionRules.setup + TrainingRules.setup)
+                                  setup: NutritionRules.setup + TrainingRules.setup + RefeedRules.setup)
         checkIn = CheckInService(db)
+        refeeds = RefeedService(db)
     }
 }

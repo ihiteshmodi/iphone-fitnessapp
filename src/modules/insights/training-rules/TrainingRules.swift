@@ -137,6 +137,7 @@ struct CutBulkRateRule: SetupRule {
     let id = "cut-bulk-rate"
 
     func evaluate(on day: ISODate, db: Database) throws -> [Insight] {
+        if let refeed = try RefeedService(db).lastRefeed(onOrBefore: day), day.days(since: refeed) <= RefeedRules.quietDaysAfterRefeed { return [] }
         guard let advice = try? CalorieService(db).advice(asOf: day) else { return [] }
         let change = (advice.averages.currentAverageKg - advice.averages.pastAverageKg) / advice.averages.pastAverageKg * 100
         let multiplier = advice.target.multiplier

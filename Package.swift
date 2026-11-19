@@ -39,6 +39,7 @@ let package = Package(
                 "nutrition/break-mode/break-mode.feature",
                 "nutrition/effective-calories/effective-calories.feature",
                 "nutrition/sweaty-activity/sweaty-activity.feature",
+                "nutrition/refeeds/refeeds.feature",
                 "nutrition/daily-calories/daily-calories.feature",
                 "nutrition/nutrition-settings/nutrition-settings.feature",
                 "planning/deload-mode/deload-mode.feature",

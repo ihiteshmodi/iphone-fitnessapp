@@ -171,6 +171,13 @@ CREATE TABLE recovery_signs (
     PRIMARY KEY (week_start, sign)
 );
 
+-- Refeeds while cutting: dates chosen as refeed days (weekdays are the refeed_weekdays setting) and what each day was marked.
+CREATE TABLE refeed_days (
+    day     TEXT PRIMARY KEY CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    planned INTEGER NOT NULL DEFAULT 0 CHECK (planned IN (0, 1)),
+    mark    TEXT CHECK (mark IS NULL OR mark IN ('refeed', 'normal', 'skipped'))
+);
+
 CREATE TABLE settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -313,4 +320,4 @@ INSERT INTO settings (key, value) VALUES
     ('fat_max_percent', '35'),
     ('fat_floor_g_per_kg', '0.8');
 
-PRAGMA user_version = 17;
+PRAGMA user_version = 18;
