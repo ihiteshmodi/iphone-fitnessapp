@@ -39,10 +39,11 @@ private struct BodyScreen: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
-                    BodyHeader(caption: "Last 7 days", title: "Body")
+                    BodyHeader(caption: model.headerCaption, title: "Body")
                     if let loadError = model.loadError {
                         Text(loadError).font(.system(size: 13)).foregroundColor(Theme.red).card()
                     }
+                    dayPicker
                     ringCard
                     Button("Open today's diet") { session.openDiet(on: model.today) }
                         .buttonStyle(PrimaryButtonStyle(ghost: true))
@@ -95,6 +96,32 @@ private struct BodyScreen: View {
                 }
             }
         }
+    }
+
+    /// Steps the calorie maths back to any past day; future days have no data, so forward stops at today.
+    private var dayPicker: some View {
+        HStack(spacing: 8) {
+            Button { model.showPreviousDay() } label: { Image(systemName: "chevron.left") }
+                .accessibilityIdentifier("body-previous-day")
+            Spacer(minLength: 0)
+            DatePicker("Show day", selection: Binding(get: { BodyDates.date(from: model.shownDay) },
+                                                      set: { model.show(day: BodyDates.day(from: $0)) }),
+                       in: ...BodyDates.date(from: model.today), displayedComponents: .date)
+                .labelsHidden()
+                .accessibilityIdentifier("body-day-picker")
+            Spacer(minLength: 0)
+            if model.isShowingPastDay {
+                Button("Today") { model.show(day: model.today) }
+                    .font(.system(size: 13, weight: .semibold))
+                    .accessibilityIdentifier("body-back-to-today")
+            }
+            Button { model.showNextDay() } label: { Image(systemName: "chevron.right") }
+                .disabled(!model.canGoForward)
+                .accessibilityIdentifier("body-next-day")
+        }
+        .font(.system(size: 15, weight: .semibold))
+        .foregroundColor(Theme.green)
+        .padding(.horizontal, 4)
     }
 
     private var ringCard: some View {

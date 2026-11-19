@@ -60,6 +60,7 @@ Screenshots of the real app.
 - **Weigh-ins:** log your weight on any day, edit or delete old ones.
 - **Calories:** a daily default that starts on a date you choose, a change for any single day, and a calorie target with macros. Days that have a diet plan count the diet instead (see below), and a total you type for one day still wins.
 - **What your weight says:** your actual deficit or surplus from the weight trend, next to your planned mode.
+- **Calorie history:** step back (‹ ›) or pick any past day on the Body tab to see maintenance, calories eaten, deficit or surplus, the target and cutting macros as they stood that day, worked out only from weigh-ins and food up to then.
 - **Measurements:** targets that grow or reduce, % from target, and a colour tolerance (green, amber, red).
 - **Volume per muscle:** training volume over time for each muscle group.
 

@@ -76,10 +76,17 @@ public final class CalorieService {
     }
 
     /// Mean weight of the 7 days ending at the latest weigh-in, and of the 7 days before that.
-    public func weeklyAverages() throws -> WeeklyAverages {
+    public func weeklyAverages() throws -> WeeklyAverages { try weeklyAverages(upTo: nil) }
+
+    /// Same as `weeklyAverages()`, but only weigh-ins on or before `day` exist, so a past day reads as it did then.
+    public func weeklyAverages(asOf day: ISODate) throws -> WeeklyAverages { try weeklyAverages(upTo: day) }
+
+    private func weeklyAverages(upTo day: ISODate?) throws -> WeeklyAverages {
         let notEnough = ValidationError("Log body weight for both of the last two weeks")
-        guard let latestText = try db.query("SELECT MAX(measured_on) AS latest FROM body_weights").first?.optionalText("latest"),
-              let latest = ISODate(latestText) else { throw notEnough }
+        let latestRow = try day.map {
+            try db.query("SELECT MAX(measured_on) AS latest FROM body_weights WHERE measured_on <= ?", [.text($0.string)])
+        } ?? db.query("SELECT MAX(measured_on) AS latest FROM body_weights")
+        guard let latestText = latestRow.first?.optionalText("latest"), let latest = ISODate(latestText) else { throw notEnough }
 
         func average(from start: ISODate, to end: ISODate) throws -> Double? {
             try db.query("SELECT AVG(weight_kg) AS average FROM body_weights WHERE measured_on BETWEEN ? AND ?",
@@ -95,12 +102,20 @@ public final class CalorieService {
     /// reflects what was eaten up to the night before, and the weigh-in day itself is usually still being logged.
     /// When none of those days has calories yet (a first default that starts today), the newest default stands in.
     public func currentAdvice() throws -> CalorieAdvice {
-        let averages = try weeklyAverages()
-        let newestDefault = try defaults().first
-        guard let eaten = try averageCalories(endingOn: averages.latestWeighIn.adding(days: -1), days: 7) ?? newestDefault?.calories else {
+        try advice(averages: try weeklyAverages(), fallback: try defaults().first, multiplierOn: nil)
+    }
+
+    /// The calorie maths as it stood on a past (or future) day: weigh-ins up to that day, food up to the day before the
+    /// weigh-in it uses, and the default and multiplier in force on that day.
+    public func advice(asOf day: ISODate) throws -> CalorieAdvice {
+        try advice(averages: try weeklyAverages(asOf: day), fallback: try defaultInForce(on: day), multiplierOn: day)
+    }
+
+    private func advice(averages: WeeklyAverages, fallback: CalorieDefault?, multiplierOn day: ISODate?) throws -> CalorieAdvice {
+        guard let eaten = try averageCalories(endingOn: averages.latestWeighIn.adding(days: -1), days: 7) ?? fallback?.calories else {
             throw ValidationError("Log the calories you ate per day")
         }
-        return try advice(averages: averages, caloriesEaten: eaten, multiplier: try multiplier(on: averages.latestWeighIn))
+        return try advice(averages: averages, caloriesEaten: eaten, multiplier: try multiplier(on: day ?? averages.latestWeighIn))
     }
 
     // MARK: Defaults and days

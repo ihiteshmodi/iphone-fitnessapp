@@ -34,12 +34,26 @@ final class BodyViewModel: ObservableObject {
     @Published private(set) var currentDefault: CalorieDefault?
     @Published private(set) var rules = MacroRules(proteinGramsPerLb: 1.2, fatPercent: 25)
     @Published private(set) var loadError: String?
+    /// nil shows the live numbers; a past day shows the calorie maths as it stood on that day.
+    @Published private(set) var asOf: ISODate?
 
     private let services: Services
 
     init(services: Services) { self.services = services }
 
     var today: ISODate { services.clock.today() }
+    var shownDay: ISODate { asOf ?? today }
+    var isShowingPastDay: Bool { asOf != nil }
+    var canGoForward: Bool { asOf != nil }
+    var headerCaption: String { asOf.map { "As of \(Format.weekdayDate($0))" } ?? "Last 7 days" }
+
+    func show(day: ISODate) {
+        asOf = day < today ? day : nil
+        load()
+    }
+
+    func showPreviousDay() { show(day: shownDay.adding(days: -1)) }
+    func showNextDay() { show(day: shownDay.adding(days: 1)) }
 
     func load() {
         do {
@@ -53,16 +67,16 @@ final class BodyViewModel: ObservableObject {
         }
 
         do {
-            averages = try services.calories.weeklyAverages()
+            averages = try asOf.map { try services.calories.weeklyAverages(asOf: $0) } ?? services.calories.weeklyAverages()
             averagesNotice = nil
         } catch {
             averages = nil
             averagesNotice = error.localizedDescription
         }
 
-        let advice = try? services.calories.currentAdvice()
+        let advice = try? (asOf.map { try services.calories.advice(asOf: $0) } ?? services.calories.currentAdvice())
         target = advice?.target
-        averageEaten = advice?.target.caloriesEaten ?? (try? services.calories.averageCalories(endingOn: today.adding(days: -1), days: 7)) ?? nil
+        averageEaten = advice?.target.caloriesEaten ?? (try? services.calories.averageCalories(endingOn: shownDay.adding(days: -1), days: 7)) ?? nil
     }
 
     // MARK: Ring card
@@ -121,7 +135,7 @@ final class BodyViewModel: ObservableObject {
         guard let averages else { return nil }
         let change = averages.currentAverageKg - averages.pastAverageKg
         let sign = change > 0 ? "+" : (change < 0 ? "−" : "")
-        return "\(Format.fixed(averages.pastAverageKg)) → \(Format.fixed(averages.currentAverageKg)) kg (\(sign)\(Format.fixed(abs(change)))) over the last two weeks"
+        return "\(Format.fixed(averages.pastAverageKg)) → \(Format.fixed(averages.currentAverageKg)) kg (\(sign)\(Format.fixed(abs(change)))) over the two weeks to \(Format.shortDate(averages.latestWeighIn))"
     }
 
     /// Says whether what the weight did matches the mode chosen with the multiplier.
