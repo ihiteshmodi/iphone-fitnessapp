@@ -87,6 +87,23 @@ final class LabDrawTests: XCTestCase {
         XCTAssertTrue(try draws.history(of: "glucose").isEmpty)
     }
 
+    func testTheCatalogueReadsSymptomLinesQualitativeBandsAndMonthRetests() throws {
+        let json = #"""
+        {"markers": [{"id": "urine-protein", "name": "Urine protein",
+          "bands": [{"label": "Negative", "kind": "optimal", "low": null, "high": null, "unit": null, "values": ["Negative", "Trace"]}],
+          "doctor": [{"op": null, "value": null, "unit": null, "urgency": "goNow", "text": "With chest pain", "requires": "chest pain"}],
+          "retest": [{"text": "In a few months", "minMonths": 3, "maxMonths": 6, "after": "abnormal"}]}],
+         "patterns": [{"id": "p", "name": "P", "conditions": [{"marker": "tsh", "op": "high", "value": null}], "extra": 1}]}
+        """#
+        let read = try LabCatalogue(data: Data(json.utf8))
+
+        let marker = try XCTUnwrap(read.marker("urine-protein"))
+        XCTAssertEqual(marker.bands.first?.values, ["Negative", "Trace"])
+        XCTAssertNil(marker.doctor.first?.value)
+        XCTAssertEqual(marker.retest.first?.minMonths, 3)
+        XCTAssertEqual(read.patterns.first?.conditions?.first?.op, "high")
+    }
+
     func testTheCatalogueFindsMarkersByNameOrAlias() {
         XCTAssertEqual(catalogue.search("serum").map(\.id), ["ferritin"])
         XCTAssertEqual(catalogue.marker("glucose")?.defaultUnit, "mg/dL")

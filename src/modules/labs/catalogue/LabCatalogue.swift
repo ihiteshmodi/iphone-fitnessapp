@@ -123,11 +123,15 @@ public struct LabBand: Codable, Equatable {
     public let dispute: String?
     public let tag: String?
     public let origin: LabOrigin?
+    /// Result words for qualitative tests (urine dipstick: "Negative", "Trace"...).
+    public let values: [String]?
 }
 
+/// A doctor trigger. op and value are nil when the trigger is signs only or relative to the lab's range; those are
+/// shown as text and never raised automatically.
 public struct LabDoctorLine: Codable, Equatable {
-    public let op: String
-    public let value: Double
+    public let op: String?
+    public let value: Double?
     public let unit: String?
     public let sex: LabSex?
     public let urgency: LabUrgency
@@ -142,6 +146,8 @@ public struct LabRetest: Codable, Equatable {
     public let text: String
     public let minWeeks: Double?
     public let maxWeeks: Double?
+    public let minMonths: Double?
+    public let maxMonths: Double?
     public let after: String?
     public let source: String?
 }
@@ -252,10 +258,11 @@ public struct LabPrepStep: Codable, Equatable, Identifiable {
     public let tag: String?
 }
 
+/// op may also be "high", "low" or "normal" against the lab's range, with no value.
 public struct LabCondition: Codable, Equatable {
     public let marker: String
     public let op: String
-    public let value: Double
+    public let value: Double?
     public let unit: String?
     public let sex: LabSex?
 }

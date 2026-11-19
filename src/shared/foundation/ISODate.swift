@@ -41,6 +41,10 @@ public struct ISODate: Hashable, Comparable, CustomStringConvertible {
         ISODate(date: Self.calendar.date(byAdding: .day, value: days, to: date)!, timeZone: Self.calendar.timeZone)
     }
 
+    public func adding(months: Int) -> ISODate {
+        ISODate(date: Self.calendar.date(byAdding: .month, value: months, to: date)!, timeZone: Self.calendar.timeZone)
+    }
+
     /// Whole days from `other` to self (positive when self is later).
     public func days(since other: ISODate) -> Int {
         Self.calendar.dateComponents([.day], from: other.date, to: date).day!

@@ -82,10 +82,16 @@ public struct DrawPlanner {
             let rule = marker.retest.first { $0.after == (off ? "abnormal" : "routine") }
                 ?? marker.retest.first { $0.after == (off ? "change" : "routine") }
                 ?? marker.retest.first
-            let from = rule?.minWeeks.map { last.date.adding(days: Int(($0 * 7).rounded())) }
-            let until = rule?.maxWeeks.map { last.date.adding(days: Int(($0 * 7).rounded())) }
+            let from = rule.flatMap { Self.shift(last.date, weeks: $0.minWeeks, months: $0.minMonths) }
+            let until = rule.flatMap { Self.shift(last.date, weeks: $0.maxWeeks, months: $0.maxMonths) }
             return RetestDue(marker: marker, lastDate: last.date, rule: rule, from: from, until: until, note: nil)
         }
+    }
+
+    private static func shift(_ day: ISODate, weeks: Double?, months: Double?) -> ISODate? {
+        if let weeks { return day.adding(days: Int((weeks * 7).rounded())) }
+        if let months { return day.adding(months: Int(months.rounded())) }
+        return nil
     }
 
     /// The latest result sits outside the optimal bands, in a disputed zone, or crosses a doctor line.

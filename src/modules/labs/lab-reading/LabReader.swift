@@ -36,7 +36,10 @@ public enum LabReader {
         let optimal = applicable.filter { $0.kind == "optimal" && bounds(of: $0, in: marker) != nil }
         let doctor = marker.doctor
             .filter { applies($0.sex, to: sex) && $0.requires == nil }
-            .filter { line in converted(line.value, line.unit, marker).map { crosses(value, line.op, $0) } ?? false }
+            .filter { line in
+                guard let op = line.op, let limit = line.value else { return false }
+                return converted(limit, line.unit, marker).map { crosses(value, op, $0) } ?? false
+            }
             .sorted { $0.urgency < $1.urgency }
         return LabReading(value: value, unit: marker.defaultUnit, status: status(value, optimal, marker), bands: containing,
                           optimalBands: optimal, disputes: Array(Set(optimal.compactMap(\.dispute))).sorted(),

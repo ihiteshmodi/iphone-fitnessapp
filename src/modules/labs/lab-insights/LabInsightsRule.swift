@@ -80,7 +80,7 @@ public struct LabInsightsRule: SetupRule {
     private func holds(_ condition: LabCondition, _ latest: [String: LabResult]) -> Bool {
         guard let result = latest[condition.marker], let marker = catalogue.marker(condition.marker),
               let value = marker.toDefault(result.value, unit: result.unit),
-              let unit = condition.unit, let limit = marker.toDefault(condition.value, unit: unit) else { return false }
+              let unit = condition.unit, let raw = condition.value, let limit = marker.toDefault(raw, unit: unit) else { return false }
         switch condition.op {
         case ">": return value > limit
         case ">=": return value >= limit
