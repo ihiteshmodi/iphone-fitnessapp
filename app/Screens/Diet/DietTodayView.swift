@@ -14,9 +14,22 @@ struct DietTodayView: View {
             dateBar
             if let period = model.breakPeriod { breakNotice(period) }
             if !model.unconfirmed.isEmpty { unconfirmedCard }
+            if model.date == model.today { RoomForImprovementLink() }
             if let typed = model.typedCalories { typedNotice(typed) }
             if let day = model.day {
                 summaryCard(day)
+                NavigationLink { DailyTargetsView(day: day) } label: {
+                    HStack {
+                        Text("Daily targets").font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                        Spacer()
+                        let rows = DailyTargetReport.rows(day.eatenProfile)
+                        Text("\(rows.filter(\.isMet).count) of \(rows.count) met").font(.system(size: 12)).foregroundColor(Theme.muted)
+                        Image(systemName: "chevron.right").foregroundColor(Theme.muted)
+                    }
+                    .card()
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("daily-targets-link")
                 if day.hasPlan {
                     ForEach(day.meals, id: \.name) { meal in mealCard(meal) }
                 } else {

@@ -81,6 +81,13 @@ Screenshots of the real app.
 - **Targets:** protein is a minimum (180 g by default). Fat follows the vault: 20–35% of the day's calories, and never under 0.8 g per kg of 7-day average body weight (whichever is higher is the minimum). All the numbers are editable.
 - **Cost and calories:** every day shows its total calories, macros and cost. The Body tab, the weekly average and the calorie target use these days.
 
+**Room for improvement** (Diet → Today)
+- **Today:** what fired today or yesterday, worst first: trans fat (Fix), leucine under 3 g in a protein meal, fiber under 14 g per 1,000 kcal (with the psyllium fix), fat outside 20–35% / under 0.8 g per kg, EPA + DHA under 250 mg, caffeine in the evening (stop 8–10 h before bed), and your own rules: flax or chia, collagen not counted. *Dismiss* hides an item for that day.
+- **Trends:** each rule over 7, 30 or 90 days as a strip (red fired, green fine, grey no data) with "fired on x of y days".
+- **Setup:** one-time fixes to the diet plan: fewer than 3 protein meals, planned meals under 3 g leucine, low fiber or fat, omega-3 form not rTG or algae. They go away when the plan is fixed, or *Accept* them.
+- **Labs:** filled in by Blood Labs later. **Archived:** accepted items (still tracked) and rules that don't apply to you (not checked); *Restore* brings them back.
+- **Daily targets:** the day's amino acids, vitamins, minerals, fiber and omega-6 against their daily targets; unknown values are shown as unknown, never as a miss.
+
 **Data**
 - **One SQLite file** on the phone. Export it, restore it, or import another one. Older files are upgraded automatically.
 

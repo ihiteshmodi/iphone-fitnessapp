@@ -18,7 +18,7 @@ public enum Nutrient: String, CaseIterable, Hashable {
     case alcohol, caffeine
     case vitaminA = "vitamin_a", b1, b2, b3, b5, b6, b12, biotin, choline, folate
     case vitaminC = "vitamin_c", vitaminD = "vitamin_d", vitaminE = "vitamin_e", vitaminK = "vitamin_k"
-    case calcium, copper, iron, magnesium, manganese, phosphorus, potassium, selenium, zinc
+    case calcium, copper, iron, magnesium, manganese, phosphorus, potassium, selenium, zinc, boron
 
     public var group: NutrientGroup {
         switch self {
@@ -28,14 +28,14 @@ public enum Nutrient: String, CaseIterable, Hashable {
         case .epa, .dha, .ala, .omega6: return .omega
         case .alcohol, .caffeine: return .alcoholCaffeine
         case .vitaminA, .b1, .b2, .b3, .b5, .b6, .b12, .biotin, .choline, .folate, .vitaminC, .vitaminD, .vitaminE, .vitaminK: return .vitamins
-        case .calcium, .copper, .iron, .magnesium, .manganese, .phosphorus, .potassium, .selenium, .zinc: return .minerals
+        case .calcium, .copper, .iron, .magnesium, .manganese, .phosphorus, .potassium, .selenium, .zinc, .boron: return .minerals
         }
     }
 
     public var unit: String {
         switch self {
         case .epa, .dha, .caffeine, .b1, .b2, .b3, .b5, .b6, .choline, .vitaminC, .vitaminE,
-             .calcium, .copper, .iron, .magnesium, .manganese, .phosphorus, .potassium, .zinc:
+             .calcium, .copper, .iron, .magnesium, .manganese, .phosphorus, .potassium, .zinc, .boron:
             return "mg"
         case .vitaminA, .b12, .biotin, .folate, .vitaminD, .vitaminK, .selenium: return "mcg"
         default: return "g"
@@ -143,5 +143,27 @@ public struct NutrientProfile: Equatable {
     /// A food's own values: what it has is known, the rest unknown.
     static func of(_ known: [Nutrient: Double]) -> NutrientProfile {
         NutrientProfile(values: known, unknown: Set(Nutrient.allCases).subtracting(known.keys))
+    }
+}
+
+/// A nutrient that has a daily target, against what was eaten. `amount` is nil when it is unknown.
+public struct DailyTargetRow: Equatable {
+    public let nutrient: Nutrient
+    public let amount: Double?
+    public let target: Double
+
+    public var share: Double? { amount.map { $0 / target } }
+    public var isMet: Bool { (amount ?? 0) >= target }
+}
+
+public enum DailyTargetReport {
+    /// Every nutrient with a target, in the order of `Nutrient.allCases`. Unknown means at least one food had no value.
+    public static func rows(_ profile: NutrientProfile) -> [DailyTargetRow] {
+        Nutrient.allCases.compactMap { nutrient in
+            nutrient.dailyTarget.map { target in
+                DailyTargetRow(nutrient: nutrient, amount: profile.unknown.contains(nutrient) && (profile[nutrient] ?? 0) < target ? nil : (profile[nutrient] ?? 0),
+                               target: target)
+            }
+        }
     }
 }

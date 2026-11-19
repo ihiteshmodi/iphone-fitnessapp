@@ -29,3 +29,9 @@ Feature: More nutrients per food
     When I apply it
     Then "Soy chunks" has leucine 4.0 and omega-3 form algae, and existing values of other nutrients are kept
     And I am told 2 values were applied and "Unknown food" was not found
+
+  Scenario: The day's nutrients against their daily targets
+    Given today 100 g of "Soy chunks" (leucine 4.0 g, iron 9 mg) was eaten and its vitamin D is unknown
+    Then leucine is 4.0 of 2.9 g, met
+    And iron is 9 of 18 mg, 50 percent
+    And vitamin D is unknown rather than 0

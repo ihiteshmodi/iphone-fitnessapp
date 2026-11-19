@@ -73,4 +73,17 @@ final class NutrientFieldsTests: XCTestCase {
         XCTAssertEqual(draft.omega3Form, .algae)
         XCTAssertEqual(result, NutrientImporter.Result(applied: 2, missingFoods: ["Unknown food"]))
     }
+
+    func testTheDaysNutrientsAgainstTheirDailyTargets() throws {
+        let soy = try library.add(FoodDraft(name: "Soy chunks", protein: 52, nutrients: [.leucine: 4.0, .iron: 9]))
+        let profile = try library.book().profile(of: soy, quantity: 100)
+
+        let rows = DailyTargetReport.rows(profile)
+
+        let leucine = try XCTUnwrap(rows.first { $0.nutrient == .leucine })
+        XCTAssertEqual([leucine.amount, leucine.target], [4.0, 2.9])
+        XCTAssertTrue(leucine.isMet)
+        XCTAssertEqual(try XCTUnwrap(rows.first { $0.nutrient == .iron }).share ?? 0, 0.5, accuracy: 1e-9)
+        XCTAssertNil(try XCTUnwrap(rows.first { $0.nutrient == .vitaminD }).amount)
+    }
 }

@@ -54,6 +54,7 @@ let package = Package(
                 "progress/muscle-volume/muscle-volume.feature",
                 "settings/app-settings/app-settings.feature",
                 "insights/room-for-improvement/room-for-improvement.feature",
+                "insights/nutrition-rules/nutrition-rules.feature",
             ]
         ),
     ]

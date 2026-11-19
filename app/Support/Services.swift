@@ -26,6 +26,7 @@ final class Services: ObservableObject {
     let savedDiets: SavedDietService
     let savedWorkouts: SavedWorkoutService
     let routines: RoutineService
+    let insights: InsightService
 
     init(db: Database, clock: AppClock) {
         self.db = db
@@ -51,5 +52,6 @@ final class Services: ObservableObject {
         savedDiets = SavedDietService(db)
         savedWorkouts = SavedWorkoutService(db)
         routines = RoutineService(db)
+        insights = InsightService(db, daily: NutritionRules.daily, setup: NutritionRules.setup)
     }
 }
