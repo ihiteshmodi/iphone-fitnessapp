@@ -40,7 +40,7 @@ struct LibraryView: View {
         }
         .screenBackground()
         .navigationTitle("Library")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("+ New") { formTarget = .create }

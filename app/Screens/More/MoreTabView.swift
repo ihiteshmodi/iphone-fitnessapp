@@ -16,6 +16,10 @@ struct MoreTabView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    // Drawn here like the other tabs: on iOS 26+ the opaque bar's large title shows as a blank band.
+                    Text("More").font(.system(size: 30, weight: .bold)).foregroundColor(Theme.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityAddTraits(.isHeader)
                     backupCard
                     BreakModeCard(services: services, onChange: { session.didChange() })
                         .id(ObjectIdentifier(services))
@@ -33,6 +37,7 @@ struct MoreTabView: View {
             }
             .screenBackground()
             .navigationTitle("More")
+            .toolbar(.hidden, for: .navigationBar)
         }
         .task(id: session.revision) {
             model.bind(services) { session.didChange() }

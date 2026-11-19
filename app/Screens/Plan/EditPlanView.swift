@@ -85,7 +85,7 @@ struct EditPlanView: View {
         .navigationDestination(isPresented: $showingRoutines) { RoutinesView() }
         .screenBackground()
         .navigationTitle("Edit plan")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task(id: session.revision) {
             model.bind(services, focusDayId: focusDayId) { session.didChange() }
         }
