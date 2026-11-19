@@ -386,9 +386,39 @@ public struct DatabaseFileService {
                 WHERE name = 'Extra calorie batches' AND unit = 'unit' AND base_qty = 1 AND protein = 0 AND carbs = 7.7 AND fat = 7.7
                     AND (estimate_grams IS NULL OR estimate_grams = 10)
                 """)
+            // Version 20: blood draws and their results (Blood Labs).
+            try db.runScript(Self.labTables)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }
+
+    private static let labTables = """
+-- Blood draws: date and the state the draw was taken in (the bloodwork volume's draw protocol). Flags are
+-- 1 yes / 0 no / NULL not answered. Results are typed as printed, in a unit the labs catalogue lists for the marker.
+CREATE TABLE IF NOT EXISTS lab_draws (
+    id             INTEGER PRIMARY KEY,
+    draw_date      TEXT NOT NULL CHECK (draw_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    draw_time      TEXT,
+    lab            TEXT,
+    fasted_hours   REAL CHECK (fasted_hours IS NULL OR fasted_hours >= 0),
+    trained_72h    INTEGER CHECK (trained_72h IS NULL OR trained_72h IN (0, 1)),
+    alcohol_5d     INTEGER CHECK (alcohol_5d IS NULL OR alcohol_5d IN (0, 1)),
+    biotin_stopped INTEGER CHECK (biotin_stopped IS NULL OR biotin_stopped IN (0, 1)),
+    iron_stopped   INTEGER CHECK (iron_stopped IS NULL OR iron_stopped IN (0, 1)),
+    ill_recently   INTEGER CHECK (ill_recently IS NULL OR ill_recently IN (0, 1)),
+    note           TEXT
+);
+CREATE TABLE IF NOT EXISTS lab_results (
+    id        INTEGER PRIMARY KEY,
+    draw_id   INTEGER NOT NULL REFERENCES lab_draws(id) ON DELETE CASCADE,
+    marker_id TEXT NOT NULL,
+    value     REAL NOT NULL,
+    unit      TEXT NOT NULL,
+    lab_low   REAL,
+    lab_high  REAL
+);
+CREATE INDEX IF NOT EXISTS lab_results_by_marker ON lab_results(marker_id);
+"""
 
     // MARK: Find
 

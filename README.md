@@ -251,7 +251,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 19)
+### Database tables (schema version 20)
 
 | Table | Holds |
 |---|---|
@@ -274,6 +274,8 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `insight_dismissals`, `insight_rules` | Room for improvement: items dismissed for a day, and rules accepted or marked as not applying |
 | `checkins`, `meal_walks`, `recovery_signs` | The optional check-in: urine and sweat per day, walks after meals, weekly recovery signs |
 | `refeed_days` | Refeed dates chosen while cutting and what each day was marked |
+| `lab_draws` | Blood draws: date, time, lab and the prep state (fasted hours, hard training in 72 h, alcohol, biotin and iron pills stopped, recent illness) |
+| `lab_results` | One typed result per marker per draw, in a unit the labs catalogue lists, with the lab's own range if entered |
 | `settings` | The settings above |
 
 The schema lives in `src/shared/database/schema.sql`. Older files are upgraded in place when opened (versions 1 to 6 are covered by tests).

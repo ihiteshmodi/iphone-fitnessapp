@@ -304,6 +304,32 @@ CREATE TABLE diet_extras (
 );
 CREATE INDEX diet_extras_by_day ON diet_extras(day);
 
+-- Blood draws: date and the state the draw was taken in (the bloodwork volume's draw protocol). Flags are
+-- 1 yes / 0 no / NULL not answered. Results are typed as printed, in a unit the labs catalogue lists for the marker.
+CREATE TABLE IF NOT EXISTS lab_draws (
+    id             INTEGER PRIMARY KEY,
+    draw_date      TEXT NOT NULL CHECK (draw_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    draw_time      TEXT,
+    lab            TEXT,
+    fasted_hours   REAL CHECK (fasted_hours IS NULL OR fasted_hours >= 0),
+    trained_72h    INTEGER CHECK (trained_72h IS NULL OR trained_72h IN (0, 1)),
+    alcohol_5d     INTEGER CHECK (alcohol_5d IS NULL OR alcohol_5d IN (0, 1)),
+    biotin_stopped INTEGER CHECK (biotin_stopped IS NULL OR biotin_stopped IN (0, 1)),
+    iron_stopped   INTEGER CHECK (iron_stopped IS NULL OR iron_stopped IN (0, 1)),
+    ill_recently   INTEGER CHECK (ill_recently IS NULL OR ill_recently IN (0, 1)),
+    note           TEXT
+);
+CREATE TABLE IF NOT EXISTS lab_results (
+    id        INTEGER PRIMARY KEY,
+    draw_id   INTEGER NOT NULL REFERENCES lab_draws(id) ON DELETE CASCADE,
+    marker_id TEXT NOT NULL,
+    value     REAL NOT NULL,
+    unit      TEXT NOT NULL,
+    lab_low   REAL,
+    lab_high  REAL
+);
+CREATE INDEX IF NOT EXISTS lab_results_by_marker ON lab_results(marker_id);
+
 -- Each setting is one independent knob. history_start_date affects every screen that looks at progress;
 -- the deload_* settings only affect the workout targets.
 INSERT INTO settings (key, value) VALUES
@@ -320,4 +346,4 @@ INSERT INTO settings (key, value) VALUES
     ('fat_max_percent', '35'),
     ('fat_floor_g_per_kg', '0.8');
 
-PRAGMA user_version = 19;
+PRAGMA user_version = 20;

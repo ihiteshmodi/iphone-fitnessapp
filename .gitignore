@@ -45,3 +45,6 @@ __pycache__/
 
 # Personal AI diet reviews (vault content and personal data)
 docs/reviews/
+
+# Research briefs and answers (quote the paid course; personal)
+docs/research/
