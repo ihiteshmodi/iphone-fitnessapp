@@ -202,6 +202,13 @@ CREATE TABLE saved_diet_items (
     PRIMARY KEY (diet_id, meal, food_id)
 );
 
+-- A planned meal knowingly not eaten that day, so the app stops asking whether it was forgotten.
+CREATE TABLE diet_meal_skips (
+    day  TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    meal TEXT NOT NULL,
+    PRIMARY KEY (day, meal)
+);
+
 -- label, time_tag and note are optional: a name of its own (street food logged against a preset), when it was eaten, a note.
 CREATE TABLE diet_extras (
     id      INTEGER PRIMARY KEY,
@@ -230,4 +237,4 @@ INSERT INTO settings (key, value) VALUES
     ('diet_fat_percent', '20'),
     ('fat_ceiling_g_per_lb', '0.4');
 
-PRAGMA user_version = 12;
+PRAGMA user_version = 13;

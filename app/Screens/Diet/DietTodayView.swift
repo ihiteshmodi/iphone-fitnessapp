@@ -13,6 +13,7 @@ struct DietTodayView: View {
         VStack(spacing: 12) {
             dateBar
             if let period = model.breakPeriod { breakNotice(period) }
+            if !model.unconfirmed.isEmpty { unconfirmedCard }
             if let typed = model.typedCalories { typedNotice(typed) }
             if let day = model.day {
                 summaryCard(day)
@@ -29,6 +30,29 @@ struct DietTodayView: View {
                 extrasCard(day)
             }
         }
+    }
+
+    private var unconfirmedCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel("Did you eat these?")
+            ForEach(model.unconfirmed, id: \.self) { item in
+                HStack(spacing: 8) {
+                    Text("\(Format.weekdayDate(item.date)) · \(item.meal)").font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                    Spacer(minLength: 4)
+                    Button("Ate it") { model.confirmEaten(item) }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .fixedSize()
+                        .accessibilityIdentifier("ate-\(item.date.string)-\(item.meal)")
+                    Button("Skipped") { model.confirmSkipped(item) }
+                        .buttonStyle(PrimaryButtonStyle(ghost: true))
+                        .fixedSize()
+                        .accessibilityIdentifier("skipped-\(item.date.string)-\(item.meal)")
+                }
+                .font(.system(size: 13))
+            }
+        }
+        .card(highlighted: true)
+        .accessibilityIdentifier("unconfirmed-meals-card")
     }
 
     private func breakNotice(_ period: BreakPeriod) -> some View {

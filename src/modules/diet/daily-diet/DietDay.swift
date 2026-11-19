@@ -89,6 +89,12 @@ public struct DietExtra: Equatable, Identifiable {
     public var displayName: String { details.label ?? name }
 }
 
+/// A planned meal on a past day with nothing ticked and no answer yet.
+public struct UnconfirmedMeal: Equatable, Hashable {
+    public let date: ISODate
+    public let meal: String
+}
+
 public struct ExtraGroup: Equatable {
     public let time: ExtraTime?
     public let extras: [DietExtra]

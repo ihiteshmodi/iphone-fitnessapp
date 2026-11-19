@@ -265,6 +265,14 @@ public struct DatabaseFileService {
                     PRIMARY KEY (diet_id, meal, food_id)
                 )
                 """)
+            // Version 13: meals knowingly skipped.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS diet_meal_skips (
+                    day  TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    meal TEXT NOT NULL,
+                    PRIMARY KEY (day, meal)
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

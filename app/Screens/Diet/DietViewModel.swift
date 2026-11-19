@@ -23,6 +23,8 @@ final class DietViewModel: ObservableObject {
     @Published private(set) var date: ISODate
     /// The break this day falls in, if any: nothing needs logging then.
     @Published private(set) var breakPeriod: BreakPeriod?
+    /// Past meals left unticked, asked about only while looking at today.
+    @Published private(set) var unconfirmed: [UnconfirmedMeal] = []
     @Published var errorMessage: String?
 
     private let services: Services
@@ -43,6 +45,7 @@ final class DietViewModel: ObservableObject {
             let counted = try services.calories.day(date)
             typedCalories = counted.source == .manual ? counted.calories : nil
             breakPeriod = try services.breaks.current(on: date)
+            unconfirmed = date == today && breakPeriod == nil ? try services.dietDays.unconfirmedMeals(before: today) : []
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -67,6 +70,14 @@ final class DietViewModel: ObservableObject {
     func toggle(_ meal: DietMeal) {
         guard meal.canTick else { return }
         perform { try self.services.dietDays.setMealEaten(meal.tickState != .all, meal: meal.name, on: self.date) }
+    }
+
+    func confirmEaten(_ item: UnconfirmedMeal) {
+        perform { try self.services.dietDays.setMealEaten(true, meal: item.meal, on: item.date) }
+    }
+
+    func confirmSkipped(_ item: UnconfirmedMeal) {
+        perform { try self.services.dietDays.markMealSkipped(item.meal, on: item.date) }
     }
 
     /// Clears the calories typed for this day so the diet counts again.

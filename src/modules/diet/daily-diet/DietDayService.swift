@@ -110,6 +110,30 @@ public final class DietDayService {
         }
     }
 
+    /// How far back the app asks about meals left unticked.
+    public static let unconfirmedLookbackDays = 7
+
+    /// Meals of the last days before `today` with nothing ticked, newest day first, in meal order within a day.
+    /// Break days, days whose calories were typed by hand, and meals answered "skipped" are never asked about.
+    public func unconfirmedMeals(before today: ISODate) throws -> [UnconfirmedMeal] {
+        let breaks = try BreakModeService(db).periods()
+        var found: [UnconfirmedMeal] = []
+        for offset in 1...Self.unconfirmedLookbackDays {
+            let date = today.adding(days: -offset)
+            guard !breaks.contains(where: { $0.contains(date) }),
+                  try db.query("SELECT 1 FROM calorie_entries WHERE logged_on = ?", [.text(date.string)]).isEmpty else { continue }
+            let skipped = Set(try db.query("SELECT meal FROM diet_meal_skips WHERE day = ?", [.text(date.string)]).map { $0.text("meal") })
+            for meal in try day(date).meals where meal.canTick && meal.tickState == .none && !skipped.contains(meal.name) {
+                found.append(UnconfirmedMeal(date: date, meal: meal.name))
+            }
+        }
+        return found
+    }
+
+    public func markMealSkipped(_ meal: String, on date: ISODate) throws {
+        try db.execute("INSERT OR IGNORE INTO diet_meal_skips (day, meal) VALUES (?, ?)", [.text(date.string), .text(meal)])
+    }
+
     /// Calories-only quick add uses this food: 1 calorie per unit, so the amount is the calories.
     public static let quickCaloriesName = "Quick calories"
 
