@@ -335,41 +335,42 @@ final class DailyDietTests: XCTestCase {
         XCTAssertEqual(try day("2026-10-05").targets.proteinShortBy, 53, accuracy: 0.001)
     }
 
-    func testTheFatLimitIsTheSmallerOfAShareOfCaloriesAndTheWeightCap() {
-        let rules = DietRules(proteinMinimumGrams: 180, fatPercentOfCalories: 20, fatCeilingGramsPerPound: 0.4)
+    private let vault = DietRules(proteinMinimumGrams: 180, fatMinPercent: 20, fatMaxPercent: 35, fatFloorGramsPerKg: 0.8)
 
-        let low = DietTargets.evaluate(calories: 1000, protein: 0, fat: 10, rules: rules, averageWeightKg: 64)
-        let high = DietTargets.evaluate(calories: 3000, protein: 0, fat: 10, rules: rules, averageWeightKg: 64)
+    func testFatShouldBe20To35PercentOfCaloriesAndNeverUnderTheFloor() {
+        let usual = DietTargets.evaluate(calories: 2839, protein: 0, fat: 70, rules: vault, averageWeightKg: 64.74)
+        let lighter = DietTargets.evaluate(calories: 2000, protein: 0, fat: 60, rules: vault, averageWeightKg: 64.74)
 
-        XCTAssertEqual(try XCTUnwrap(low.weightCapGrams), 56.32, accuracy: 0.001)
-        XCTAssertEqual(low.fatLimitGrams, 22.222, accuracy: 0.001)
-        XCTAssertEqual(low.fatLimitSource, .shareOfCalories)
-        XCTAssertEqual(high.fatLimitGrams, 56.32, accuracy: 0.001)
-        XCTAssertEqual(high.fatLimitSource, .weightCap)
+        XCTAssertEqual(usual.fatMinimumGrams, 63.089, accuracy: 0.001)
+        XCTAssertEqual(usual.fatMaximumGrams, 110.406, accuracy: 0.001)
+        XCTAssertEqual(usual.fatMinimumSource, .shareOfCalories)
+        XCTAssertEqual(lighter.fatMinimumGrams, 51.792, accuracy: 0.001)
+        XCTAssertEqual(lighter.fatMinimumSource, .bodyWeight)
+        XCTAssertEqual(lighter.fatMaximumGrams, 77.778, accuracy: 0.001)
     }
 
-    func testFatOverTheLimitIsFlagged() {
-        let rules = DietRules(proteinMinimumGrams: 180, fatPercentOfCalories: 20, fatCeilingGramsPerPound: 0.4)
+    func testFatUnderOrOverTheRangeIsFlagged() {
+        func targets(_ fat: Double) -> DietTargets { DietTargets.evaluate(calories: 2839, protein: 0, fat: fat, rules: vault, averageWeightKg: 64.74) }
 
-        XCTAssertFalse(DietTargets.evaluate(calories: 900, protein: 0, fat: 16, rules: rules, averageWeightKg: nil).fatOver)
-        XCTAssertTrue(DietTargets.evaluate(calories: 900, protein: 0, fat: 24, rules: rules, averageWeightKg: nil).fatOver)
+        XCTAssertEqual([targets(49).fatUnder, targets(49).fatOver], [true, false])
+        XCTAssertEqual([targets(80).fatUnder, targets(80).fatOver], [false, false])
+        XCTAssertEqual([targets(120).fatUnder, targets(120).fatOver], [false, true])
     }
 
     func testWithNoWeighInsThereIsOnlyTheShareOfCalories() {
-        let rules = DietRules(proteinMinimumGrams: 180, fatPercentOfCalories: 20, fatCeilingGramsPerPound: 0.4)
+        let targets = DietTargets.evaluate(calories: 3000, protein: 0, fat: 10, rules: vault, averageWeightKg: nil)
 
-        let targets = DietTargets.evaluate(calories: 3000, protein: 0, fat: 10, rules: rules, averageWeightKg: nil)
-
-        XCTAssertNil(targets.weightCapGrams)
-        XCTAssertEqual(targets.fatLimitGrams, 66.667, accuracy: 0.001)
+        XCTAssertNil(targets.fatFloorGrams)
+        XCTAssertEqual(targets.fatMinimumGrams, 66.667, accuracy: 0.001)
+        XCTAssertEqual(targets.fatMaximumGrams, 116.667, accuracy: 0.001)
     }
 
-    func testTheWeightCapUsesTheSevenDayAverageWeighIn() throws {
+    func testTheFloorUsesTheSevenDayAverageWeighIn() throws {
         for offset in 0..<7 { try db.addBodyWeight(on: date("2026-10-05").adding(days: -offset).string, kg: offset == 0 ? 65 : 64) }
         try db.addBodyWeight(on: "2026-09-20", kg: 90)
 
-        let cap = try XCTUnwrap(try day("2026-10-05").targets.weightCapGrams)
+        let floor = try XCTUnwrap(try day("2026-10-05").targets.fatFloorGrams)
 
-        XCTAssertEqual(cap, (64 * 6 + 65) / 7 * 2.2 * 0.4, accuracy: 0.001)
+        XCTAssertEqual(floor, (64 * 6 + 65) / 7 * 0.8, accuracy: 0.001)
     }
 }

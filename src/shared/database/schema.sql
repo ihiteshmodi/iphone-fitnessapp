@@ -293,6 +293,7 @@ INSERT INTO settings (key, value) VALUES
     ('fat_percent_of_calories', '25'),
     ('protein_min_g', '180'),
     ('diet_fat_percent', '20'),
-    ('fat_ceiling_g_per_lb', '0.4');
+    ('fat_max_percent', '35'),
+    ('fat_floor_g_per_kg', '0.8');
 
 PRAGMA user_version = 16;

@@ -332,6 +332,8 @@ public struct DatabaseFileService {
                     PRIMARY KEY (food_id, nutrient)
                 )
                 """)
+            // Version 16: fat follows the vault (20-35 % of calories, floor 0.8 g/kg) instead of a 0.4 g/lb ceiling.
+            try db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('fat_max_percent', '35'), ('fat_floor_g_per_kg', '0.8')")
             // Version 16: room for improvement.
             try db.execute("""
                 CREATE TABLE IF NOT EXISTS insight_dismissals (

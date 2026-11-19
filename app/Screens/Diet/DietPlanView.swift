@@ -7,7 +7,7 @@ final class DietPlanViewModel: ObservableObject {
     @Published private(set) var plan: DietPlan?
     @Published private(set) var planned: DietDay?
     @Published private(set) var foods: [Int: Food] = [:]
-    @Published private(set) var rules = DietRules(proteinMinimumGrams: 180, fatPercentOfCalories: 20, fatCeilingGramsPerPound: 0.4)
+    @Published private(set) var rules = DietRules(proteinMinimumGrams: 180, fatMinPercent: 20, fatMaxPercent: 35, fatFloorGramsPerKg: 0.8)
     @Published private(set) var training: Set<Int> = []
     @Published var errorMessage: String?
 
@@ -53,7 +53,7 @@ final class DietPlanViewModel: ObservableObject {
         let t = planned.planned
         return [(Format.grouped(t.calories), "kcal"),
                 ("\(Format.number(t.protein, maxDecimals: 0)) g", "protein (min \(Format.number(rules.proteinMinimumGrams, maxDecimals: 0)))"),
-                ("\(Format.number(t.fat, maxDecimals: 0)) g", "fat (limit \(Format.number(planned.targets.fatLimitGrams, maxDecimals: 1)))")]
+                ("\(Format.number(t.fat, maxDecimals: 0)) g", "fat (\(Format.number(planned.targets.fatMinimumGrams, maxDecimals: 0))–\(Format.number(planned.targets.fatMaximumGrams, maxDecimals: 0)))")]
     }
 
     func cycleText(_ item: PlanItem) -> String? { item.cycle == .daily ? nil : CyclePresentation.summary(item.cycle) }
@@ -81,14 +81,14 @@ final class DietPlanViewModel: ObservableObject {
         run { try self.services.dietPlans.removeItem(meal: item.meal, foodID: item.foodID, from: self.editFrom) }
     }
 
-    func saveRules(protein: String, fatPercent: String, ceiling: String) -> Bool {
+    func saveRules(protein: String, fatMin: String, fatMax: String, floor: String) -> Bool {
         run {
             guard let p = Format.decimal(protein) else { throw ValidationError("Enter the protein minimum as a number") }
-            guard let f = Format.decimal(fatPercent) else { throw ValidationError("Enter the fat share as a number") }
-            guard let c = Format.decimal(ceiling) else { throw ValidationError("Enter the fat ceiling as a number") }
+            guard let low = Format.decimal(fatMin), let high = Format.decimal(fatMax) else { throw ValidationError("Enter the fat shares as numbers") }
+            guard let f = Format.decimal(floor) else { throw ValidationError("Enter the fat floor as a number") }
             try self.services.dietRules.setProteinMinimum(p)
-            try self.services.dietRules.setFatPercent(f)
-            try self.services.dietRules.setFatCeilingPerPound(c)
+            try self.services.dietRules.setFatRange(minPercent: low, maxPercent: high)
+            try self.services.dietRules.setFatFloor(gramsPerKg: f)
         }
     }
 
@@ -244,7 +244,7 @@ struct DietPlanView: View {
                 Spacer()
                 Button("Edit") { editingRules = true }.font(.system(size: 12, weight: .semibold)).accessibilityIdentifier("plan-edit-rules")
             }
-            Text("Protein at least \(Format.number(model.rules.proteinMinimumGrams, maxDecimals: 0)) g · fat up to \(Format.number(model.rules.fatPercentOfCalories))% of calories, never above \(Format.number(model.rules.fatCeilingGramsPerPound)) g per lb of body weight.")
+            Text("Protein at least \(Format.number(model.rules.proteinMinimumGrams, maxDecimals: 0)) g · fat \(Format.number(model.rules.fatMinPercent))–\(Format.number(model.rules.fatMaxPercent))% of calories, and never under \(Format.number(model.rules.fatFloorGramsPerKg)) g per kg of body weight.")
                 .font(.system(size: 13)).foregroundColor(Theme.muted)
         }
         .card()
@@ -258,20 +258,24 @@ struct DietRulesSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var protein = ""
-    @State private var fatPercent = ""
-    @State private var ceiling = ""
+    @State private var fatMin = ""
+    @State private var fatMax = ""
+    @State private var floor = ""
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     BodyField(label: "Protein minimum", text: $protein, unit: "g", identifier: "rules-protein-field")
-                    BodyField(label: "Fat share of calories", text: $fatPercent, unit: "%", identifier: "rules-fat-field")
-                    BodyField(label: "Fat ceiling per lb of body weight", text: $ceiling, unit: "g", identifier: "rules-ceiling-field")
-                    Text("The fat limit on a day is the smaller of the share of that day's calories and the ceiling (your 7-day average weight in lb times this number).")
+                    HStack(spacing: 10) {
+                        BodyField(label: "Fat at least", text: $fatMin, unit: "% kcal", identifier: "rules-fat-field")
+                        BodyField(label: "Fat at most", text: $fatMax, unit: "% kcal", identifier: "rules-fat-max-field")
+                    }
+                    BodyField(label: "Fat never under", text: $floor, unit: "g per kg", identifier: "rules-floor-field")
+                    Text("The vault's rule: fat 20–35% of calories, never under about 0.8 g per kg of body weight (too little fat for long can lower hormones and fat-soluble vitamins need it). The floor uses your 7-day average weight.")
                         .font(.system(size: 12)).foregroundColor(Theme.muted)
                     Button("Save") {
-                        if model.saveRules(protein: protein, fatPercent: fatPercent, ceiling: ceiling) {
+                        if model.saveRules(protein: protein, fatMin: fatMin, fatMax: fatMax, floor: floor) {
                             onSaved()
                             dismiss()
                         }
@@ -288,8 +292,9 @@ struct DietRulesSheet: View {
         }
         .onAppear {
             protein = Format.number(model.rules.proteinMinimumGrams)
-            fatPercent = Format.number(model.rules.fatPercentOfCalories)
-            ceiling = Format.number(model.rules.fatCeilingGramsPerPound)
+            fatMin = Format.number(model.rules.fatMinPercent)
+            fatMax = Format.number(model.rules.fatMaxPercent)
+            floor = Format.number(model.rules.fatFloorGramsPerKg)
         }
     }
 }

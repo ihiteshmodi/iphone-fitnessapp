@@ -78,7 +78,7 @@ Screenshots of the real app.
 - **Did you eat these?** When you open today in Diet, planned meals of the last 7 days that were left unticked are listed: *Ate it* ticks the meal on its day, *Skipped* records that you really skipped it so the app stops asking. Break days and days with typed calories are never asked about.
 - **Saved diets:** Plan → Saved diets keeps the diet in force under a name ("High-protein 2-meal") with its meals, totals and an *In force* tag. *Use from…* switches the plan to a saved diet from any date; earlier days keep the diet they had.
 - **Cycles:** an item can follow a cycle: weeks on and off counted Monday to Sunday (for example 2 on, 1 off), days on and off, chosen weekdays, or training days. Off days are greyed, not counted in calories or cost, and need no tick.
-- **Targets:** protein is a minimum (180 g by default). The fat limit is the smaller of 20% of the day's calories and a weight cap (7-day average weight in lb × 0.4 g). All three numbers are editable.
+- **Targets:** protein is a minimum (180 g by default). Fat follows the vault: 20–35% of the day's calories, and never under 0.8 g per kg of 7-day average body weight (whichever is higher is the minimum). All the numbers are editable.
 - **Cost and calories:** every day shows its total calories, macros and cost. The Body tab, the weekly average and the calorie target use these days.
 
 **Data**
@@ -260,7 +260,7 @@ The schema lives in `src/shared/database/schema.sql`. Older files are upgraded i
 | Food calories | The label value when typed, otherwise `4 × protein + 4 × carbs + 9 × fat` |
 | Recipe | Ingredients added up, divided by what the recipe makes. Always worked out from the current foods |
 | One piece | The weight typed for a piece, else `pack size ÷ pieces in the pack` |
-| Diet fat limit | The smaller of `fat % × calories ÷ 9` and `7-day average weight in lb × 0.4` |
+| Diet fat range | Minimum = the larger of `20% × calories ÷ 9` and `7-day average weight in kg × 0.8`; maximum = `35% × calories ÷ 9` |
 | Cycle | Weeks on and off count from a Monday and repeat; days on and off count from any date; weekdays and training days follow the calendar |
 | Measurement colour | Only the wrong direction counts: within the tolerance is green, beyond it amber, beyond 10% red |
 

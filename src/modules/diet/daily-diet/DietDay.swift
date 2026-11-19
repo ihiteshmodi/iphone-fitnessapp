@@ -164,31 +164,34 @@ public struct RecentExtra: Equatable {
     public let pieces: Double?
 }
 
-public enum FatLimitSource: Equatable {
+public enum FatMinimumSource: Equatable {
     case shareOfCalories
-    case weightCap
+    case bodyWeight
 }
 
-/// A day measured against the protein minimum and the fat limit.
+/// A day measured against the protein minimum and the fat range.
 public struct DietTargets: Equatable {
     public let proteinMinimumGrams: Double
     public let proteinMet: Bool
     public let proteinShortBy: Double
-    public let fatLimitGrams: Double
-    public let fatLimitSource: FatLimitSource
-    public let weightCapGrams: Double?
+    /// The bottom of the range: the larger of the lowest share of calories and the floor from body weight.
+    public let fatMinimumGrams: Double
+    public let fatMinimumSource: FatMinimumSource
+    public let fatMaximumGrams: Double
+    /// Floor from the 7-day average weight; nil without weigh-ins.
+    public let fatFloorGrams: Double?
+    public let fatUnder: Bool
     public let fatOver: Bool
 
-    private static let poundsPerKilogram = 2.2
-
-    /// The fat limit is the smaller of the share of the day's calories and the cap from body weight (when weight is known).
     public static func evaluate(calories: Double, protein: Double, fat: Double, rules: DietRules, averageWeightKg: Double?) -> DietTargets {
-        let share = rules.fatPercentOfCalories / 100 * calories / 9
-        let cap = averageWeightKg.map { $0 * poundsPerKilogram * rules.fatCeilingGramsPerPound }
-        let useCap = cap.map { $0 < share } ?? false
-        let limit = useCap ? cap! : share
+        let share = rules.fatMinPercent / 100 * calories / 9
+        let floor = averageWeightKg.map { $0 * rules.fatFloorGramsPerKg }
+        let floorWins = floor.map { $0 > share } ?? false
+        let minimum = floorWins ? floor! : share
+        let maximum = max(rules.fatMaxPercent / 100 * calories / 9, minimum)
         return DietTargets(proteinMinimumGrams: rules.proteinMinimumGrams, proteinMet: protein >= rules.proteinMinimumGrams,
-                           proteinShortBy: max(0, rules.proteinMinimumGrams - protein), fatLimitGrams: limit,
-                           fatLimitSource: useCap ? .weightCap : .shareOfCalories, weightCapGrams: cap, fatOver: fat > limit)
+                           proteinShortBy: max(0, rules.proteinMinimumGrams - protein),
+                           fatMinimumGrams: minimum, fatMinimumSource: floorWins ? .bodyWeight : .shareOfCalories,
+                           fatMaximumGrams: maximum, fatFloorGrams: floor, fatUnder: fat < minimum, fatOver: fat > maximum)
     }
 }

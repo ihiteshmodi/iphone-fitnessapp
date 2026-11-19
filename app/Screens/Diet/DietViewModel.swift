@@ -19,7 +19,7 @@ final class DietViewModel: ObservableObject {
     @Published private(set) var recentExtras: [RecentExtra] = []
     /// Calories typed for this day in the Body tab; they win over the diet until cleared.
     @Published private(set) var typedCalories: Double?
-    @Published private(set) var rules = DietRules(proteinMinimumGrams: 180, fatPercentOfCalories: 20, fatCeilingGramsPerPound: 0.4)
+    @Published private(set) var rules = DietRules(proteinMinimumGrams: 180, fatMinPercent: 20, fatMaxPercent: 35, fatFloorGramsPerKg: 0.8)
     @Published private(set) var date: ISODate
     /// The break this day falls in, if any: nothing needs logging then.
     @Published private(set) var breakPeriod: BreakPeriod?
@@ -134,8 +134,8 @@ final class DietViewModel: ObservableObject {
         guard let day else { return [] }
         let t = day.targets
         let protein = day.total.protein, fat = day.total.fat
-        let sourceText = t.fatLimitSource == .weightCap ? "weight cap" : "\(Format.number(rules.fatPercentOfCalories))% of cal"
-        let fatRatio = t.fatLimitGrams > 0 ? fat / t.fatLimitGrams : 0
+        let floorText = t.fatMinimumSource == .bodyWeight ? "floor \(Format.number(rules.fatFloorGramsPerKg)) g/kg" : "\(Format.number(rules.fatMinPercent))–\(Format.number(rules.fatMaxPercent))% of cal"
+        let fatRatio = t.fatMaximumGrams > 0 ? fat / t.fatMaximumGrams : 0
         let carbShare = day.total.calories > 0 ? min(day.total.carbs * 4 / day.total.calories, 1) : 0
         return [
             DietMacroRow(name: "Protein", value: "\(Format.number(protein, maxDecimals: 0)) g",
@@ -144,8 +144,8 @@ final class DietViewModel: ObservableObject {
             DietMacroRow(name: "Carbs", value: "\(Format.number(day.total.carbs, maxDecimals: 0)) g", note: "rest of calories", tone: .grey,
                          progress: carbShare),
             DietMacroRow(name: "Fat", value: "\(Format.number(fat, maxDecimals: 1)) g",
-                         note: "limit \(Format.number(t.fatLimitGrams, maxDecimals: 1)) · \(sourceText)",
-                         tone: t.fatOver ? .red : (fatRatio >= 0.9 ? .amber : .green), progress: min(fatRatio, 1)),
+                         note: "\(Format.number(t.fatMinimumGrams, maxDecimals: 0))–\(Format.number(t.fatMaximumGrams, maxDecimals: 0)) g · \(floorText)",
+                         tone: t.fatOver ? .red : (t.fatUnder ? .amber : .green), progress: min(fatRatio, 1)),
         ]
     }
 

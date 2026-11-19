@@ -65,20 +65,19 @@ Feature: What I ate on a day
     Then a day with the whole plan ticked, protein 67, meets it
     And unticking Shake leaves protein 7 which is under it
 
-  Scenario: The fat limit is the smaller of a share of the calories and the weight cap
-    Given the fat share is 20 percent and the weight cap is 0.4 g per lb
-    And the 7-day average weight is 64 kg
-    Then the cap is 56.3 g (64 x 2.2 x 0.4)
-    And for 1000 calories the share is 22.2 g so the limit is 22.2 g
-    And for 3000 calories the share is 66.7 g so the limit is the cap, 56.3 g
+  Scenario: Fat should be 20 to 35 percent of calories, and never under 0.8 g per kg
+    Given the fat range is 20 to 35 percent of calories with a floor of 0.8 g per kg
+    And the 7-day average weight is 64.74 kg
+    Then for 2839 calories fat should be 63.1 g to 110.4 g (20 percent is above the 51.8 g floor)
+    And for 2000 calories fat should be 51.8 g (the floor is above 20 percent, 44.4 g) to 77.8 g
 
-  Scenario: Fat over the limit is flagged
-    Given the limit is 20 g
-    Then fat 16 is within it and fat 24 is over it
+  Scenario: Fat under or over the range is flagged
+    Given 2839 calories and a weight of 64.74 kg
+    Then fat 49 g is under the range, fat 80 g is within it and fat 120 g is over it
 
   Scenario: With no weigh-ins there is only the share of calories
     Given no weight has been logged
-    Then the fat limit is the share of the day's calories
+    Then the range is 20 to 35 percent of the day's calories
 
   Scenario: Days with no plan can still have extras
     When I add 4 pieces of "Tea biscuits" on 2026-09-20, before the plan
