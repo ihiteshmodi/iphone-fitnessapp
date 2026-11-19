@@ -133,9 +133,11 @@ final class DietViewModel: ObservableObject {
     var macroRows: [DietMacroRow] {
         guard let day else { return [] }
         let t = day.targets
+        // Until more than the plan is eaten, show the range to aim for, not the range of what has been eaten so far.
+        let range = day.total.calories < day.planned.calories ? day.planTargets : t
         let protein = day.total.protein, fat = day.total.fat
-        let floorText = t.fatMinimumSource == .bodyWeight ? "floor \(Format.number(rules.fatFloorGramsPerKg)) g/kg" : "\(Format.number(rules.fatMinPercent))–\(Format.number(rules.fatMaxPercent))% of cal"
-        let fatRatio = t.fatMaximumGrams > 0 ? fat / t.fatMaximumGrams : 0
+        let floorText = range.fatMinimumSource == .bodyWeight ? "floor \(Format.number(rules.fatFloorGramsPerKg)) g/kg" : "\(Format.number(rules.fatMinPercent))–\(Format.number(rules.fatMaxPercent))% of cal"
+        let fatRatio = range.fatMaximumGrams > 0 ? fat / range.fatMaximumGrams : 0
         let carbShare = day.total.calories > 0 ? min(day.total.carbs * 4 / day.total.calories, 1) : 0
         return [
             DietMacroRow(name: "Protein", value: "\(Format.number(protein, maxDecimals: 0)) g",
@@ -144,7 +146,7 @@ final class DietViewModel: ObservableObject {
             DietMacroRow(name: "Carbs", value: "\(Format.number(day.total.carbs, maxDecimals: 0)) g", note: "rest of calories", tone: .grey,
                          progress: carbShare),
             DietMacroRow(name: "Fat", value: "\(Format.number(fat, maxDecimals: 1)) g",
-                         note: "\(Format.number(t.fatMinimumGrams, maxDecimals: 0))–\(Format.number(t.fatMaximumGrams, maxDecimals: 0)) g · \(floorText)",
+                         note: "\(Format.number(range.fatMinimumGrams, maxDecimals: 0))–\(Format.number(range.fatMaximumGrams, maxDecimals: 0)) g · \(floorText)",
                          tone: t.fatOver ? .red : (t.fatUnder ? .amber : .green), progress: min(fatRatio, 1)),
         ]
     }

@@ -126,6 +126,8 @@ public struct DietDay: Equatable {
     public let total: Nutrition
     public let cost: Cost
     public let targets: DietTargets
+    /// The planned day against the same rules: the fat range to aim for before the day is eaten.
+    public let planTargets: DietTargets
 
     /// Extra nutrients of what counts today: ticked items plus extras.
     public var eatenProfile: NutrientProfile {

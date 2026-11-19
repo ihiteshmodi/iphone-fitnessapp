@@ -62,6 +62,14 @@ final class TrainingRulesTests: XCTestCase {
         XCTAssertEqual(item.severity, .tip)
     }
 
+    func testOneWeeklySetReadsSingular() throws {
+        try db.addSet(exercise: bench, on: "2026-11-17", weight: 60, reps: 8)
+
+        let rule = try XCTUnwrap(TrainingRules.daily.first { $0.id == "weekly-sets" })
+        guard case .fired(let item) = try rule.evaluate(on: date("2026-11-18"), db: db) else { return XCTFail("should fire") }
+        XCTAssertTrue(item.detail.contains("Chest 1 set in"), item.detail)
+    }
+
     func testACutLosingTooFast() throws {
         for offset in 0..<7 { try db.addBodyWeight(on: today.adding(days: -offset).string, kg: 65.0) }
         for offset in 7..<14 { try db.addBodyWeight(on: today.adding(days: -offset).string, kg: 66.0) }

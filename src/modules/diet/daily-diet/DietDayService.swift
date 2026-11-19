@@ -47,13 +47,16 @@ public final class DietDayService {
         let extrasNutrition = extras.reduce(Nutrition.zero) { $0 + $1.nutrition }
         let eatenNutrition = eaten.reduce(Nutrition.zero) { $0 + $1.nutrition }
         let total = eatenNutrition + extrasNutrition
-        let targets = DietTargets.evaluate(calories: total.calories, protein: total.protein, fat: total.fat,
-                                           rules: try settings.load(), averageWeightKg: try averageWeightKg(on: date))
+        let rules = try settings.load()
+        let weight = try averageWeightKg(on: date)
+        let planned = isOn.reduce(Nutrition.zero) { $0 + $1.nutrition }
+        let targets = DietTargets.evaluate(calories: total.calories, protein: total.protein, fat: total.fat, rules: rules, averageWeightKg: weight)
+        let planTargets = DietTargets.evaluate(calories: planned.calories, protein: planned.protein, fat: planned.fat, rules: rules, averageWeightKg: weight)
         return DietDay(date: date, hasPlan: plan != nil, meals: meals, extras: extras,
-                       planned: isOn.reduce(Nutrition.zero) { $0 + $1.nutrition },
+                       planned: planned,
                        plannedCount: isOn.count, eatenCount: eaten.count, eatenNutrition: eatenNutrition,
                        extrasNutrition: extrasNutrition, total: total,
-                       cost: (eaten.map(\.cost) + extras.map(\.cost)).reduce(Cost.free, +), targets: targets)
+                       cost: (eaten.map(\.cost) + extras.map(\.cost)).reduce(Cost.free, +), targets: targets, planTargets: planTargets)
     }
 
     /// Extras eaten in the `days` days ending at `end`; `days` in the result counts the days that have any.

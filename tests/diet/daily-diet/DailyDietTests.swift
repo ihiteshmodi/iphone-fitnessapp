@@ -349,6 +349,14 @@ final class DailyDietTests: XCTestCase {
         XCTAssertEqual(lighter.fatMaximumGrams, 77.778, accuracy: 0.001)
     }
 
+    func testBeforeAnythingIsTickedTheFatRangeComesFromThePlan() throws {
+        let planned = try day("2026-11-19")
+
+        XCTAssertEqual(planned.planTargets.fatMinimumGrams, 1000 * 0.20 / 9, accuracy: 0.001)
+        XCTAssertEqual(planned.planTargets.fatMaximumGrams, 1000 * 0.35 / 9, accuracy: 0.001)
+        XCTAssertEqual(planned.targets.fatMaximumGrams, 0, accuracy: 0.001, "what was eaten is still judged on what was eaten")
+    }
+
     func testFatUnderOrOverTheRangeIsFlagged() {
         func targets(_ fat: Double) -> DietTargets { DietTargets.evaluate(calories: 2839, protein: 0, fat: fat, rules: vault, averageWeightKg: 64.74) }
 

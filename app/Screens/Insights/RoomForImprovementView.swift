@@ -103,12 +103,12 @@ struct RoomForImprovementView: View {
             }
             Text(item.detail).font(.system(size: 13)).foregroundColor(Theme.text).fixedSize(horizontal: false, vertical: true)
             Text(item.why).font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
+            if item.action == .turnOnDeload {
+                Button("Turn on deload") { model.run(.turnOnDeload) }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityIdentifier("turn-on-deload")
+            }
             HStack(spacing: 8) {
-                if item.action == .turnOnDeload {
-                    Button("Turn on deload") { model.run(.turnOnDeload) }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .accessibilityIdentifier("turn-on-deload")
-                }
                 if item.kind == .today {
                     Button("Dismiss") { model.dismiss(item) }.accessibilityIdentifier("dismiss-\(item.id)")
                 } else {

@@ -90,6 +90,23 @@ struct Pill: View {
     }
 }
 
+/// A small pill button for pairs in a row (Ate it / Skipped), sized to its label.
+struct CompactButtonStyle: ButtonStyle {
+    var ghost = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .bold))
+            .foregroundColor(ghost ? Theme.green : Theme.onGreen)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(ghost ? Theme.card2 : Theme.green)
+            .overlay(Capsule().stroke(ghost ? Theme.green.opacity(0.5) : .clear, lineWidth: 1))
+            .clipShape(Capsule())
+            .opacity(configuration.isPressed ? 0.8 : 1)
+    }
+}
+
 struct PrimaryButtonStyle: ButtonStyle {
     var ghost = false
 

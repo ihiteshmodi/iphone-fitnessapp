@@ -56,12 +56,10 @@ struct DietTodayView: View {
                     Text("\(Format.weekdayDate(item.date)) · \(item.meal)").font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
                     Spacer(minLength: 4)
                     Button("Ate it") { model.confirmEaten(item) }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .fixedSize()
+                        .buttonStyle(CompactButtonStyle())
                         .accessibilityIdentifier("ate-\(item.date.string)-\(item.meal)")
                     Button("Skipped") { model.confirmSkipped(item) }
-                        .buttonStyle(PrimaryButtonStyle(ghost: true))
-                        .fixedSize()
+                        .buttonStyle(CompactButtonStyle(ghost: true))
                         .accessibilityIdentifier("skipped-\(item.date.string)-\(item.meal)")
                 }
                 .font(.system(size: 13))

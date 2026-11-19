@@ -53,7 +53,7 @@ final class DietPlanViewModel: ObservableObject {
         let t = planned.planned
         return [(Format.grouped(t.calories), "kcal"),
                 ("\(Format.number(t.protein, maxDecimals: 0)) g", "protein (min \(Format.number(rules.proteinMinimumGrams, maxDecimals: 0)))"),
-                ("\(Format.number(t.fat, maxDecimals: 0)) g", "fat (\(Format.number(planned.targets.fatMinimumGrams, maxDecimals: 0))–\(Format.number(planned.targets.fatMaximumGrams, maxDecimals: 0)))")]
+                ("\(Format.number(t.fat, maxDecimals: 0)) g", "fat (\(Format.number(planned.planTargets.fatMinimumGrams, maxDecimals: 0))–\(Format.number(planned.planTargets.fatMaximumGrams, maxDecimals: 0)))")]
     }
 
     func cycleText(_ item: PlanItem) -> String? { item.cycle == .daily ? nil : CyclePresentation.summary(item.cycle) }

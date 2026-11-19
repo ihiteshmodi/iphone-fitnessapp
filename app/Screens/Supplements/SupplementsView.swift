@@ -57,9 +57,7 @@ struct SupplementsView: View {
         .card()
     }
 
-    private func isMultivitamin(_ food: Food) -> Bool {
-        food.draft.nutrients.keys.filter { $0.group == .vitamins || $0.group == .minerals }.count >= 3
-    }
+    private func isMultivitamin(_ food: Food) -> Bool { MultivitaminWhatIf.isMultivitamin(food.draft) }
 
     private func librarySection(_ library: SupplementLibrary) -> some View {
         VStack(alignment: .leading, spacing: 8) {

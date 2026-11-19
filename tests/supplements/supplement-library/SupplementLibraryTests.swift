@@ -102,6 +102,17 @@ final class SupplementLibraryTests: XCTestCase {
         XCTAssertTrue(tip.detail.contains("2-4 weeks"))
     }
 
+    func testAMultivitaminHasSeveralVitaminsAndAlmostNoCalories() {
+        let multi = FoodDraft(name: "Becadexamine", kind: .supplement, unit: "unit", baseQuantity: 1,
+                              nutrients: [.vitaminA: 1500, .b1: 5, .b3: 45, .folate: 1500, .zinc: 10])
+        let salt = FoodDraft(name: "Himalayan Salt", kind: .supplement, baseQuantity: 100,
+                             sodium: 38000, nutrients: [.vitaminA: 0, .b1: 0, .b3: 0, .folate: 0])
+        let milk = FoodDraft(name: "Milk powder", kind: .supplement, baseQuantity: 100, protein: 35, carbs: 52, fat: 1,
+                             nutrients: [.vitaminA: 6, .b2: 1.5, .b12: 4, .vitaminD: 0.1])
+
+        XCTAssertEqual([multi, salt, milk].map(MultivitaminWhatIf.isMultivitamin), [true, false, false])
+    }
+
     func testMultivitaminWhatIf() throws {
         let tablet = NutrientProfile(values: [.vitaminD: 25, .zinc: 15], unknown: [])
         let food = NutrientProfile(values: [.zinc: 10], unknown: [])

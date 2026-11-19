@@ -239,7 +239,7 @@ struct DietRecipeView: View {
                 HStack {
                     Text(row.name).font(.system(size: 14)).foregroundColor(Theme.text)
                     Spacer()
-                    Text(Format.amount((row.line.quantity * 10).rounded() / 10, unit: row.unit)).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                    Text(Format.amount(row.line.quantity < 10 ? row.line.quantity : (row.line.quantity * 10).rounded() / 10, unit: row.unit)).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
                 }
                 .padding(.vertical, 7)
                 .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }

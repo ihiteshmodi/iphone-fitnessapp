@@ -229,6 +229,13 @@ public enum MultivitaminWhatIf {
         public var isOverLimit: Bool { upperLimit.map { amount > $0 } ?? false }
     }
 
+    /// Several vitamins actually present (explicit zeros don't count) and next to no protein, carbs or fat,
+    /// so milk powder or salt with filled-in nutrient data is not mistaken for a multivitamin.
+    public static func isMultivitamin(_ draft: FoodDraft) -> Bool {
+        let vitamins = draft.nutrients.filter { $0.key.group == .vitamins && $0.value > 0 }.count
+        return vitamins >= 4 && draft.protein + draft.carbs + draft.fat < 1
+    }
+
     public static func rows(perTablet: NutrientProfile, tablets: Int, rest: NutrientProfile) -> [Row] {
         Nutrient.allCases.filter { perTablet[$0] != nil && ($0.group == .vitamins || $0.group == .minerals) }.map { nutrient in
             Row(nutrient: nutrient, amount: (perTablet[nutrient] ?? 0) * Double(tablets) + (rest[nutrient] ?? 0),

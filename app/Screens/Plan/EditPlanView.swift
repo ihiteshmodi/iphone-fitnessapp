@@ -14,9 +14,24 @@ struct EditPlanView: View {
     @State private var routineTarget: PlanDay?
     @State private var dayToSave: PlanDay?
     @State private var routineName = ""
+    @State private var showingSavedWorkouts = false
+    @State private var showingRoutines = false
 
     init(focusDayId: Int? = nil) {
         self.focusDayId = focusDayId
+    }
+
+    private func libraryRow(_ title: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title).foregroundColor(Theme.text)
+                Spacer()
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.muted)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
     }
 
     var body: some View {
@@ -36,11 +51,10 @@ struct EditPlanView: View {
                         .foregroundColor(Theme.muted)
                 }
             }
+            // Buttons, not NavigationLinks: the list is always in edit mode for reordering, which disables links.
             Section {
-                NavigationLink("Saved workouts") { SavedWorkoutsView() }
-                    .accessibilityIdentifier("plan-saved-workouts")
-                NavigationLink("Routines") { RoutinesView() }
-                    .accessibilityIdentifier("plan-routines")
+                libraryRow("Saved workouts", id: "plan-saved-workouts") { showingSavedWorkouts = true }
+                libraryRow("Routines", id: "plan-routines") { showingRoutines = true }
             }
             .listRowBackground(Theme.card)
             ForEach(model.days) { day in
@@ -67,6 +81,8 @@ struct EditPlanView: View {
         .scrollContentBackground(.hidden)
         // Always in edit mode so every exercise row shows its drag handle; there is no delete control because rows have no onDelete.
         .environment(\.editMode, .constant(.active))
+        .navigationDestination(isPresented: $showingSavedWorkouts) { SavedWorkoutsView() }
+        .navigationDestination(isPresented: $showingRoutines) { RoutinesView() }
         .screenBackground()
         .navigationTitle("Edit plan")
         .navigationBarTitleDisplayMode(.large)

@@ -128,7 +128,7 @@ struct WeeklySetsRule: DailyRule {
         let outside = sets.filter { !TrainingRules.weeklySets.contains($0.value) }.sorted { $0.key.displayName < $1.key.displayName }
         guard !outside.isEmpty else { return .ok }
         return .fired(Insight(ruleID: id, kind: .today, severity: .tip, title: title,
-                              detail: outside.map { "\($0.key.displayName) \($0.value) sets" }.joined(separator: ", ") + " in the last 7 days; aim for 10-20 hard sets per muscle.",
+                              detail: outside.map { "\($0.key.displayName) \($0.value) set\($0.value == 1 ? "" : "s")" }.joined(separator: ", ") + " in the last 7 days; aim for 10-20 hard sets per muscle.",
                               why: "Vault: 10-20 hard sets per muscle a week, 1-3 reps short of failure.", day: day))
     }
 }
