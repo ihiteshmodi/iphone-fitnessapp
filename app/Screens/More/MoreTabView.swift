@@ -22,6 +22,7 @@ struct MoreTabView: View {
                     deloadCard
                     CoachPresetsCard()
                     NutrientDataCard()
+                    toolsCard
                     historyCard
                     pastDataCard
                     planCard
@@ -120,6 +121,24 @@ struct MoreTabView: View {
         } catch {
             errorMessage = MoreErrorText.message(for: error)
         }
+    }
+
+    // MARK: Tools
+
+    private var toolsCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionLabel("Tools")
+            NavigationLink { SweatyActivityView() } label: {
+                MoreRow(title: "Sweaty activity", subtitle: "What to put in your bottle for a hike or a long, sweaty session") {
+                    Image(systemName: "chevron.right").foregroundColor(Theme.muted)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityIdentifier("sweaty-activity-row")
+        }
+        .card()
     }
 
     // MARK: Deload

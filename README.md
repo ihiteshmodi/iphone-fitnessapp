@@ -86,6 +86,8 @@ Screenshots of the real app.
 - **Trends:** each rule over 7, 30 or 90 days as a strip (red fired, green fine, grey no data) with "fired on x of y days".
 - **Setup:** one-time fixes to the diet plan: fewer than 3 protein meals, planned meals under 3 g leucine, low fiber or fat, omega-3 form not rTG or algae. They go away when the plan is fixed, or *Accept* them.
 - **Labs:** filled in by Blood Labs later. **Archived:** accepted items (still tracked) and rules that don't apply to you (not checked); *Restore* brings them back.
+- **Check-in (optional):** on Diet → Today, urine colour (Clear, Pale yellow, Dark yellow), a walk tick after each meal (any time that day; yesterday stays editable), heavy sweat yes/no, and once a week the signs of being under-recovered. Unanswered is no data. Dark urine 2 days running, clear 3 days running, and 3+ recovery signs two weeks running show up in Room for improvement; walks are only a weekly share.
+- **Sweaty activity (More → Tools):** for a hike or long sweaty session, how much Himalayan salt and potassium chloride to put in the water you carry and how often to sip, from the vault's per-hour numbers. Your daily workout mix is left as it is.
 - **Daily targets:** the day's amino acids, vitamins, minerals, fiber and omega-6 against their daily targets; unknown values are shown as unknown, never as a miss.
 
 **Data**
@@ -228,7 +230,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 16)
+### Database tables (schema version 17)
 
 | Table | Holds |
 |---|---|
@@ -249,6 +251,7 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `saved_diets`, `saved_diet_items` | Diets kept under a name: a copy of the plan's meals, foods, quantities and cycles |
 | `break_periods` | Break mode: start and end day of each break (no end while it is still on) |
 | `insight_dismissals`, `insight_rules` | Room for improvement: items dismissed for a day, and rules accepted or marked as not applying |
+| `checkins`, `meal_walks`, `recovery_signs` | The optional check-in: urine and sweat per day, walks after meals, weekly recovery signs |
 | `settings` | The settings above |
 
 The schema lives in `src/shared/database/schema.sql`. Older files are upgraded in place when opened (versions 1 to 6 are covered by tests).

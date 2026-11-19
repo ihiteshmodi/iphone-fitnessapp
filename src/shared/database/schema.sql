@@ -154,6 +154,23 @@ CREATE TABLE insight_rules (
     note    TEXT
 );
 
+-- The optional check-in: urine colour and heavy sweat per day, walks after meals, recovery signs per week (Monday).
+CREATE TABLE checkins (
+    day         TEXT PRIMARY KEY CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    urine       TEXT CHECK (urine IS NULL OR urine IN ('clear', 'pale', 'dark')),
+    heavy_sweat INTEGER CHECK (heavy_sweat IS NULL OR heavy_sweat IN (0, 1))
+);
+CREATE TABLE meal_walks (
+    day  TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    meal TEXT NOT NULL,
+    PRIMARY KEY (day, meal)
+);
+CREATE TABLE recovery_signs (
+    week_start TEXT NOT NULL CHECK (week_start GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    sign       TEXT NOT NULL,
+    PRIMARY KEY (week_start, sign)
+);
+
 CREATE TABLE settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -296,4 +313,4 @@ INSERT INTO settings (key, value) VALUES
     ('fat_max_percent', '35'),
     ('fat_floor_g_per_kg', '0.8');
 
-PRAGMA user_version = 16;
+PRAGMA user_version = 17;

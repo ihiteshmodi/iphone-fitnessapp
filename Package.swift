@@ -38,6 +38,7 @@ let package = Package(
                 "nutrition/calorie-history/calorie-history.feature",
                 "nutrition/break-mode/break-mode.feature",
                 "nutrition/effective-calories/effective-calories.feature",
+                "nutrition/sweaty-activity/sweaty-activity.feature",
                 "nutrition/daily-calories/daily-calories.feature",
                 "nutrition/nutrition-settings/nutrition-settings.feature",
                 "planning/deload-mode/deload-mode.feature",
@@ -55,6 +56,7 @@ let package = Package(
                 "settings/app-settings/app-settings.feature",
                 "insights/room-for-improvement/room-for-improvement.feature",
                 "insights/nutrition-rules/nutrition-rules.feature",
+                "insights/check-in/check-in.feature",
             ]
         ),
     ]

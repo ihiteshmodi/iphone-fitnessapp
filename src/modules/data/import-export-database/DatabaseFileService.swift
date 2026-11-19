@@ -348,6 +348,28 @@ public struct DatabaseFileService {
                     note    TEXT
                 )
                 """)
+            // Version 17: the check-in.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS checkins (
+                    day         TEXT PRIMARY KEY CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    urine       TEXT CHECK (urine IS NULL OR urine IN ('clear', 'pale', 'dark')),
+                    heavy_sweat INTEGER CHECK (heavy_sweat IS NULL OR heavy_sweat IN (0, 1))
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS meal_walks (
+                    day  TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    meal TEXT NOT NULL,
+                    PRIMARY KEY (day, meal)
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS recovery_signs (
+                    week_start TEXT NOT NULL CHECK (week_start GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    sign       TEXT NOT NULL,
+                    PRIMARY KEY (week_start, sign)
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

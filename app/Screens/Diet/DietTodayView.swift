@@ -41,6 +41,9 @@ struct DietTodayView: View {
                     .card()
                 }
                 extrasCard(day)
+                if model.breakPeriod == nil && model.date <= model.today {
+                    CheckInCard(date: model.date, meals: day.meals.map(\.name))
+                }
             }
         }
     }
