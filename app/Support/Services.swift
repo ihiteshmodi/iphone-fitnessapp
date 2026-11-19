@@ -53,7 +53,8 @@ final class Services: ObservableObject {
         savedDiets = SavedDietService(db)
         savedWorkouts = SavedWorkoutService(db)
         routines = RoutineService(db)
-        insights = InsightService(db, daily: NutritionRules.daily + CheckInRules.daily, setup: NutritionRules.setup)
+        insights = InsightService(db, daily: NutritionRules.daily + CheckInRules.daily + TrainingRules.daily,
+                                  setup: NutritionRules.setup + TrainingRules.setup)
         checkIn = CheckInService(db)
     }
 }

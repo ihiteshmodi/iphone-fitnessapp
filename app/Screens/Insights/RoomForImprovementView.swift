@@ -35,6 +35,11 @@ final class RoomForImprovementModel: ObservableObject {
     func accept(_ item: Insight) { perform { try self.rooms.accept(item) } }
     func notApplicable(_ item: Insight) { perform { try self.rooms.markNotApplicable(item.ruleID, title: item.title) } }
     func restore(_ rule: ArchivedRule) { perform { try self.rooms.restore(rule.ruleID) } }
+    func run(_ action: InsightAction) {
+        switch action {
+        case .turnOnDeload: perform { try self.services.settings.setDeloadEnabled(true) }
+        }
+    }
 
     private func perform(_ action: () throws -> Void) {
         do {
@@ -99,6 +104,11 @@ struct RoomForImprovementView: View {
             Text(item.detail).font(.system(size: 13)).foregroundColor(Theme.text).fixedSize(horizontal: false, vertical: true)
             Text(item.why).font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
+                if item.action == .turnOnDeload {
+                    Button("Turn on deload") { model.run(.turnOnDeload) }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .accessibilityIdentifier("turn-on-deload")
+                }
                 if item.kind == .today {
                     Button("Dismiss") { model.dismiss(item) }.accessibilityIdentifier("dismiss-\(item.id)")
                 } else {

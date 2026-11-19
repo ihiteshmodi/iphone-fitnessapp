@@ -23,6 +23,11 @@ public enum InsightSeverity: Int, Comparable, Equatable {
     public static func < (lhs: InsightSeverity, rhs: InsightSeverity) -> Bool { lhs.rawValue < rhs.rawValue }
 }
 
+/// Something the app can do for the owner straight from an item.
+public enum InsightAction: String, Equatable {
+    case turnOnDeload
+}
+
 /// One thing that could be better: what is off, the numbers, and the rule behind it.
 public struct Insight: Equatable, Identifiable {
     public let ruleID: String
@@ -34,8 +39,11 @@ public struct Insight: Equatable, Identifiable {
     public let why: String
     /// The day a daily item is about; nil for setup items.
     public let day: ISODate?
+    public var action: InsightAction?
 
-    public init(ruleID: String, kind: InsightKind, severity: InsightSeverity, title: String, detail: String, why: String, day: ISODate? = nil) {
+    public init(ruleID: String, kind: InsightKind, severity: InsightSeverity, title: String, detail: String, why: String, day: ISODate? = nil,
+                action: InsightAction? = nil) {
+        self.action = action
         self.ruleID = ruleID
         self.kind = kind
         self.severity = severity
