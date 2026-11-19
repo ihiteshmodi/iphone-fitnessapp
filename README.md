@@ -54,6 +54,9 @@ Screenshots of the real app.
 - **Best-set chart:** the best set of each session as a line (kg above each point, reps below), plus the estimated 1RM after every set.
 - **Muscle diagram:** shows which muscles an exercise trains. It is automatic and editable per exercise, with a picture for every side of the body that has a worked muscle.
 - **Deload mode:** a lighter week that scales the weight and both ends of the rep range for display only, with an option to ignore deload sessions in your progress.
+- **Saved workouts:** Edit plan → Saved workouts keeps the whole workout plan under a name and switches back to it any time. Logged sets belong to exercises, so history and working weights carry over.
+- **Routines:** ready groups of exercises (like recipes for food), browsable by muscle. Save any day as a routine, and *+ Add routine* on a day copies a routine's exercises into it (exercises already there are skipped).
+- **Coach presets:** read-only coach routines and workouts, loaded once from More → Coach presets. Use them or copy and change them. The presets file comes from `tools/meridian-presets` and is never committed (see below).
 - **Plan and library editing:** add, rename, reorder and delete days and exercises, set main sets, warm-up sets and rep ranges, and name days by number or weekday.
 
 **Body and progress**
@@ -208,6 +211,7 @@ There are no environment variables or secrets. The app is configured by settings
 |---|---|---|---|
 | `output/fitness.sqlite` | If present at build time it is bundled and offered as **Load my data** on first launch | absent (button hidden) | No |
 | `output/fitness.seed.sqlite` | Test fixture built by `tools/seed-db`; used by the parity tests and the UI tests | absent (10 parity tests skip) | No |
+| `output/meridian-presets.json` | Coach presets made by `python tools/meridian-presets/build_presets.py "<Train & Eat folder>"`; bundled when present and loaded from More → Coach presets. Paid-program content, so it stays out of the repository | absent (card hidden) | No |
 | `-UITestImportPath <file>` | Simulator tests only: import this database at launch | unset | No |
 | `-UITestInitialTab <0-4>` | Simulator tests only: start on a tab (0 Workout, 1 Body, 2 Diet, 3 Progress, 4 More) | `0` | No |
 
@@ -215,7 +219,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 13)
+### Database tables (schema version 14)
 
 | Table | Holds |
 |---|---|
@@ -223,6 +227,8 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `plan_days`, `plan_entries` | Training days and their exercises: main `sets`, `warmup_sets` (0 to 3), min and max reps |
 | `set_logs` | Every logged set: date, exercise, weight kg, reps, deload flag |
 | `form_checks` | Clean-form answer per exercise per day (1 clean, 0 not clean) |
+| `saved_workouts`, `saved_workout_days`, `saved_workout_entries` | Whole workout plans kept under a name (presets are read-only) |
+| `routines`, `routine_entries` | Ready groups of exercises with sets and rep ranges |
 | `exercise_muscles` | Muscles chosen per exercise (no rows means automatic) |
 | `body_weights`, `body_measurements`, `measurement_targets` | Weigh-ins, readings, targets with a grow or reduce direction |
 | `calorie_defaults`, `calorie_entries` | Calories per day from a start date, and single-day overrides |

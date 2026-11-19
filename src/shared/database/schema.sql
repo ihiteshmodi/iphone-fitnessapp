@@ -45,6 +45,44 @@ CREATE TABLE exercise_muscles (
     PRIMARY KEY (exercise_id, part)
 );
 
+-- Whole workouts kept under a name, and routines (ready groups of exercises) to pull into a day. Presets are read-only.
+CREATE TABLE saved_workouts (
+    id        INTEGER PRIMARY KEY,
+    name      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    saved_on  TEXT NOT NULL CHECK (saved_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    is_preset INTEGER NOT NULL DEFAULT 0 CHECK (is_preset IN (0, 1))
+);
+CREATE TABLE saved_workout_days (
+    id         INTEGER PRIMARY KEY,
+    workout_id INTEGER NOT NULL REFERENCES saved_workouts(id) ON DELETE CASCADE,
+    position   INTEGER NOT NULL,
+    weekday    INTEGER CHECK (weekday BETWEEN 1 AND 7),
+    title      TEXT
+);
+CREATE TABLE saved_workout_entries (
+    day_id      INTEGER NOT NULL REFERENCES saved_workout_days(id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    exercise_id INTEGER NOT NULL REFERENCES exercises(id),
+    sets        INTEGER NOT NULL CHECK (sets >= 1),
+    min_reps    INTEGER NOT NULL CHECK (min_reps >= 0),
+    max_reps    INTEGER NOT NULL,
+    warmup_sets INTEGER NOT NULL DEFAULT 0 CHECK (warmup_sets BETWEEN 0 AND 3)
+);
+CREATE TABLE routines (
+    id        INTEGER PRIMARY KEY,
+    name      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    is_preset INTEGER NOT NULL DEFAULT 0 CHECK (is_preset IN (0, 1))
+);
+CREATE TABLE routine_entries (
+    routine_id  INTEGER NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    exercise_id INTEGER NOT NULL REFERENCES exercises(id),
+    sets        INTEGER NOT NULL CHECK (sets >= 1),
+    min_reps    INTEGER NOT NULL CHECK (min_reps >= 0),
+    max_reps    INTEGER NOT NULL,
+    warmup_sets INTEGER NOT NULL DEFAULT 0 CHECK (warmup_sets BETWEEN 0 AND 3)
+);
+
 CREATE TABLE set_logs (
     id             INTEGER PRIMARY KEY,
     performed_on   TEXT NOT NULL CHECK (performed_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
@@ -237,4 +275,4 @@ INSERT INTO settings (key, value) VALUES
     ('diet_fat_percent', '20'),
     ('fat_ceiling_g_per_lb', '0.4');
 
-PRAGMA user_version = 13;
+PRAGMA user_version = 14;

@@ -11,6 +11,9 @@ struct EditPlanView: View {
     @State private var entryBeingEdited: PlanEntry?
     @State private var addTarget: PlanDay?
     @State private var dayToDelete: PlanDay?
+    @State private var routineTarget: PlanDay?
+    @State private var dayToSave: PlanDay?
+    @State private var routineName = ""
 
     init(focusDayId: Int? = nil) {
         self.focusDayId = focusDayId
@@ -33,6 +36,13 @@ struct EditPlanView: View {
                         .foregroundColor(Theme.muted)
                 }
             }
+            Section {
+                NavigationLink("Saved workouts") { SavedWorkoutsView() }
+                    .accessibilityIdentifier("plan-saved-workouts")
+                NavigationLink("Routines") { RoutinesView() }
+                    .accessibilityIdentifier("plan-routines")
+            }
+            .listRowBackground(Theme.card)
             ForEach(model.days) { day in
                 daySection(day)
             }
@@ -83,6 +93,24 @@ struct EditPlanView: View {
             Text("Its exercises leave the plan. Logged sets and history are kept.")
         }
         .errorAlert($model.errorMessage)
+        .sheet(item: $routineTarget) { day in
+            NavigationStack { RoutinesView(addingTo: day) { routineTarget = nil } }
+        }
+        .alert("Name the routine", isPresented: Binding(get: { dayToSave != nil }, set: { if !$0 { dayToSave = nil } })) {
+            TextField("Name", text: $routineName).accessibilityIdentifier("routine-name-field")
+            Button("Save") {
+                if let day = dayToSave {
+                    do {
+                        try services.routines.saveDay(day.id, as: routineName)
+                        session.didChange()
+                    } catch {
+                        model.errorMessage = error.localizedDescription
+                    }
+                }
+                dayToSave = nil
+            }
+            Button("Cancel", role: .cancel) { dayToSave = nil }
+        }
     }
 
     @ViewBuilder
@@ -109,6 +137,19 @@ struct EditPlanView: View {
                 .buttonStyle(PrimaryButtonStyle(ghost: true))
                 .listRowBackground(Theme.card)
                 .accessibilityIdentifier("add-exercise-button")
+
+                HStack(spacing: 8) {
+                    Button("+ Add routine") { routineTarget = day }
+                        .accessibilityIdentifier("add-routine-button")
+                    Button("Save day as routine") {
+                        routineName = day.title ?? day.label
+                        dayToSave = day
+                    }
+                    .accessibilityIdentifier("save-day-routine-button")
+                }
+                .buttonStyle(PrimaryButtonStyle(ghost: true))
+                .font(.system(size: 13))
+                .listRowBackground(Theme.card)
 
                 if model.labelMode == .number { weekdayRow(day).listRowBackground(Theme.card) }
                 PlanDayTitleField(day: day) { model.setTitle($0, for: day) }

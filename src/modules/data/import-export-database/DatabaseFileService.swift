@@ -273,6 +273,53 @@ public struct DatabaseFileService {
                     PRIMARY KEY (day, meal)
                 )
                 """)
+            // Version 14: saved workouts and routines.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS saved_workouts (
+                    id        INTEGER PRIMARY KEY,
+                    name      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    saved_on  TEXT NOT NULL CHECK (saved_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    is_preset INTEGER NOT NULL DEFAULT 0 CHECK (is_preset IN (0, 1))
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS saved_workout_days (
+                    id         INTEGER PRIMARY KEY,
+                    workout_id INTEGER NOT NULL REFERENCES saved_workouts(id) ON DELETE CASCADE,
+                    position   INTEGER NOT NULL,
+                    weekday    INTEGER CHECK (weekday BETWEEN 1 AND 7),
+                    title      TEXT
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS saved_workout_entries (
+                    day_id      INTEGER NOT NULL REFERENCES saved_workout_days(id) ON DELETE CASCADE,
+                    position    INTEGER NOT NULL,
+                    exercise_id INTEGER NOT NULL REFERENCES exercises(id),
+                    sets        INTEGER NOT NULL CHECK (sets >= 1),
+                    min_reps    INTEGER NOT NULL CHECK (min_reps >= 0),
+                    max_reps    INTEGER NOT NULL,
+                    warmup_sets INTEGER NOT NULL DEFAULT 0 CHECK (warmup_sets BETWEEN 0 AND 3)
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS routines (
+                    id        INTEGER PRIMARY KEY,
+                    name      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    is_preset INTEGER NOT NULL DEFAULT 0 CHECK (is_preset IN (0, 1))
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS routine_entries (
+                    routine_id  INTEGER NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+                    position    INTEGER NOT NULL,
+                    exercise_id INTEGER NOT NULL REFERENCES exercises(id),
+                    sets        INTEGER NOT NULL CHECK (sets >= 1),
+                    min_reps    INTEGER NOT NULL CHECK (min_reps >= 0),
+                    max_reps    INTEGER NOT NULL,
+                    warmup_sets INTEGER NOT NULL DEFAULT 0 CHECK (warmup_sets BETWEEN 0 AND 3)
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

@@ -24,6 +24,8 @@ final class Services: ObservableObject {
     let dietRules: DietSettings
     let breaks: BreakModeService
     let savedDiets: SavedDietService
+    let savedWorkouts: SavedWorkoutService
+    let routines: RoutineService
 
     init(db: Database, clock: AppClock) {
         self.db = db
@@ -47,5 +49,7 @@ final class Services: ObservableObject {
         dietRules = DietSettings(db)
         breaks = BreakModeService(db)
         savedDiets = SavedDietService(db)
+        savedWorkouts = SavedWorkoutService(db)
+        routines = RoutineService(db)
     }
 }

@@ -40,6 +40,8 @@ let package = Package(
                 "nutrition/nutrition-settings/nutrition-settings.feature",
                 "planning/deload-mode/deload-mode.feature",
                 "planning/edit-plan/edit-plan.feature",
+                "planning/saved-workouts/saved-workouts.feature",
+                "planning/routines/routines.feature",
                 "planning/exercise-detail/exercise-detail.feature",
                 "planning/exercise-detail/pr-highlighting.feature",
                 "planning/exercise-library/exercise-library.feature",
