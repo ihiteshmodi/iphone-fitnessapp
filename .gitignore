@@ -33,3 +33,8 @@ __pycache__/
 # macOS and editors
 .DS_Store
 .vscode/
+# Added by code-review-graph
+.code-review-graph/
+
+# Private agent skills (kept locally, not in the repository)
+.agents/skills/
