@@ -84,6 +84,9 @@ handle_line() {  # prints finished tests above the progress line
       failed)  done_count=$((done_count + 1)); failed_count=$((failed_count + 1)); failed_names+=" $test"; current_test=""
                printf '\r\033[K  ✗ %s (%ss)\n' "$test" "$secs" ;;
     esac
+  elif [[ "$line" =~ Test\ Case\ \'-\[FitnessAppUITests\.[A-Za-z]+\ ([A-Za-z0-9_]+)\]\'\ exceeded\ execution\ time ]]; then
+    done_count=$((done_count + 1)); failed_count=$((failed_count + 1)); failed_names+=" ${BASH_REMATCH[1]}(time)"; current_test=""
+    printf '\r\033[K  ✗ %s (ran past its time allowance)\n' "${BASH_REMATCH[1]}"
   elif [[ "$line" =~ Executed\ [0-9]+\ tests? ]]; then
     # xcodebuild sometimes hangs after printing the final result; the main loop stops it shortly after this.
     tests_finished_at=$(date +%s)
@@ -127,7 +130,9 @@ for name in "${classes[@]}"; do
 
     draw $((now - overall_start)) $((now - last_growth))
 
-    if [ "$tests_finished_at" -gt 0 ] && [ $((now - tests_finished_at)) -ge 15 ]; then
+    # The result bundle (with its screenshots) is written after the last test; give it up to 90 s before stopping xcodebuild.
+    if [ "$tests_finished_at" -gt 0 ] && [ $((now - tests_finished_at)) -ge 15 ] \
+       && { [ -f "$LOGS/$name.xcresult/Info.plist" ] || [ $((now - tests_finished_at)) -ge 90 ]; }; then
       printf '\r\033[K  tests finished; stopping xcodebuild, which can hang on exit\n'
       stopped_after_finish=1
       kill "$build_pid" 2>/dev/null
