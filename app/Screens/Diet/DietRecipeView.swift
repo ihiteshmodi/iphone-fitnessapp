@@ -73,6 +73,16 @@ final class RecipeViewModel: ObservableObject {
 
     func deleteRecipe() throws { try services.foods.delete(recipeID) }
 
+    func duplicate(as name: String) throws -> Int { try services.foods.duplicate(recipeID, as: name) }
+
+    var makes: Double { recipe?.draft.recipeMakes ?? 1 }
+
+    /// The ingredients for cooking `amount` instead of what the recipe makes; view only.
+    func cooking(for amount: Double) -> [RecipeLineRow] {
+        guard let scaled = try? RecipeScaling.cook(lines.map(\.line), makes: makes, for: amount) else { return [] }
+        return zip(lines, scaled).map { RecipeLineRow(line: $1, name: $0.name, unit: $0.unit) }
+    }
+
     private func apply(_ all: [RecipeLine]) {
         do {
             try services.foods.setIngredients(of: recipeID, all)
@@ -93,6 +103,10 @@ struct DietRecipeView: View {
     @State private var addingIngredient = false
     @State private var editingRecipe = false
     @State private var confirmingDelete = false
+    @State private var cookFor: Double?
+    @State private var naming = false
+    @State private var copyName = ""
+    @State private var copyID: Int?
 
     init(services: Services, recipeID: Int) {
         _model = StateObject(wrappedValue: RecipeViewModel(services: services, recipeID: recipeID))
@@ -109,6 +123,13 @@ struct DietRecipeView: View {
                     }
                     totalsCard(recipe)
                     ingredientsCard(recipe)
+                    if !model.lines.isEmpty { cookForCard(recipe) }
+                    Button("Duplicate as a new recipe") {
+                        copyName = "\(recipe.name) copy"
+                        naming = true
+                    }
+                    .buttonStyle(PrimaryButtonStyle(ghost: true))
+                    .accessibilityIdentifier("recipe-duplicate-button")
                     if !model.usedInPlan.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             SectionLabel("Used in your plan")
@@ -128,6 +149,23 @@ struct DietRecipeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: session.revision) { model.load() }
         .errorAlert($model.errorMessage)
+        .alert("Name the new recipe", isPresented: $naming) {
+            TextField("Name", text: $copyName).accessibilityIdentifier("recipe-copy-name-field")
+            Button("Duplicate") {
+                do {
+                    copyID = try model.duplicate(as: copyName)
+                    session.didChange()
+                } catch {
+                    model.errorMessage = error.localizedDescription
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Every ingredient and amount is copied. Change the copy freely; this recipe stays as it is.")
+        }
+        .navigationDestination(isPresented: Binding(get: { copyID != nil }, set: { if !$0 { copyID = nil } })) {
+            if let copyID { DietRecipeView(services: services, recipeID: copyID) }
+        }
         .sheet(item: $editingLine) { line in
             DietIngredientSheet(services: services, recipeID: model.recipeID, existing: line,
                                 onSave: { saved in model.save(saved) }, onRemove: { model.remove(foodID: line.foodID) })
@@ -176,6 +214,39 @@ struct DietRecipeView: View {
         .frame(maxWidth: .infinity).padding(.vertical, 7)
         .background(Theme.card2)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Shows the ingredients for cooking a different amount; nothing is saved.
+    private func cookForCard(_ recipe: Food) -> some View {
+        let amount = cookFor ?? model.makes
+        let step: Double = recipe.unit == "g" || recipe.unit == "ml" ? 100 : 1
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                SectionLabel("Cook for")
+                Spacer()
+                Button { cookFor = max(step, amount - step) } label: { Image(systemName: "minus.circle") }
+                    .accessibilityIdentifier("recipe-cook-minus")
+                Text(Format.amount(amount, unit: recipe.unit)).font(.system(size: 15, weight: .bold)).foregroundColor(Theme.text)
+                    .accessibilityIdentifier("recipe-cook-for")
+                Button { cookFor = amount + step } label: { Image(systemName: "plus.circle") }
+                    .accessibilityIdentifier("recipe-cook-plus")
+            }
+            .foregroundColor(Theme.green)
+            .padding(.bottom, 4)
+            Text("Saved for \(Format.amount(model.makes, unit: recipe.unit)). Just for cooking; nothing changes.")
+                .font(.system(size: 12)).foregroundColor(Theme.muted).padding(.bottom, 4)
+            ForEach(model.cooking(for: amount)) { row in
+                HStack {
+                    Text(row.name).font(.system(size: 14)).foregroundColor(Theme.text)
+                    Spacer()
+                    Text(Format.amount((row.line.quantity * 10).rounded() / 10, unit: row.unit)).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                }
+                .padding(.vertical, 7)
+                .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }
+            }
+        }
+        .card()
+        .accessibilityIdentifier("recipe-cook-card")
     }
 
     private func ingredientsCard(_ recipe: Food) -> some View {

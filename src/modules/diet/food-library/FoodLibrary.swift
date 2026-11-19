@@ -76,6 +76,23 @@ public final class FoodLibrary {
             """, Self.values(draft) + [.int(Int64(id))])
     }
 
+    /// A new food with everything copied (and a recipe's ingredients), under a new name. The two are independent after.
+    @discardableResult
+    public func duplicate(_ id: Int, as name: String) throws -> Int {
+        guard var draft = try food(id)?.draft else { throw ValidationError("That food is not in the library") }
+        draft.name = name
+        let lines = try ingredients(of: id)
+        let copy = try add(draft)
+        guard draft.kind == .recipe, !lines.isEmpty else { return copy }
+        do {
+            try setIngredients(of: copy, lines)
+        } catch {
+            try? db.execute("DELETE FROM foods WHERE id = ?", [.int(Int64(copy))])
+            throw error
+        }
+        return copy
+    }
+
     public func delete(_ id: Int) throws {
         guard let food = try food(id) else { return }
         let used = try db.query("""
