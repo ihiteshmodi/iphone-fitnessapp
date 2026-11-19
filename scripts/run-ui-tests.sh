@@ -39,7 +39,7 @@ stop_everything() {
 trap 'stop_everything; exit 130' INT TERM
 trap 'xcrun simctl shutdown all >/dev/null 2>&1' EXIT
 
-classes=(WorkoutFlowUITests BodyProgressUITests MorePlanDataUITests DietUITests PhaseAUITests)
+classes=(WorkoutFlowUITests BodyProgressUITests MorePlanDataUITests DietUITests PhaseAUITests PhaseBUITests)
 [ $# -gt 0 ] && classes=("$@")
 
 total=0
