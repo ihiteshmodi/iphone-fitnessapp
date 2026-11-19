@@ -11,7 +11,7 @@ Whoop already measures heart-rate zones, HRV, resting heart rate and sleep. Toda
 | Workouts: start, duration, sport, time in each HR zone, average and max HR | Zone 2 minutes, hard sessions, gray-zone drift, cardio vs lifting spacing |
 | Max HR (set or measured) | Zone limits as % of max HR |
 | Daily resting HR and HRV (overnight) | Recovery trend against your own 2–4 week baseline |
-| Sleep: total time, bed and wake time | 7–9 h check, steady wake time |
+| Sleep: total time, bed and wake time | 7–9 h check, steady wake time, gap since the last meal |
 | VO2 max estimate (if Whoop gives one) | Trend only |
 | Strain (optional) | Load spikes week to week |
 
@@ -29,6 +29,19 @@ Whoop already measures heart-rate zones, HRV, resting heart rate and sleep. Toda
 | HRV and resting HR | Compare with your own 2–4 week average. HRV low **and** sleep poor for a few days → cut sets or intensity for a few days. Resting HR several beats above normal → tired, stressed or ill | Never compare with other people or brands |
 | Sleep | 7–9 h; one wake time 7 days a week; a weekend running 2 h late counts as jet lag | Total time and timing only |
 | Deload signals | Add to the app's deload check: resting HR up, sleep worse, HRV down for days | Joins the existing key-lift-drop trigger |
+
+## Last meal to sleep
+Whoop knows when you fell asleep, so the gap since the last meal can be measured each night.
+
+| Check | Rule (Vol 06 sleep chapters) | Note |
+|---|---|---|
+| Last large meal | Finish a heavy meal "a few hours" before bed; avoid large late meals | The vault gives no exact hours, so the app shows the gap and its trend and does not judge a number until one is chosen |
+| Carbs late | Keep most carbohydrate in daylight hours; a large carb dose right before bed can dull the night growth-hormone pulse | Show the carbs of the last meal next to the gap |
+| Alcohol | Finish at least 3 h before bed | Flag when alcohol is logged inside 3 h |
+| Hard training | Finish hard sessions 2–3 h before bed | Uses the session end time |
+| Pre-bed protein | A slow protein before bed is optional (about 40 g) | A tip only, never a flag |
+
+**Needed in the app first:** the time a meal was eaten. Today a tick only records the day (extras have a morning/noon/evening/night tag), so the app cannot tell when dinner was eaten. Either store the time a meal is ticked, or give each meal a usual time with an "ate at" override. Ticking late the next morning (unconfirmed meals) must not count as the eating time.
 
 ## Deliberately left out
 - **Sleep stage percentages and 90-minute cycle tracking.** The notes say tracker stage data is rough, and chasing it becomes an obsession (orthosomnia). Total sleep, timing and the HRV/RHR trend are enough.
