@@ -88,7 +88,7 @@ final class CalorieTargetTests: XCTestCase {
     }
 
     func testServiceCalculatesFromTheLatestCalorieEntryAndWeights() throws {
-        let (_, service) = try makeDatabase(weights: twoWeeksOfWeights, calories: ("2026-10-23", 2948.5, 1))
+        let (_, service) = try makeDatabase(weights: twoWeeksOfWeights, calories: ("2026-10-22", 2948.5, 1))
 
         let advice = try service.currentAdvice()
 
@@ -100,7 +100,7 @@ final class CalorieTargetTests: XCTestCase {
     }
 
     func testServiceUsesTheSavedMultiplierAndMacroRules() throws {
-        let (db, service) = try makeDatabase(weights: twoWeeksOfWeights, calories: ("2026-10-23", 2948.5, 0.8))
+        let (db, service) = try makeDatabase(weights: twoWeeksOfWeights, calories: ("2026-10-22", 2948.5, 0.8))
         try SettingsRepository(db).setProteinGramsPerLb(1.0)
 
         let target = try service.currentAdvice().target
@@ -155,7 +155,7 @@ final class CalorieTargetTests: XCTestCase {
     }
 
     func testSavingCaloriesReplacesTheSameDay() throws {
-        let (_, service) = try makeDatabase(calories: ("2026-10-23", 2948.5, 1))
+        let (_, service) = try makeDatabase(calories: ("2026-10-22", 2948.5, 1))
 
         try service.saveCalories(on: date("2026-10-23"), calories: 3100, multiplier: 0.9)
         try service.saveCalories(on: "2026-10-22", calories: 2800)

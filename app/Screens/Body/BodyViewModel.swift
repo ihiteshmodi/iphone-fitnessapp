@@ -62,7 +62,7 @@ final class BodyViewModel: ObservableObject {
 
         let advice = try? services.calories.currentAdvice()
         target = advice?.target
-        averageEaten = advice?.target.caloriesEaten ?? (try? services.calories.averageCalories(endingOn: today, days: 7)) ?? nil
+        averageEaten = advice?.target.caloriesEaten ?? (try? services.calories.averageCalories(endingOn: today.adding(days: -1), days: 7)) ?? nil
     }
 
     // MARK: Ring card

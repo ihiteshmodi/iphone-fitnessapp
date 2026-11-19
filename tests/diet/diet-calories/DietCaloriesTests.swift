@@ -111,7 +111,29 @@ final class DietCaloriesTests: XCTestCase {
         let target = try calories.currentAdvice().target
 
         XCTAssertEqual(average, 2671.4286, accuracy: 0.001)
-        XCTAssertEqual(target.caloriesEaten, 2671.4286, accuracy: 0.001)
+        XCTAssertEqual(target.caloriesEaten, 2628.5714, accuracy: 0.001, "the 7 days ending the day before the latest weigh-in")
+    }
+
+    func testTheCalorieTargetCountsFoodUpToYesterdaySoAMorningWeighInDoesNotPullInTodaysEmptyDay() throws {
+        for text in ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31"] { try tickPlan(on: text) }
+        for offset in 0..<14 { try db.addBodyWeight(on: date("2026-11-01").adding(days: -offset).string, kg: 64) }
+
+        let target = try calories.currentAdvice().target
+
+        XCTAssertEqual(target.caloriesEaten, 2757.1429, accuracy: 0.001)
+    }
+
+    func testAPastDietDayWithNothingTickedAndNoExtrasIsLeftOutOfTheAverage() throws {
+        for text in ["2026-10-26", "2026-10-27", "2026-10-29"] { try tickPlan(on: text) }
+
+        XCTAssertEqual(try calories.averageCalories(endingOn: date("2026-10-29"), days: 4), 2800)
+    }
+
+    func testADietDayWithOnlyExtrasStillCountsInTheAverage() throws {
+        for text in ["2026-10-26", "2026-10-27", "2026-10-29"] { try tickPlan(on: text) }
+        try diet.addExtra(foodID: biscuit, .amount(1), on: date("2026-10-28"))
+
+        XCTAssertEqual(try XCTUnwrap(try calories.averageCalories(endingOn: date("2026-10-29"), days: 4)), 2137.5, accuracy: 1e-9)
     }
 
     func testADayWithNoPlanNoDefaultAndNothingTypedHasNoCalories() throws {

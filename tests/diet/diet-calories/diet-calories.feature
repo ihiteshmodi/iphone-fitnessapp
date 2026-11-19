@@ -35,7 +35,25 @@ Feature: Calories per day come from the diet
     And the plan from 2026-10-26 worth 2800 calories, ticked on 2026-10-26 to 2026-10-29, and a default of 2500
     When I average the 7 days ending 2026-10-29
     Then it counts 4 plan days at 2800 and 3 default days at 2500, which averages 2671.43
-    And the calorie target uses 2671.43 calories eaten per day
+    And the calorie target uses the 7 days ending the day before the latest weigh-in, 2026-10-22 to 2026-10-28,
+    which is 3 plan days at 2800 and 4 default days at 2500, 2628.57 calories eaten per day
+
+  Scenario: Food counts up to yesterday, so a morning weigh-in does not pull in today's empty day
+    Given weigh-ins every day up to 2026-11-01
+    And the plan worth 2800 ticked on 2026-10-26 to 2026-10-31, the default 2500 before it, and nothing ticked yet on 2026-11-01
+    When I ask for the calorie target
+    Then it uses 2026-10-25 to 2026-10-31: 1 default day at 2500 and 6 plan days at 2800, 2757.14 calories eaten per day
+    And today's empty day is not counted as 0
+
+  Scenario: A past diet day with nothing ticked and no extras is left out, not counted as 0
+    Given the plan ticked on 2026-10-26, 2026-10-27 and 2026-10-29 but not on 2026-10-28
+    When I average the 4 days ending 2026-10-29
+    Then the average is 2800 from the 3 logged days
+
+  Scenario: A diet day with only extras still counts
+    Given the plan ticked on 2026-10-26, 2026-10-27 and 2026-10-29, and only extras worth 150 on 2026-10-28
+    When I average the 4 days ending 2026-10-29
+    Then the average is 2137.5
 
   Scenario: A day with neither a plan, a default nor a typed value has no calories
     Given no plan and no default

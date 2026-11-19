@@ -237,7 +237,7 @@ The schema lives in `src/shared/database/schema.sql`. Older files are upgraded i
 | Next weight after a PR | `1RM ÷ (1 + min reps ÷ 30)`, rounded to the nearest 2.5 kg, always above the weight lifted |
 | Reps in Add set | Start at `ceil((min + max) ÷ 2)`, for example 8 to 16 gives 12 |
 | Warm-ups | 1: 75%. 2: 75% and 90%. 3: 60%, 75% and 90% of the working weight |
-| Calorie target | Maintenance = calories eaten minus the daily surplus implied by the change between the last two 7-day average weights (3,500 kcal per lb). Target = maintenance × goal multiplier |
+| Calorie target | Maintenance = calories eaten minus the daily surplus implied by the change between the last two 7-day average weights (3,500 kcal per lb). Calories eaten = the average of the 7 days ending the day **before** the latest weigh-in, so a morning weigh-in never pulls in the day still being logged; a diet day with nothing ticked and no extras is left out, not counted as 0. Target = maintenance × goal multiplier |
 | Calories on a day | The value typed for that day, else the ticked items of the diet plan in force plus extras (0 until something is ticked), else the default plus any extras |
 | Food calories | The label value when typed, otherwise `4 × protein + 4 × carbs + 9 × fat` |
 | Recipe | Ingredients added up, divided by what the recipe makes. Always worked out from the current foods |
