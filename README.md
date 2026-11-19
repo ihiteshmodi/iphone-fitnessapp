@@ -62,7 +62,7 @@ Screenshots of the real app.
 - **What your weight says:** your actual deficit or surplus from the weight trend, next to your planned mode.
 - **Break mode:** start a break today or plan one with dates (More → Break mode). Break days need no food, workouts or weigh-ins and are left out of the calorie maths. Afterwards the Body tab says *Recalibrating* until there are 14 days of weigh-ins after the break (two clean weeks to compare), and keeps a *Before your break* card with maintenance, what you were eating, whether you were cutting or bulking, and your weight before and after.
 - **Calorie history:** step back (‹ ›) or pick any past day on the Body tab to see maintenance, calories eaten, deficit or surplus, the target and cutting macros as they stood that day, worked out only from weigh-ins and food up to then.
-- **Measurements:** targets that grow or reduce, % from target, and a colour tolerance (green, amber, red).
+- **Measurements:** targets that grow or reduce, % from target, and a colour tolerance (green, amber, red). Open a site (Chest, Waist…) and tap **+ Add reading** to log a new measurement for any day.
 - **Volume per muscle:** training volume over time for each muscle group.
 
 **Diet**

@@ -107,6 +107,9 @@ private struct MeasurementDetailContent: View {
                 }
                 if let detail = model.detail {
                     summaryCard(detail)
+                    Button("+ Add reading") { sheet = .logReading }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .accessibilityIdentifier("add-reading-button")
                     historyCard(detail)
                     readingsCard
                     Button("Remove this site") { confirmingRemoval = true }
