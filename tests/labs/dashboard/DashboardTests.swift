@@ -71,4 +71,21 @@ final class DashboardTests: XCTestCase {
         guard case .missing(let inputs) = try dashboard().biologicalAge else { return XCTFail("inputs are missing") }
         XCTAssertTrue(inputs.contains(.hsCRP))
     }
+
+    func testWithNoCompleteDrawTheClosestOneIsShown() throws {
+        catalogue = PhenoAge.inputCatalogue
+        draws = LabDrawService(db, catalogue: catalogue)
+        try LabSettings(db).setBirthDate(date("1998-06-09"))
+        let may = try draws.addDraw(LabDrawDraft(date: date("2026-05-03")))
+        for input in PhenoAgeInput.allCases where input != .hsCRP {
+            guard let (id, unit) = input.marker else { continue }
+            try draws.addResult(drawID: may, markerID: id, value: 5, unit: unit)
+        }
+        try result("glucose", 80, "mg/dL", "2026-10-01")
+
+        let board = try dashboard()
+
+        XCTAssertEqual(board.biologicalAge, .missing([.hsCRP]))
+        XCTAssertEqual(board.biologicalAgeDraw, date("2026-05-03"))
+    }
 }

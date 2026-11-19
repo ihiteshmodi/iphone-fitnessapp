@@ -19,3 +19,7 @@ Feature: Bloodwork dashboard
   Scenario: Biological age from the latest complete draw
     Given my date of birth and a draw missing hs-CRP
     Then the card says hs-CRP is missing
+
+  Scenario: With no complete draw, the closest one is shown
+    Given a 3 May draw with every PhenoAge input but hs-CRP, and a newer 1 Oct draw with only glucose
+    Then the card names the 3 May draw and says only hs-CRP is missing

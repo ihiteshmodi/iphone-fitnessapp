@@ -3,6 +3,11 @@ import Foundation
 public struct TrendPoint: Equatable {
     public let date: ISODate
     public let value: Double
+
+    public init(date: ISODate, value: Double) {
+        self.date = date
+        self.value = value
+    }
 }
 
 public struct SystemTile: Equatable {
@@ -39,6 +44,8 @@ public struct LabDashboard {
     public let heart: [HeartItem]
     public let hormones: [MarkerSeries]
     public let biologicalAge: PhenoAgeOutcome?
+    /// The draw biological age was worked out from, or the one closest to complete.
+    public let biologicalAgeDraw: ISODate?
 
     public static func build(catalogue: LabCatalogue, db: Database, today: ISODate) throws -> LabDashboard {
         let preferences = try LabSettings(db).load()
@@ -81,23 +88,23 @@ public struct LabDashboard {
         }
         let hormones = hormoneMarkers.compactMap(catalogue.marker).filter { history[$0.id] != nil }
             .map { MarkerSeries(marker: $0, points: series($0, history)) }
-        return LabDashboard(systems: systems, heart: heart, hormones: hormones,
-                            biologicalAge: try biologicalAge(draws: draws, birthDate: preferences.birthDate))
+        let age = try biologicalAge(draws: draws, birthDate: preferences.birthDate)
+        return LabDashboard(systems: systems, heart: heart, hormones: hormones, biologicalAge: age?.outcome, biologicalAgeDraw: age?.date)
     }
 
     private static func series(_ marker: LabMarker, _ history: [String: [LabResult]]) -> [TrendPoint] {
         (history[marker.id] ?? []).reversed().compactMap { result in result.defaultValue.map { TrendPoint(date: result.date, value: $0) } }
     }
 
-    /// The newest draw that has all ten inputs, else what the newest draw is missing.
-    private static func biologicalAge(draws: LabDrawService, birthDate: ISODate?) throws -> PhenoAgeOutcome? {
+    /// The newest draw that has all ten inputs, else the draw missing the fewest (the newest of those).
+    private static func biologicalAge(draws: LabDrawService, birthDate: ISODate?) throws -> (outcome: PhenoAgeOutcome, date: ISODate)? {
         guard let birthDate else { return nil }
-        var newestMissing: PhenoAgeOutcome?
+        var closest: (outcome: PhenoAgeOutcome, date: ISODate, missing: Int)?
         for draw in try draws.draws() {
             let outcome = try PhenoAge.forDraw(draw.id, draws: draws, birthDate: birthDate)
-            if case .calculated = outcome { return outcome }
-            if newestMissing == nil { newestMissing = outcome }
+            guard case .missing(let inputs) = outcome else { return (outcome, draw.draft.date) }
+            if inputs.count < (closest?.missing ?? .max) { closest = (outcome, draw.draft.date, inputs.count) }
         }
-        return newestMissing
+        return closest.map { ($0.outcome, $0.date) }
     }
 }
