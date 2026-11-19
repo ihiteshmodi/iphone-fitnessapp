@@ -52,14 +52,17 @@ final class PhaseAUITests: XCTestCase {
         tap("diet-add-extra")
         type("Tea", into: "extra-search-field")
         tap("extra-result-Tea biscuits")
-        tap("extra-time-noon")
+        // The chip defaults to the current time of day and a second tap clears it, so pick one that is not the default.
+        let late = Calendar.current.component(.hour, from: Date()) >= 20
+        let chosen = late ? "Morning" : "Night"
+        tap("extra-time-\(chosen.lowercased())")
         type("with chai", into: "extra-note-field")
         tap("extra-add-button")
 
         let extra = element("diet-extra-Tea biscuits")
         reveal(extra)
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'with chai'")).firstMatch.exists)
-        XCTAssertTrue(app.staticTexts["Noon"].exists || app.staticTexts["NOON"].exists, "extras are grouped by time")
+        XCTAssertTrue(app.staticTexts[chosen].exists, "extras are grouped by time")
     }
 
     func testANewMealCanBeAddedAndMovedUp() {

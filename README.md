@@ -134,7 +134,14 @@ xcodegen generate                            # creates FitnessApp.xcodeproj from
 scripts/run-ui-tests.sh WorkoutFlowUITests   # one UI test class, live progress, Ctrl-C to stop
 ```
 
-The UI test runner shows a live progress bar and stops when the tests finish. Set `SIM_UDID` to the id of an iPhone simulator (`xcrun simctl list devices`). It uses `output/fitness.seed.sqlite`.
+The UI test runner shows a live progress bar and stops when the tests finish. It runs on the iPhone 15 Pro Max simulator, the only device the app is used on (set `SIM_UDID` to use another). It uses `output/fitness.seed.sqlite` (build it with `tools/seed-db/build_seed_db.py`); `DietUITests` and `PhaseAUITests` add the made-up demo diet on top.
+
+Layout review: `PhaseATourUITests` screenshots every Phase A screen. Run it on a migrated copy of your own database to see real names and amounts:
+
+```sh
+UI_SEED_DB=/path/to/migrated.sqlite scripts/run-ui-tests.sh PhaseATourUITests
+xcrun xcresulttool export attachments --path .uitest-logs/PhaseATourUITests.xcresult --output-path .shots
+```
 
 ## Build an unsigned .ipa (for LiveContainer)
 

@@ -17,6 +17,7 @@ output/
 .uitest-logs/
 .uitest-results*/
 .shots/
+.shots-ui/
 .ipa-work/
 .ipa-check/
 DerivedData/
