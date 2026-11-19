@@ -60,6 +60,7 @@ let package = Package(
                 "insights/diet-review/diet-review.feature",
                 "labs/lab-reading/lab-reading.feature",
                 "labs/draw-planning/draw-planning.feature",
+                "labs/lab-insights/lab-insights.feature",
                 "labs/lab-draws/lab-draws.feature",
                 "insights/check-in/check-in.feature",
                 "insights/training-rules/training-rules.feature",

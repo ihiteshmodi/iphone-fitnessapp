@@ -5,11 +5,13 @@ public final class InsightService {
     private let db: Database
     private let daily: [DailyRule]
     private let setupRules: [SetupRule]
+    private let labRules: [SetupRule]
 
-    public init(_ db: Database, daily: [DailyRule], setup: [SetupRule]) {
+    public init(_ db: Database, daily: [DailyRule], setup: [SetupRule], labs: [SetupRule] = []) {
         self.db = db
         self.daily = daily
         setupRules = setup
+        labRules = labs
     }
 
     /// What fired yesterday and (for rules that can judge an unfinished day) today, worst first.
@@ -31,6 +33,14 @@ public final class InsightService {
         return try setupRules.filter { archived[$0.id] == nil }.flatMap { try $0.evaluate(on: today, db: db) }.sorted { $0.severity < $1.severity }
     }
 
+    /// From bloodwork: doctor alerts first. Dismissed items stay hidden until a newer result changes their id.
+    public func labs(on today: ISODate) throws -> [Insight] {
+        let hidden = try dismissedKeys()
+        let archived = try archivedStates()
+        return try labRules.filter { archived[$0.id] == nil }.flatMap { try $0.evaluate(on: today, db: db) }
+            .filter { !hidden.contains($0.id) }.sorted { $0.severity < $1.severity }
+    }
+
     /// One row per daily rule still running (accepted ones included), over the `days` ending at `end`.
     public func trends(endingOn end: ISODate, days: Int) throws -> [TrendRow] {
         let archived = try archivedStates()
@@ -46,7 +56,7 @@ public final class InsightService {
         }
     }
 
-    public func badgeCount(on today: ISODate) throws -> Int { try self.today(on: today).count + setup(on: today).count }
+    public func badgeCount(on today: ISODate) throws -> Int { try self.today(on: today).count + setup(on: today).count + labs(on: today).count }
 
     public func archived() throws -> [ArchivedRule] {
         try db.query("SELECT rule_id, title, status, note FROM insight_rules ORDER BY title COLLATE NOCASE").compactMap { row in
