@@ -14,6 +14,8 @@ final class AddExtraModel: ObservableObject {
     @Published private(set) var selected: Food?
     @Published var mode = PortionMode.amount
     @Published var valueText = ""
+    @Published var time: ExtraTime? = ExtraTimeGuess.now()
+    @Published var note = ""
 
     let date: ISODate
     /// Set when an extra already on the day is being changed rather than added.
@@ -29,7 +31,14 @@ final class AddExtraModel: ObservableObject {
         query = food.name
         mode = entry.mode
         valueText = Format.number(entry.value, maxDecimals: 2)
+        time = entry.details.time
+        note = entry.details.note ?? ""
+        label = entry.details.label
     }
+
+    /// Kept as it was when editing: a quick-add name is not shown on this sheet.
+    private var label: String?
+    var details: ExtraDetails { ExtraDetails(label: label, time: time, note: note) }
 
     var isEditing: Bool { editingID != nil }
 
@@ -131,8 +140,9 @@ final class AddExtraModel: ObservableObject {
         guard let value = Format.decimal(valueText) else { throw ValidationError("Enter the amount as a number") }
         if let editingID {
             try services.dietDays.updateExtra(editingID, Portions.input(mode, value))
+            try services.dietDays.updateExtraDetails(editingID, details)
         } else {
-            try services.dietDays.addExtra(foodID: selected.id, Portions.input(mode, value), on: date)
+            try services.dietDays.addExtra(foodID: selected.id, Portions.input(mode, value), on: date, details: details)
         }
     }
 
@@ -283,6 +293,7 @@ struct DietAddExtraSheet: View {
         }
         stepper
         if let preview = model.preview { previewCard(preview) }
+        ExtraDetailsFields(time: $model.time, note: $model.note)
         Button(model.isEditing ? "Save" : "Add to \(model.date == services.clock.today() ? "today" : Format.shortDate(model.date))", action: save)
             .buttonStyle(PrimaryButtonStyle())
             .accessibilityIdentifier("extra-add-button")

@@ -110,27 +110,58 @@ public final class DietDayService {
         }
     }
 
+    /// Calories-only quick add uses this food: 1 calorie per unit, so the amount is the calories.
+    public static let quickCaloriesName = "Quick calories"
+
     @discardableResult
-    public func addExtra(foodID: Int, _ input: PortionInput, on date: ISODate) throws -> Int {
+    public func addExtra(foodID: Int, _ input: PortionInput, on date: ISODate, details: ExtraDetails = ExtraDetails()) throws -> Int {
         guard let food = try library.food(foodID) else { throw ValidationError("That food is not in the library") }
         let portion = try Portions.portion(of: food, input)
-        try db.execute("INSERT INTO diet_extras (day, food_id, amount, pieces) VALUES (?, ?, ?, ?)",
-                       [.text(date.string), .int(Int64(foodID)), .double(portion.amount), .optional(portion.pieces)])
+        try db.execute("INSERT INTO diet_extras (day, food_id, amount, pieces, label, time_tag, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                       [.text(date.string), .int(Int64(foodID)), .double(portion.amount), .optional(portion.pieces),
+                        .optional(details.label), .optional(details.time?.rawValue), .optional(details.note)])
         return db.lastInsertRowID
+    }
+
+    public func updateExtraDetails(_ id: Int, _ details: ExtraDetails) throws {
+        try db.execute("UPDATE diet_extras SET label = ?, time_tag = ?, note = ? WHERE id = ?",
+                       [.optional(details.label), .optional(details.time?.rawValue), .optional(details.note), .int(Int64(id))])
+    }
+
+    /// Food without a label: weigh it and log it against a preset whose unit stands for a weight (a batch of 10 g).
+    @discardableResult
+    public func quickAddByWeight(presetID: Int, grams: Double, on date: ISODate, details: ExtraDetails) throws -> Int {
+        guard let preset = try library.food(presetID) else { throw ValidationError("That food is not in the library") }
+        guard let gramsPerUnit = preset.draft.estimateGrams else { throw ValidationError("\(preset.name) is not set up for quick add by weight") }
+        guard grams.isFinite, grams > 0 else { throw ValidationError("Enter an amount above 0") }
+        return try addExtra(foodID: presetID, .amount(grams / gramsPerUnit * preset.draft.baseQuantity), on: date, details: details)
+    }
+
+    @discardableResult
+    public func quickAddCalories(_ calories: Double, on date: ISODate, details: ExtraDetails) throws -> Int {
+        try addExtra(foodID: try quickCaloriesFoodID(), .amount(calories), on: date, details: details)
+    }
+
+    private func quickCaloriesFoodID() throws -> Int {
+        if let existing = try library.food(named: Self.quickCaloriesName) { return existing.id }
+        return try library.add(FoodDraft(name: Self.quickCaloriesName, unit: "kcal", baseQuantity: 1, labelCalories: 1,
+                                         notes: "Used by quick add when only the calories are known"))
     }
 
     /// The extra as the edit sheet reopens it. Pieces when it is a whole number of pieces, otherwise the food's own amount
     /// (grams, or the unit it is counted in). Nil when the extra is gone.
     public func entry(of id: Int) throws -> ExtraEntry? {
-        guard let row = try db.query("SELECT day, food_id, amount, pieces FROM diet_extras WHERE id = ?", [.int(Int64(id))]).first,
+        guard let row = try db.query("SELECT day, food_id, amount, pieces, label, time_tag, note FROM diet_extras WHERE id = ?",
+                                     [.int(Int64(id))]).first,
               let day = ISODate(row.text("day")) else { return nil }
         let foodID = row.int("food_id")
         let amount = row.double("amount")
+        let details = Self.details(row)
         if let pieces = row.optionalDouble("pieces"), abs(pieces - pieces.rounded()) < 0.01, pieces.rounded() >= 1,
            let food = try library.food(foodID), Portions.modes(for: food).contains(.pieces) {
-            return ExtraEntry(id: id, foodID: foodID, date: day, mode: .pieces, value: pieces.rounded())
+            return ExtraEntry(id: id, foodID: foodID, date: day, mode: .pieces, value: pieces.rounded(), details: details)
         }
-        return ExtraEntry(id: id, foodID: foodID, date: day, mode: .amount, value: amount)
+        return ExtraEntry(id: id, foodID: foodID, date: day, mode: .amount, value: amount, details: details)
     }
 
     public func updateExtra(_ id: Int, _ input: PortionInput) throws {
@@ -147,12 +178,14 @@ public final class DietDayService {
     // MARK: Private
 
     private func extras(on date: ISODate, book: FoodBook) throws -> [DietExtra] {
-        try db.query("SELECT id, food_id, amount, pieces FROM diet_extras WHERE day = ? ORDER BY id", [.text(date.string)]).map { row in
+        try db.query("SELECT id, food_id, amount, pieces, label, time_tag, note FROM diet_extras WHERE day = ? ORDER BY id",
+                     [.text(date.string)]).map { row in
             let food = try require(book.food(row.int("food_id")))
             return DietExtra(id: row.int("id"), foodID: food.id, name: food.name, unit: food.unit, amount: row.double("amount"),
                              pieces: row.optionalDouble("pieces"),
                              nutrition: try book.nutrition(of: food.id, quantity: row.double("amount")),
-                             cost: try book.cost(of: food.id, quantity: row.double("amount")))
+                             cost: try book.cost(of: food.id, quantity: row.double("amount")),
+                             details: Self.details(row))
         }
     }
 
@@ -162,6 +195,11 @@ public final class DietDayService {
             .optionalText("latest"), let end = ISODate(latest) else { return nil }
         return try db.query("SELECT AVG(weight_kg) AS average FROM body_weights WHERE measured_on BETWEEN ? AND ?",
                             [.text(end.adding(days: -6).string), .text(end.string)]).first?.optionalDouble("average")
+    }
+
+    private static func details(_ row: Row) -> ExtraDetails {
+        ExtraDetails(label: row.optionalText("label"), time: row.optionalText("time_tag").flatMap(ExtraTime.init(rawValue:)),
+                     note: row.optionalText("note"))
     }
 
     private func require(_ food: Food?) throws -> Food {

@@ -224,6 +224,24 @@ public struct DatabaseFileService {
                     ends_on   TEXT CHECK (ends_on IS NULL OR (ends_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND ends_on >= starts_on))
                 )
                 """)
+            // Version 11: extras get a name, a time of day and a note; foods can stand for grams in quick add.
+            let extraColumns = try db.query("PRAGMA table_info(diet_extras)").map { $0.text("name") }
+            if !extraColumns.contains("label") { try db.execute("ALTER TABLE diet_extras ADD COLUMN label TEXT") }
+            if !extraColumns.contains("time_tag") {
+                try db.execute("ALTER TABLE diet_extras ADD COLUMN time_tag TEXT CHECK (time_tag IS NULL OR time_tag IN ('morning', 'noon', 'evening', 'night'))")
+            }
+            if !extraColumns.contains("note") { try db.execute("ALTER TABLE diet_extras ADD COLUMN note TEXT") }
+            let foodColumns = try db.query("PRAGMA table_info(foods)").map { $0.text("name") }
+            if !foodColumns.contains("estimate_grams") {
+                try db.execute("ALTER TABLE foods ADD COLUMN estimate_grams REAL CHECK (estimate_grams IS NULL OR estimate_grams > 0)")
+                // The owner's own "Extra calorie batches" was meant to be 100 kcal (its note says so) but 7 g + 7 g is 91 kcal.
+                // He chose to make it 100 kcal on every day it was used, and to treat one batch as 10 g of a sweet.
+                try db.execute("""
+                    UPDATE foods SET carbs = 7.7, fat = 7.7, estimate_grams = 10,
+                        notes = 'Each batch is 100 calories (7.7 g carbs + 7.7 g fat) and stands for about 10 g of a sweet or snack'
+                    WHERE name = 'Extra calorie batches' AND unit = 'unit' AND base_qty = 1 AND protein = 0 AND carbs = 7 AND fat = 7
+                    """)
+            }
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

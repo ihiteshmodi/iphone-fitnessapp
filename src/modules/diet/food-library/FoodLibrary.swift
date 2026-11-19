@@ -27,6 +27,11 @@ public final class FoodLibrary {
         return try db.query(sql + " ORDER BY name COLLATE NOCASE", params).map(Self.food)
     }
 
+    /// Foods that stand for a weight of real food, for quick add by weight. By name.
+    public func estimatePresets() throws -> [Food] {
+        try db.query("SELECT * FROM foods WHERE estimate_grams IS NOT NULL ORDER BY name").map(Self.food)
+    }
+
     public func ingredients(of recipeID: Int) throws -> [RecipeLine] {
         try db.query("SELECT food_id, quantity FROM recipe_items WHERE recipe_id = ? ORDER BY position",
                      [.int(Int64(recipeID))]).map { RecipeLine(foodID: $0.int("food_id"), quantity: $0.double("quantity")) }
@@ -54,8 +59,8 @@ public final class FoodLibrary {
         try requireUniqueName(draft.name, except: nil)
         try db.execute("""
             INSERT INTO foods (name, kind, unit, base_qty, protein, carbs, fat, fiber, sat_fat, sodium, label_calories,
-                               price, pack_size, pieces_per_pack, piece_weight, recipe_makes, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               price, pack_size, pieces_per_pack, piece_weight, recipe_makes, notes, estimate_grams)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, Self.values(draft))
         return db.lastInsertRowID
     }
@@ -66,7 +71,7 @@ public final class FoodLibrary {
         try db.execute("""
             UPDATE foods SET name = ?, kind = ?, unit = ?, base_qty = ?, protein = ?, carbs = ?, fat = ?, fiber = ?, sat_fat = ?,
                              sodium = ?, label_calories = ?, price = ?, pack_size = ?, pieces_per_pack = ?, piece_weight = ?,
-                             recipe_makes = ?, notes = ?
+                             recipe_makes = ?, notes = ?, estimate_grams = ?
             WHERE id = ?
             """, Self.values(draft) + [.int(Int64(id))])
     }
@@ -115,7 +120,7 @@ public final class FoodLibrary {
         let nutrients = [draft.protein, draft.carbs, draft.fat, draft.fiber, draft.satFat, draft.sodium] + [draft.labelCalories].compactMap { $0 }
         guard nutrients.allSatisfy({ $0.isFinite && $0 >= 0 }) else { throw ValidationError("Nutrition cannot be negative") }
         if let price = draft.price { guard price.isFinite, price >= 0 else { throw ValidationError("Price cannot be negative") } }
-        for size in [draft.packSize, draft.piecesPerPack, draft.pieceWeight, draft.recipeMakes].compactMap({ $0 }) {
+        for size in [draft.packSize, draft.piecesPerPack, draft.pieceWeight, draft.recipeMakes, draft.estimateGrams].compactMap({ $0 }) {
             guard size.isFinite, size > 0 else { throw ValidationError("Sizes must be above 0") }
         }
     }
@@ -129,7 +134,7 @@ public final class FoodLibrary {
         [.text(draft.name.trimmingCharacters(in: .whitespaces)), .text(draft.kind.rawValue), .text(draft.unit), .double(draft.baseQuantity),
          .double(draft.protein), .double(draft.carbs), .double(draft.fat), .double(draft.fiber), .double(draft.satFat), .double(draft.sodium),
          .optional(draft.labelCalories), .optional(draft.price), .optional(draft.packSize), .optional(draft.piecesPerPack),
-         .optional(draft.pieceWeight), .optional(draft.recipeMakes), .optional(draft.notes)]
+         .optional(draft.pieceWeight), .optional(draft.recipeMakes), .optional(draft.notes), .optional(draft.estimateGrams)]
     }
 
     private static func food(_ row: Row) -> Food {
@@ -139,6 +144,7 @@ public final class FoodLibrary {
             fiber: row.double("fiber"), satFat: row.double("sat_fat"), sodium: row.double("sodium"),
             labelCalories: row.optionalDouble("label_calories"), price: row.optionalDouble("price"), packSize: row.optionalDouble("pack_size"),
             piecesPerPack: row.optionalDouble("pieces_per_pack"), pieceWeight: row.optionalDouble("piece_weight"),
-            recipeMakes: row.optionalDouble("recipe_makes"), notes: row.optionalText("notes")))
+            recipeMakes: row.optionalDouble("recipe_makes"), notes: row.optionalText("notes"),
+            estimateGrams: row.optionalDouble("estimate_grams")))
     }
 }

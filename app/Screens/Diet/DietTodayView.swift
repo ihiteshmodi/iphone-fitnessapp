@@ -5,6 +5,7 @@ import SwiftUI
 struct DietTodayView: View {
     @ObservedObject var model: DietViewModel
     let onAddExtra: () -> Void
+    let onQuickAdd: () -> Void
     let onEditExtra: (DietExtra) -> Void
     let onEditPlan: () -> Void
 
@@ -197,14 +198,22 @@ struct DietTodayView: View {
                     Text("Had something that is not in the plan? Add it here.")
                         .font(.system(size: 13)).foregroundColor(Theme.muted).padding(10)
                 }
-                ForEach(day.extras) { extra in
-                    DietExtraRow(extra: extra, onEdit: { onEditExtra(extra) }, onDelete: { model.remove(extra) })
+                ForEach(day.extrasByTime, id: \.time) { group in
+                    Text(group.time?.title ?? "Any time").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.muted)
+                        .padding(.horizontal, 10).padding(.top, 8)
+                    ForEach(group.extras) { extra in
+                        DietExtraRow(extra: extra, onEdit: { onEditExtra(extra) }, onDelete: { model.remove(extra) })
+                    }
                 }
-                Button("+ Add extra", action: onAddExtra)
-                    .buttonStyle(PrimaryButtonStyle(ghost: true))
-                    .font(.system(size: 14))
-                    .padding(.horizontal, 6).padding(.vertical, 6)
-                    .accessibilityIdentifier("diet-add-extra")
+                HStack(spacing: 8) {
+                    Button("+ Add extra", action: onAddExtra)
+                        .accessibilityIdentifier("diet-add-extra")
+                    Button("Quick add", action: onQuickAdd)
+                        .accessibilityIdentifier("diet-quick-add")
+                }
+                .buttonStyle(PrimaryButtonStyle(ghost: true))
+                .font(.system(size: 14))
+                .padding(.horizontal, 6).padding(.vertical, 6)
                 if let week = model.weekExtrasText {
                     Text(week).font(.system(size: 12)).foregroundColor(Theme.muted).padding(10)
                         .accessibilityIdentifier("diet-week-extras")
@@ -308,8 +317,11 @@ struct DietExtraRow: View {
             Button(action: onEdit) {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(extra.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                        Text(extra.displayName).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
                         Text(detail).font(.system(size: 12)).foregroundColor(Theme.muted)
+                        if let note = extra.details.note {
+                            Text(note).font(.system(size: 12)).italic().foregroundColor(Theme.muted)
+                        }
                     }
                     Spacer(minLength: 6)
                     VStack(alignment: .trailing, spacing: 1) {
@@ -323,7 +335,7 @@ struct DietExtraRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("diet-extra-\(extra.name)")
+            .accessibilityIdentifier("diet-extra-\(extra.displayName)")
             Button(action: onDelete) { Image(systemName: "xmark.circle.fill").foregroundColor(Theme.muted) }
                 .accessibilityLabel("Remove \(extra.name)")
                 .accessibilityIdentifier("diet-remove-extra-\(extra.name)")
@@ -336,6 +348,7 @@ struct DietExtraRow: View {
         if let pieces = extra.pieces, extra.unit == "g" || extra.unit == "ml" {
             return "\(Format.number(pieces, maxDecimals: 1)) piece\(pieces == 1 ? "" : "s") · \(Format.number(extra.amount, maxDecimals: 1)) \(extra.unit)"
         }
-        return Format.amount(extra.amount, unit: extra.unit)
+        let amount = Format.amount(extra.amount, unit: extra.unit)
+        return extra.details.label == nil ? amount : "\(extra.name) · \(amount)"
     }
 }

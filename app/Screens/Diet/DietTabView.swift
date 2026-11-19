@@ -25,6 +25,7 @@ private struct DietScreen: View {
     @StateObject private var foodsModel: FoodsViewModel
     @State private var section = DietSection.today
     @State private var addingExtra = false
+    @State private var quickAdding = false
     @State private var editingExtra: ExtraEntry?
 
     init(services: Services) {
@@ -40,7 +41,7 @@ private struct DietScreen: View {
                     header
                     DietSegmentPicker(selection: $section)
                     switch section {
-                    case .today: DietTodayView(model: model, onAddExtra: { addingExtra = true }, onEditExtra: { editingExtra = try? services.dietDays.entry(of: $0.id) }, onEditPlan: { section = .plan })
+                    case .today: DietTodayView(model: model, onAddExtra: { addingExtra = true }, onQuickAdd: { quickAdding = true }, onEditExtra: { editingExtra = try? services.dietDays.entry(of: $0.id) }, onEditPlan: { section = .plan })
                     case .plan: DietPlanView(model: planModel)
                     case .foods: DietFoodsView(model: foodsModel)
                     }
@@ -58,6 +59,9 @@ private struct DietScreen: View {
         .errorAlert($planModel.errorMessage)
         .sheet(item: $editingExtra) { entry in
             DietAddExtraSheet(services: services, date: model.date, editing: entry) { session.didChange() }
+        }
+        .sheet(isPresented: $quickAdding) {
+            QuickAddExtraSheet(services: services, date: model.date) { session.didChange() }
         }
         .sheet(isPresented: $addingExtra) {
             DietAddExtraSheet(services: services, date: model.date, recent: model.recentExtras) { session.didChange() }

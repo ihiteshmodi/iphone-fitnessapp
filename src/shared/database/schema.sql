@@ -121,6 +121,7 @@ CREATE TABLE break_periods (
 -- label_calories is what the pack says; when it is empty calories are worked out as 4 x protein + 4 x carbs + 9 x fat.
 -- price is for one pack of pack_size units. pieces_per_pack and piece_weight let "4 biscuits" become grams.
 -- A recipe (kind = 'recipe') has no nutrition of its own: it is worked out from recipe_items and divided by recipe_makes units.
+-- estimate_grams: quick add by weight, the grams of real food one unit stands for (a "batch" of 10 g of a sweet).
 CREATE TABLE foods (
     id              INTEGER PRIMARY KEY,
     name            TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -139,7 +140,8 @@ CREATE TABLE foods (
     pieces_per_pack REAL CHECK (pieces_per_pack IS NULL OR pieces_per_pack > 0),
     piece_weight    REAL CHECK (piece_weight IS NULL OR piece_weight > 0),
     recipe_makes    REAL CHECK (recipe_makes IS NULL OR recipe_makes > 0),
-    notes           TEXT
+    notes           TEXT,
+    estimate_grams  REAL CHECK (estimate_grams IS NULL OR estimate_grams > 0)
 );
 
 CREATE TABLE recipe_items (
@@ -180,12 +182,16 @@ CREATE TABLE diet_day_ticks (
 );
 
 -- Something eaten on top of the plan. amount is in the food's unit (grams for a packet); pieces is only for showing.
+-- label, time_tag and note are optional: a name of its own (street food logged against a preset), when it was eaten, a note.
 CREATE TABLE diet_extras (
     id      INTEGER PRIMARY KEY,
     day     TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
     food_id INTEGER NOT NULL REFERENCES foods(id) ON DELETE RESTRICT,
     amount  REAL NOT NULL CHECK (amount > 0),
-    pieces  REAL CHECK (pieces IS NULL OR pieces > 0)
+    pieces  REAL CHECK (pieces IS NULL OR pieces > 0),
+    label    TEXT,
+    time_tag TEXT CHECK (time_tag IS NULL OR time_tag IN ('morning', 'noon', 'evening', 'night')),
+    note     TEXT
 );
 CREATE INDEX diet_extras_by_day ON diet_extras(day);
 
@@ -204,4 +210,4 @@ INSERT INTO settings (key, value) VALUES
     ('diet_fat_percent', '20'),
     ('fat_ceiling_g_per_lb', '0.4');
 
-PRAGMA user_version = 10;
+PRAGMA user_version = 11;

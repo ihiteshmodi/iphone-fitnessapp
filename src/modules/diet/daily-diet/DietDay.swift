@@ -50,6 +50,30 @@ public struct DietMeal: Equatable {
     }
 }
 
+public enum ExtraTime: String, CaseIterable, Equatable {
+    case morning, noon, evening, night
+
+    public var title: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
+}
+
+/// What the person adds to an extra on top of the food and amount: all optional.
+public struct ExtraDetails: Equatable {
+    public var label: String?
+    public var time: ExtraTime?
+    public var note: String?
+
+    public init(label: String? = nil, time: ExtraTime? = nil, note: String? = nil) {
+        self.label = Self.clean(label)
+        self.time = time
+        self.note = Self.clean(note)
+    }
+
+    private static func clean(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+}
+
 public struct DietExtra: Equatable, Identifiable {
     public let id: Int
     public let foodID: Int
@@ -59,6 +83,15 @@ public struct DietExtra: Equatable, Identifiable {
     public let pieces: Double?
     public let nutrition: Nutrition
     public let cost: Cost
+    public var details = ExtraDetails()
+
+    /// The extra's own name when it has one (street food logged against a preset), else the food's.
+    public var displayName: String { details.label ?? name }
+}
+
+public struct ExtraGroup: Equatable {
+    public let time: ExtraTime?
+    public let extras: [DietExtra]
 }
 
 public struct DietDay: Equatable {
@@ -78,6 +111,14 @@ public struct DietDay: Equatable {
     public let total: Nutrition
     public let cost: Cost
     public let targets: DietTargets
+
+    /// Morning, noon, evening, night, then extras with no time; empty groups left out.
+    public var extrasByTime: [ExtraGroup] {
+        (ExtraTime.allCases.map(Optional.some) + [nil]).compactMap { time in
+            let matching = extras.filter { $0.details.time == time }
+            return matching.isEmpty ? nil : ExtraGroup(time: time, extras: matching)
+        }
+    }
 }
 
 /// An extra as the edit sheet reopens it: the food, the day, and the amount in the mode it is easiest to change.
@@ -87,6 +128,7 @@ public struct ExtraEntry: Equatable, Identifiable {
     public let date: ISODate
     public let mode: PortionMode
     public let value: Double
+    public var details = ExtraDetails()
 }
 
 public struct ExtrasSummary: Equatable {

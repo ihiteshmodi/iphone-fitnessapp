@@ -88,11 +88,14 @@ public struct FoodDraft: Equatable {
     public var pieceWeight: Double?
     public var recipeMakes: Double?
     public var notes: String?
+    /// Quick add by weight: grams of real food one unit stands for. Nil when the food is not a quick-add preset.
+    public var estimateGrams: Double?
 
     public init(name: String, kind: FoodKind = .food, unit: String = "g", baseQuantity: Double = 100,
                 protein: Double = 0, carbs: Double = 0, fat: Double = 0, fiber: Double = 0, satFat: Double = 0, sodium: Double = 0,
                 labelCalories: Double? = nil, price: Double? = nil, packSize: Double? = nil,
-                piecesPerPack: Double? = nil, pieceWeight: Double? = nil, recipeMakes: Double? = nil, notes: String? = nil) {
+                piecesPerPack: Double? = nil, pieceWeight: Double? = nil, recipeMakes: Double? = nil, notes: String? = nil,
+                estimateGrams: Double? = nil) {
         self.name = name
         self.kind = kind
         self.unit = unit
@@ -110,6 +113,7 @@ public struct FoodDraft: Equatable {
         self.pieceWeight = pieceWeight
         self.recipeMakes = recipeMakes
         self.notes = notes
+        self.estimateGrams = estimateGrams
     }
 }
 

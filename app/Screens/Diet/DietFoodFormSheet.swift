@@ -19,6 +19,7 @@ final class FoodFormModel: ObservableObject {
     @Published var satFat = ""
     @Published var sodium = ""
     @Published var notes = ""
+    @Published var estimateGrams = ""
 
     static let kinds: [FoodKind] = [.food, .topping, .supplement, .herb, .liquid, .packaged]
     static let units = ["g", "ml", "unit", "capsule", "piece"]
@@ -50,6 +51,7 @@ final class FoodFormModel: ObservableObject {
         satFat = d.satFat == 0 ? "" : Format.number(d.satFat)
         sodium = d.sodium == 0 ? "" : Format.number(d.sodium)
         notes = d.notes ?? ""
+        estimateGrams = d.estimateGrams.map { Format.number($0) } ?? ""
     }
 
     /// Foods counted in units, capsules or pieces have no weight per piece: one of them is the piece.
@@ -69,14 +71,28 @@ final class FoodFormModel: ObservableObject {
         return value
     }
 
+    /// Starts from the saved food so fields this form does not show are kept.
     func draft() throws -> FoodDraft {
-        FoodDraft(name: name, kind: kind, unit: unit, baseQuantity: try number(baseQuantity, "the base quantity") ?? 100,
-                  protein: try number(protein, "protein") ?? 0, carbs: try number(carbs, "carbs") ?? 0, fat: try number(fat, "fat") ?? 0,
-                  fiber: try number(fiber, "fiber") ?? 0, satFat: try number(satFat, "saturated fat") ?? 0, sodium: try number(sodium, "sodium") ?? 0,
-                  labelCalories: try number(calories, "calories"), price: try number(price, "the price"), packSize: try number(packSize, "the pack size"),
-                  piecesPerPack: isCounted ? nil : try number(piecesPerPack, "the pieces in a pack"),
-                  pieceWeight: isCounted ? nil : try number(pieceWeight, "the piece weight"),
-                  recipeMakes: nil, notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes)
+        var d = existing?.draft ?? FoodDraft(name: name)
+        d.name = name
+        d.kind = kind
+        d.unit = unit
+        d.baseQuantity = try number(baseQuantity, "the base quantity") ?? 100
+        d.protein = try number(protein, "protein") ?? 0
+        d.carbs = try number(carbs, "carbs") ?? 0
+        d.fat = try number(fat, "fat") ?? 0
+        d.fiber = try number(fiber, "fiber") ?? 0
+        d.satFat = try number(satFat, "saturated fat") ?? 0
+        d.sodium = try number(sodium, "sodium") ?? 0
+        d.labelCalories = try number(calories, "calories")
+        d.price = try number(price, "the price")
+        d.packSize = try number(packSize, "the pack size")
+        d.piecesPerPack = isCounted ? nil : try number(piecesPerPack, "the pieces in a pack")
+        d.pieceWeight = isCounted ? nil : try number(pieceWeight, "the piece weight")
+        d.recipeMakes = nil
+        d.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes
+        d.estimateGrams = try number(estimateGrams, "the grams for quick add")
+        return d
     }
 
     /// "→ 1 piece = 7.14 g · ₹1.14 a piece"
@@ -160,6 +176,8 @@ struct DietFoodFormSheet: View {
                     if let note = model.pieceNote { Text(note).font(.system(size: 12)).foregroundColor(Theme.green) }
                     labelSection
                     BodyField(label: "Notes", text: $model.notes, identifier: "food-notes-field", keyboard: .default)
+                    BodyField(label: "Quick add by weight: grams one \(model.unit) stands for (optional)", text: $model.estimateGrams,
+                              unit: "g", identifier: "food-estimate-grams-field")
                     if let check = model.pieceCheck { pieceCheckCard(check) }
                     Button("Save food", action: save).buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("food-save-button")
                     if model.existing != nil {
