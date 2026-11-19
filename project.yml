@@ -47,6 +47,10 @@ targets:
           LIBRARY="${SRCROOT}/output/supplement-library.json"
           LIBRARY_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/supplement-library.json"
           if [ -f "$LIBRARY" ]; then cp -f "$LIBRARY" "$LIBRARY_DEST"; else rm -f "$LIBRARY_DEST"; fi
+          # The bloodwork and genetics catalogue (the vault's content, git-ignored; built by tools/labs-catalogue).
+          LABS="${SRCROOT}/output/labs-catalogue.json"
+          LABS_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/labs-catalogue.json"
+          if [ -f "$LABS" ]; then cp -f "$LABS" "$LABS_DEST"; else rm -f "$LABS_DEST"; fi
     dependencies:
       - package: FitnessCore
     info:

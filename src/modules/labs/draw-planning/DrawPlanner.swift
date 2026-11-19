@@ -1,8 +1,14 @@
 import Foundation
 
+/// One test to ask for. markerID is nil for tests the vault names without a lesson (they are still ordered by name).
+public struct OrderTest: Equatable {
+    public let name: String
+    public let markerID: String?
+}
+
 public struct OrderItem: Equatable {
     public let panel: LabPanel
-    public let markers: [LabMarker]
+    public let tests: [OrderTest]
     /// Why a conditional panel was added (the vault's trigger text).
     public let reason: String?
 }
@@ -39,19 +45,39 @@ public struct DrawPlanner {
     public func order() throws -> [OrderItem] {
         var items: [OrderItem] = []
         for panel in catalogue.panels where panel.tag != "female" || sex == .female {
-            let markers = panel.markers.compactMap(catalogue.marker)
+            let tests = resolve(panel.markers, seen: [panel.id])
             switch panel.when {
             case "first", "routine", nil:
                 if panel.when == "routine", items.contains(where: { $0.panel.when == "first" && Set($0.panel.markers) == Set(panel.markers) }) { continue }
-                items.append(OrderItem(panel: panel, markers: markers, reason: nil))
+                items.append(OrderItem(panel: panel, tests: tests, reason: nil))
             case "conditional":
                 guard let triggers = panel.triggerMarkers, !triggers.isEmpty, try triggers.contains(where: isOff) else { continue }
-                items.append(OrderItem(panel: panel, markers: markers, reason: panel.trigger))
+                items.append(OrderItem(panel: panel, tests: tests, reason: panel.trigger))
             default:
                 continue
             }
         }
         return items
+    }
+
+    /// A panel name expands into its tests; an alias finds its marker; anything else is still named.
+    private func resolve(_ ids: [String], seen: Set<String>) -> [OrderTest] {
+        var tests: [OrderTest] = []
+        for id in ids {
+            let found: [OrderTest]
+            if let marker = catalogue.marker(id) {
+                found = [OrderTest(name: marker.name, markerID: marker.id)]
+            } else if let panel = catalogue.panel(id), !seen.contains(id) {
+                found = resolve(panel.markers, seen: seen.union([id]))
+            } else if let marker = catalogue.markers.first(where: { ([$0.name] + $0.aliases).contains { $0.caseInsensitiveCompare(id) == .orderedSame } }) {
+                found = [OrderTest(name: marker.name, markerID: marker.id)]
+            } else {
+                let words = id.replacingOccurrences(of: "-", with: " ")
+                found = [OrderTest(name: words.prefix(1).uppercased() + words.dropFirst(), markerID: nil)]
+            }
+            for test in found where !tests.contains(test) { tests.append(test) }
+        }
+        return tests
     }
 
     /// Prep steps for the ordered tests (steps with no marker list apply to every draw), earliest first.

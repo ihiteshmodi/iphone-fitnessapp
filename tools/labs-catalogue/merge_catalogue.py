@@ -45,6 +45,24 @@ def merge_marker(into, new):
             into[field] = merged
 
 
+def normalise(data):
+    """Fixes the two shapes the fragment builders sometimes wrote: unnamed units and `state` used for a condition's op."""
+    fixes = 0
+    for marker in data.get("markers", []):
+        units = [u for u in marker.get("units", []) if isinstance(u.get("unit"), str)]
+        fixes += len(marker.get("units", [])) - len(units)
+        if units and not any(u.get("default") for u in units):
+            units[0] = dict(units[0], default=True)
+            fixes += 1
+        marker["units"] = units
+    for pattern in data.get("patterns", []):
+        for condition in pattern.get("conditions") or []:
+            if "op" not in condition and "state" in condition:
+                condition["op"] = condition.pop("state")
+                fixes += 1
+    return fixes
+
+
 def merge(fragments):
     out = {"markers": [], "panels": [], "prep": [], "patterns": [], "genes": [], "geneticsGuide": []}
     index = {}
@@ -72,11 +90,12 @@ def merge(fragments):
 def main(argv):
     out_path, paths = argv[1], argv[2:]
     fragments = [(p, json.load(open(p, encoding="utf-8"))) for p in paths]
+    fixes = sum(normalise(data) for _, data in fragments)
     merged, clashes = merge(fragments)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(merged, f, ensure_ascii=False, indent=1)
     counts = {k: len(v) for k, v in merged.items()}
-    print(json.dumps(counts))
+    print(json.dumps(counts) + f"; {fixes} shape fixes")
     if clashes:
         print("id clashes (first kept): " + ", ".join(clashes))
     return 0

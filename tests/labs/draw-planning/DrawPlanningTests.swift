@@ -4,7 +4,7 @@ import XCTest
 final class DrawPlanningTests: XCTestCase {
     private let json = #"""
     {"markers": [
-     {"id": "ferritin", "name": "Ferritin", "units": [{"unit": "ng/mL", "default": true}],
+     {"id": "ferritin", "name": "Ferritin", "aliases": ["serum ferritin"], "units": [{"unit": "ng/mL", "default": true}],
       "bands": [{"label": "Optimal", "kind": "optimal", "low": 60, "high": 140, "unit": "ng/mL"}],
       "retest": [{"text": "Out-of-band fixture", "minWeeks": 8, "maxWeeks": 12, "after": "abnormal"},
                  {"text": "Routine fixture", "minWeeks": 26, "maxWeeks": 52, "after": "routine"}]},
@@ -20,7 +20,8 @@ final class DrawPlanningTests: XCTestCase {
       {"id": "iron", "name": "Iron panel", "markers": ["ferritin"], "when": "first"},
       {"id": "chem", "name": "Chemistry", "markers": ["uric-acid"], "askFor": "order uric acid by name", "when": "first"},
       {"id": "ferritin-off", "name": "If ferritin is off", "markers": ["tsat"], "when": "conditional", "trigger": "Odd ferritin: add TSAT", "triggerMarkers": ["ferritin"]},
-      {"id": "thyroid-extra", "name": "Thyroid add-on", "markers": ["tsh"], "when": "conditional", "triggerMarkers": ["glucose"]}
+      {"id": "thyroid-extra", "name": "Thyroid add-on", "markers": ["tsh"], "when": "conditional", "triggerMarkers": ["glucose"]},
+      {"id": "rare", "name": "Rare tests", "markers": ["sugar", "anti-ccp", "serum ferritin"], "when": "conditional", "triggerMarkers": ["ferritin"]}
      ],
      "prep": [
       {"id": "biotin", "text": "Stop biotin", "hoursBefore": 72},
@@ -49,7 +50,7 @@ final class DrawPlanningTests: XCTestCase {
         let order = try planner().order()
 
         XCTAssertEqual(order.map(\.panel.id), ["sugar", "iron", "chem"])
-        XCTAssertEqual(order.flatMap(\.markers).map(\.name), ["Glucose", "Ferritin", "Uric acid"])
+        XCTAssertEqual(order.flatMap(\.tests).map(\.name), ["Glucose", "Ferritin", "Uric acid"])
         XCTAssertEqual(order.last?.panel.askFor, "order uric acid by name")
     }
 
@@ -59,8 +60,17 @@ final class DrawPlanningTests: XCTestCase {
 
         let order = try planner().order()
 
-        XCTAssertEqual(order.map(\.panel.id), ["sugar", "iron", "chem", "ferritin-off"])
-        XCTAssertEqual(order.last?.reason, "Odd ferritin: add TSAT")
+        XCTAssertEqual(order.map(\.panel.id), ["sugar", "iron", "chem", "ferritin-off", "rare"])
+        XCTAssertEqual(order[3].reason, "Odd ferritin: add TSAT")
+    }
+
+    func testPanelNamesExpandAliasesResolveAndUnknownTestsAreStillNamed() throws {
+        try result("ferritin", 40, "ng/mL", on: "2026-09-01")
+
+        let rare = try XCTUnwrap(try planner().order().first { $0.panel.id == "rare" })
+
+        XCTAssertEqual(rare.tests.map(\.name), ["Glucose", "Anti ccp", "Ferritin"])
+        XCTAssertEqual(rare.tests.map(\.markerID), ["glucose", nil, "ferritin"])
     }
 
     func testThePrepTimelineCountsBackFromTheDrawAndSkipsTestsNotOrdered() throws {

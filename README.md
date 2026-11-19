@@ -244,6 +244,7 @@ There are no environment variables or secrets. The app is configured by settings
 | `output/meridian-presets.json` | Coach presets made by `python tools/meridian-presets/build_presets.py "<Train & Eat folder>"`; bundled when present and loaded from More → Coach presets. Paid-program content, so it stays out of the repository | absent (card hidden) | No |
 | `output/nutrient-values.csv` | Approved extra nutrient values for your foods (`name,key,amount`); bundled when present and applied from More → Nutrient data | absent (card hidden) | No |
 | `output/supplement-library.json` | The vault's supplement library; in the repository and bundled (More → Supplements) | absent (library hidden) | No |
+| `output/labs-catalogue.json` | The bloodwork and genetics catalogue (markers, bands, doctor lines, prep, panels, patterns, genes) merged by `tools/labs-catalogue/merge_catalogue.py`; bundled when present. The vault's content, so it stays out of the repository | absent (Labs hidden) | No |
 | `-UITestImportPath <file>` | Simulator tests only: import this database at launch | unset | No |
 | `-UITestInitialTab <0-4>` | Simulator tests only: start on a tab (0 Workout, 1 Body, 2 Diet, 3 Progress, 4 More) | `0` | No |
 
