@@ -2,7 +2,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from merge_catalogue import merge, normalise  # noqa: E402
+from merge_catalogue import merge, normalise, rename_ids  # noqa: E402
 
 
 def test_the_same_marker_from_two_chapters_is_joined_once():
@@ -45,3 +45,14 @@ def test_the_first_unit_becomes_the_default_when_none_is_marked():
     normalise(data)
 
     assert data["markers"][0]["units"][0] == {"unit": "ratio", "default": True}
+
+
+def test_a_chapter_alias_id_is_renamed_everywhere():
+    data = {"markers": [{"id": "bilirubin", "name": "Bilirubin"}], "panels": [{"id": "lft", "name": "LFT", "markers": ["bilirubin"]}],
+            "patterns": [{"id": "p", "name": "P", "conditions": [{"marker": "bilirubin", "op": ">", "value": 1}]}]}
+
+    rename_ids(data)
+
+    assert data["markers"][0]["id"] == "total-bilirubin"
+    assert data["panels"][0]["markers"] == ["total-bilirubin"]
+    assert data["patterns"][0]["conditions"][0]["marker"] == "total-bilirubin"

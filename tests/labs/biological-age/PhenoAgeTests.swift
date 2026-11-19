@@ -32,8 +32,8 @@ final class PhenoAgeTests: XCTestCase {
         let draws = LabDrawService(db, catalogue: PhenoAge.inputCatalogue)
         let id = try draws.addDraw(LabDrawDraft(date: date("2026-05-03")))
         for (marker, value, unit) in [("albumin", 4.5, "g/dL"), ("creatinine", 0.9, "mg/dL"), ("glucose", 90.0, "mg/dL"),
-                                      ("lymphocytes-percent", 30.0, "%"), ("mcv", 90.0, "fL"), ("rdw", 13.0, "%"), ("alp", 70.0, "U/L"),
-                                      ("wbc", 6.0, "10^3/uL")] {
+                                      ("lymphocyte-pct", 30.0, "%"), ("mcv", 90.0, "fL"), ("rdw", 13.0, "%"), ("alp", 70.0, "U/L"),
+                                      ("wbc", 6.0, "x10^3/uL")] {
             try draws.addResult(drawID: id, markerID: marker, value: value, unit: unit)
         }
 

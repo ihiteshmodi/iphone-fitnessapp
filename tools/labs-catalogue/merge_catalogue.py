@@ -45,6 +45,32 @@ def merge_marker(into, new):
             into[field] = merged
 
 
+# Ids one chapter used for a marker another chapter describes in full.
+RENAMES = {"bilirubin": "total-bilirubin"}
+
+
+def rename_ids(data):
+    def fix(ids):
+        return [RENAMES.get(i, i) for i in ids]
+    for marker in data.get("markers", []):
+        marker["id"] = RENAMES.get(marker["id"], marker["id"])
+        links = marker.get("links") or {}
+        if isinstance(links, dict) and links.get("markers"):
+            links["markers"] = fix(links["markers"])
+    for panel in data.get("panels", []):
+        panel["markers"] = fix(panel.get("markers") or [])
+        if panel.get("triggerMarkers"):
+            panel["triggerMarkers"] = fix(panel["triggerMarkers"])
+    for step in data.get("prep", []):
+        if step.get("markers"):
+            step["markers"] = fix(step["markers"])
+    for pattern in data.get("patterns", []):
+        if pattern.get("markers"):
+            pattern["markers"] = fix(pattern["markers"])
+        for condition in pattern.get("conditions") or []:
+            condition["marker"] = RENAMES.get(condition.get("marker"), condition.get("marker"))
+
+
 def normalise(data):
     """Fixes the two shapes the fragment builders sometimes wrote: unnamed units and `state` used for a condition's op."""
     fixes = 0
@@ -90,6 +116,8 @@ def merge(fragments):
 def main(argv):
     out_path, paths = argv[1], argv[2:]
     fragments = [(p, json.load(open(p, encoding="utf-8"))) for p in paths]
+    for _, data in fragments:
+        rename_ids(data)
     fixes = sum(normalise(data) for _, data in fragments)
     merged, clashes = merge(fragments)
     with open(out_path, "w", encoding="utf-8") as f:

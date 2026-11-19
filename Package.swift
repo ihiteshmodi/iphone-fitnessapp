@@ -62,6 +62,7 @@ let package = Package(
                 "labs/draw-planning/draw-planning.feature",
                 "labs/lab-insights/lab-insights.feature",
                 "labs/biological-age/biological-age.feature",
+                "labs/lab-history/lab-history.feature",
                 "labs/lab-draws/lab-draws.feature",
                 "insights/check-in/check-in.feature",
                 "insights/training-rules/training-rules.feature",

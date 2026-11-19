@@ -42,11 +42,11 @@ public enum PhenoAgeInput: String, CaseIterable, Equatable {
         case .creatinine: return ("creatinine", "mg/dL")
         case .glucose: return ("glucose", "mg/dL")
         case .hsCRP: return ("hs-crp", "mg/L")
-        case .lymphocytes: return ("lymphocytes-percent", "%")
+        case .lymphocytes: return ("lymphocyte-pct", "%")
         case .mcv: return ("mcv", "fL")
         case .rdw: return ("rdw", "%")
         case .alp: return ("alp", "U/L")
-        case .wbc: return ("wbc", "10^3/uL")
+        case .wbc: return ("wbc", "x10^3/uL")
         }
     }
 }
