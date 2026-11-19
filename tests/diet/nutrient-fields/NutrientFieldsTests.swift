@@ -52,7 +52,7 @@ final class NutrientFieldsTests: XCTestCase {
     func testDailyTargetsForTheTrackedNutrients() {
         XCTAssertEqual(Nutrient.leucine.dailyTarget, 2.9)
         XCTAssertEqual(Nutrient.vitaminD.dailyTarget, 20)
-        XCTAssertEqual(Nutrient.omega6.dailyTarget, 17)
+        XCTAssertNil(Nutrient.omega6.dailyTarget, "the vault gives no omega-6 amount, so it is tracked but not judged")
         XCTAssertEqual(Nutrient.fiberDailyTarget, 28)
         XCTAssertEqual(Nutrient.vitaminD.unit, "mcg")
     }

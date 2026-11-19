@@ -62,7 +62,8 @@ public enum Nutrient: String, CaseIterable, Hashable {
     }
 
     /// Daily targets shown in the Meridian app (USDA/FatSecret reference intakes, adult male), in `unit`.
-    /// Nutrients with no target (fat types, EPA and DHA, ALA, alcohol, caffeine) return nil; their rules live elsewhere.
+    /// Nutrients with no target (fat types, EPA and DHA, ALA, omega-6, alcohol, caffeine) return nil; their rules live elsewhere.
+    /// Omega-6 is left out because the vault gives no amount or ratio for it.
     public var dailyTarget: Double? {
         switch self {
         case .histidine: return 1
@@ -76,7 +77,6 @@ public enum Nutrient: String, CaseIterable, Hashable {
         case .tryptophan: return 0.4
         case .tyrosine: return 1.4
         case .valine: return 1.7
-        case .omega6: return 17
         case .vitaminA: return 900
         case .b1: return 1.2
         case .b2: return 1.3
