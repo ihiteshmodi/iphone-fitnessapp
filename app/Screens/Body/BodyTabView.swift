@@ -136,6 +136,7 @@ private struct BodyScreen: View {
                 .font(.system(size: 13)).foregroundColor(Theme.text).fixedSize(horizontal: false, vertical: true)
         }
         .card(highlighted: true)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("body-on-break")
     }
 

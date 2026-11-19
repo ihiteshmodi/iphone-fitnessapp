@@ -66,6 +66,7 @@ struct DietTodayView: View {
             }
         }
         .card(highlighted: true)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("unconfirmed-meals-card")
     }
 
@@ -76,6 +77,7 @@ struct DietTodayView: View {
             Text("Nothing needs logging. These days are left out of the calorie maths.").font(.system(size: 12)).foregroundColor(Theme.muted)
         }
         .card(highlighted: true)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("diet-break-notice")
     }
 
@@ -88,6 +90,7 @@ struct DietTodayView: View {
                 .accessibilityIdentifier("diet-use-diet-instead")
         }
         .card()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("diet-typed-notice")
     }
 

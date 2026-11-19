@@ -120,6 +120,7 @@ struct RoomForImprovementView: View {
             .font(.system(size: 12))
         }
         .card()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("insight-\(item.id)")
     }
 

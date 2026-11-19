@@ -54,6 +54,7 @@ struct CheckInCard: View {
                 .accessibilityIdentifier("recovery-signs-button")
         }
         .card()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("check-in-card")
         .task(id: "\(date.string)-\(session.revision)") { load() }
         .sheet(isPresented: $showingSigns) { RecoverySignsSheet(date: date) { load() } }
@@ -167,6 +168,7 @@ struct SweatyActivityView: View {
                         line("Sip", "\(range(plan.sipMl, "mL", decimals: 0))", "every 15-20 min")
                     }
                     .card(highlighted: true)
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("sweat-plan")
                 }
                 Text("Vault: 300-700 mg sodium per hour (at least ~500 mg/h when sweating heavily), 80-150 mg potassium per 500-750 mL in long or hot sessions, 180-360 mL every 15-20 min. Salt is about 38% sodium and potassium chloride 52% potassium (chemistry).")

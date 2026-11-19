@@ -18,6 +18,8 @@ struct DietPlanItemSheet: View {
     @State private var quantity = ""
     @State private var cycle: CycleDraft
     @State private var confirmingRemove = false
+    /// Fixed when the sheet opens: the name field must stay while the name is typed.
+    private let asksForMealName: Bool
 
     init(services: Services, model: DietPlanViewModel, item: PlanItem?, meal: String, onSaved: @escaping () -> Void) {
         self.services = services
@@ -25,6 +27,7 @@ struct DietPlanItemSheet: View {
         self.item = item
         self.onSaved = onSaved
         _meal = State(initialValue: meal)
+        asksForMealName = item == nil && meal.isEmpty
         _cycle = State(initialValue: item.map { CycleDraft(rule: $0.cycle, today: model.editFrom) } ?? CycleDraft(today: model.editFrom))
     }
 
@@ -122,7 +125,7 @@ struct DietPlanItemSheet: View {
 
     private var searchSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if meal.isEmpty { BodyField(label: "New meal name", text: $meal, identifier: "plan-meal-field", keyboard: .default) }
+            if asksForMealName { BodyField(label: "New meal name", text: $meal, identifier: "plan-meal-field", keyboard: .default) }
             TextField("Search foods", text: $query)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 .padding(12).background(Theme.card)

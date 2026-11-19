@@ -246,6 +246,7 @@ struct DietRecipeView: View {
             }
         }
         .card()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("recipe-cook-card")
     }
 

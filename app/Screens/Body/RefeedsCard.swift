@@ -53,6 +53,7 @@ struct RefeedsCard: View {
                         .font(.system(size: 11)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
                 }
                 .card()
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("refeeds-card")
             }
         }
