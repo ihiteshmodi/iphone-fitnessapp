@@ -8,6 +8,8 @@ public struct LabCatalogue {
     public let prep: [LabPrepStep]
     public let patterns: [LabPattern]
     public let genes: [LabGene]
+    /// The genetics volume's testing tiers, core rules and failures to avoid.
+    public let geneticsGuide: [LabGuideItem]
 
     private struct File: Decodable {
         let markers: [LabMarker]?
@@ -15,20 +17,24 @@ public struct LabCatalogue {
         let prep: [LabPrepStep]?
         let patterns: [LabPattern]?
         let genes: [LabGene]?
+        let geneticsGuide: [LabGuideItem]?
     }
 
     public init(data: Data) throws {
         let file: File
         do { file = try JSONDecoder().decode(File.self, from: data) } catch { throw ValidationError("The labs catalogue could not be read: \(error)") }
-        self.init(markers: file.markers ?? [], panels: file.panels ?? [], prep: file.prep ?? [], patterns: file.patterns ?? [], genes: file.genes ?? [])
+        self.init(markers: file.markers ?? [], panels: file.panels ?? [], prep: file.prep ?? [], patterns: file.patterns ?? [],
+                  genes: file.genes ?? [], geneticsGuide: file.geneticsGuide ?? [])
     }
 
-    public init(markers: [LabMarker] = [], panels: [LabPanel] = [], prep: [LabPrepStep] = [], patterns: [LabPattern] = [], genes: [LabGene] = []) {
+    public init(markers: [LabMarker] = [], panels: [LabPanel] = [], prep: [LabPrepStep] = [], patterns: [LabPattern] = [], genes: [LabGene] = [],
+                geneticsGuide: [LabGuideItem] = []) {
         self.markers = markers
         self.panels = panels
         self.prep = prep
         self.patterns = patterns
         self.genes = genes
+        self.geneticsGuide = geneticsGuide
     }
 
     public func marker(_ id: String) -> LabMarker? { markers.first { $0.id == id } }
@@ -321,4 +327,10 @@ public struct LabGene: Codable, Equatable, Identifiable {
     public let genotypes: [LabGenotype]?
     public let confirmWith: [String]?
     public let source: String?
+}
+
+public struct LabGuideItem: Codable, Equatable {
+    public let text: String
+    public let source: String?
+    public let kind: String?
 }

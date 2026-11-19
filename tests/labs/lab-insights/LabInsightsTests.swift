@@ -76,6 +76,16 @@ final class LabInsightsTests: XCTestCase {
         XCTAssertTrue(try labs.labs(on: today).contains { $0.title == "Ferritin low" })
     }
 
+    func testWithoutOverridesTheRuleReadsLabsSettings() throws {
+        try results("2027-03-01", [("ferritin", 40, "ng/mL")])
+        let fromSettings = InsightService(db, daily: [], setup: [], labs: [LabInsightsRule(catalogue: catalogue)])
+        XCTAssertFalse(try fromSettings.labs(on: today).first { $0.title == "Ferritin low" }!.detail.contains("Drug fixture action"))
+
+        try LabSettings(db).setShowDrugNotes(true)
+
+        XCTAssertTrue(try fromSettings.labs(on: today).first { $0.title == "Ferritin low" }!.detail.contains("Drug fixture action"))
+    }
+
     func testValuesKeepTheirDecimals() {
         XCTAssertEqual([123.4, 4.85, 1600].map(LabInsightsRule.number), ["123.4", "4.85", "1600"])
     }

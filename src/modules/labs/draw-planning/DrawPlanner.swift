@@ -34,11 +34,13 @@ public struct DrawPlanner {
     private let catalogue: LabCatalogue
     private let draws: LabDrawService
     private let sex: LabSex
+    private let genetics: GeneticsService?
 
-    public init(catalogue: LabCatalogue, draws: LabDrawService, sex: LabSex) {
+    public init(catalogue: LabCatalogue, draws: LabDrawService, sex: LabSex, genetics: GeneticsService? = nil) {
         self.catalogue = catalogue
         self.draws = draws
         self.sex = sex
+        self.genetics = genetics
     }
 
     /// Every test named, panel by panel, so nothing hides inside a bundle name (uric acid on a CMP, for instance).
@@ -57,6 +59,7 @@ public struct DrawPlanner {
                 continue
             }
         }
+        if let genetics, let fromGenes = try genetics.orderItem() { items.append(fromGenes) }
         return items
     }
 

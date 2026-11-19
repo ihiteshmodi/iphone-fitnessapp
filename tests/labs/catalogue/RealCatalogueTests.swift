@@ -15,6 +15,8 @@ final class RealCatalogueTests: XCTestCase {
         let draws = LabDrawService(try Database.inMemory(), catalogue: catalogue)
 
         XCTAssertGreaterThan(catalogue.markers.count, 100)
+        XCTAssertGreaterThan(catalogue.genes.count, 30)
+        XCTAssertFalse(catalogue.geneticsGuide.isEmpty)
         let order = try DrawPlanner(catalogue: catalogue, draws: draws, sex: .male).order()
         XCTAssertFalse(order.isEmpty)
         XCTAssertTrue(order.flatMap(\.tests).allSatisfy { !$0.name.isEmpty })

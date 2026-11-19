@@ -329,6 +329,12 @@ CREATE TABLE IF NOT EXISTS lab_results (
     lab_high  REAL
 );
 CREATE INDEX IF NOT EXISTS lab_results_by_marker ON lab_results(marker_id);
+-- One genotype per gene, picked from that gene's table in the genetics volume.
+CREATE TABLE IF NOT EXISTS lab_genotypes (
+    gene_id    TEXT PRIMARY KEY,
+    genotype   TEXT NOT NULL,
+    entered_on TEXT NOT NULL CHECK (entered_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
+);
 
 -- Each setting is one independent knob. history_start_date affects every screen that looks at progress;
 -- the deload_* settings only affect the workout targets.

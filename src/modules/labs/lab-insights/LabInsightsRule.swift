@@ -5,16 +5,29 @@ import Foundation
 public struct LabInsightsRule: SetupRule {
     public let id = "labs"
     private let catalogue: LabCatalogue
-    private let sex: LabSex
-    private let showDrugNotes: Bool
+    private let sexOverride: LabSex?
+    private let drugNotesOverride: Bool?
 
-    public init(catalogue: LabCatalogue, sex: LabSex, showDrugNotes: Bool) {
+    /// Without overrides, sex and the drug-notes switch are read from Labs settings each time, so a change applies at once.
+    public init(catalogue: LabCatalogue, sex: LabSex? = nil, showDrugNotes: Bool? = nil) {
         self.catalogue = catalogue
-        self.sex = sex
-        self.showDrugNotes = showDrugNotes
+        sexOverride = sex
+        drugNotesOverride = showDrugNotes
     }
 
     public func evaluate(on today: ISODate, db: Database) throws -> [Insight] {
+        let preferences = try LabSettings(db).load()
+        return try Evaluation(catalogue: catalogue, sex: sexOverride ?? preferences.sex,
+                              showDrugNotes: drugNotesOverride ?? preferences.showDrugNotes).run(on: today, db: db)
+    }
+}
+
+private struct Evaluation {
+    let catalogue: LabCatalogue
+    let sex: LabSex
+    let showDrugNotes: Bool
+
+    func run(on today: ISODate, db: Database) throws -> [Insight] {
         let draws = LabDrawService(db, catalogue: catalogue)
         var latest: [String: LabResult] = [:]
         var items: [Insight] = []
@@ -24,6 +37,13 @@ public struct LabInsightsRule: SetupRule {
             items += readingItems(marker, result)
         }
         items += patternItems(latest)
+        items += try GeneticsService(db, catalogue: catalogue).entries().compactMap { entry in
+            guard let urgency = entry.row.urgency else { return nil }
+            return Insight(ruleID: "lab-gene-\(entry.gene.id)", kind: .labs, severity: .fix,
+                           title: "\(urgency.title): \(entry.gene.name) \(entry.row.genotype)",
+                           detail: ([entry.row.meaning] + (entry.row.actions ?? [])).compactMap { $0 }.joined(separator: " "),
+                           why: entry.gene.source.map { "Vault \($0)" } ?? "Vault genetics", day: entry.enteredOn)
+        }
         items += try DrawPlanner(catalogue: catalogue, draws: draws, sex: sex).retests().compactMap { due in
             guard let from = due.from, let last = due.lastDate, today >= from else { return nil }
             return Insight(ruleID: "lab-retest-\(due.marker.id)", kind: .labs, severity: .tip, title: "Retest \(due.marker.name)",
@@ -35,7 +55,7 @@ public struct LabInsightsRule: SetupRule {
 
     private func readingItems(_ marker: LabMarker, _ result: LabResult) -> [Insight] {
         let reading = LabReader.read(value: result.value, unit: result.unit, marker: marker, sex: sex)
-        let value = "\(Self.number(result.value)) \(result.unit) on \(result.date.string)"
+        let value = "\(LabInsightsRule.number(result.value)) \(result.unit) on \(result.date.string)"
         var items: [Insight] = []
         if let worst = reading.doctorLines.first {
             items.append(Insight(ruleID: "lab-doctor-\(marker.id)", kind: .labs, severity: .fix, title: "\(worst.urgency.title): \(marker.name)",
@@ -92,6 +112,9 @@ public struct LabInsightsRule: SetupRule {
 
     private func shows(_ tag: String?) -> Bool { tag != "drug" || showDrugNotes }
 
+}
+
+extension LabInsightsRule {
     static func number(_ value: Double) -> String {
         var text = String(format: "%.2f", value)
         while text.contains(".") && (text.hasSuffix("0") || text.hasSuffix(".")) { text.removeLast() }

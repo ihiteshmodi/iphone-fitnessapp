@@ -277,6 +277,7 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `refeed_days` | Refeed dates chosen while cutting and what each day was marked |
 | `lab_draws` | Blood draws: date, time, lab and the prep state (fasted hours, hard training in 72 h, alcohol, biotin and iron pills stopped, recent illness) |
 | `lab_results` | One typed result per marker per draw, in a unit the labs catalogue lists, with the lab's own range if entered |
+| `lab_genotypes` | One genotype per gene, picked from that gene's table in the genetics volume, with the date it was entered |
 | `settings` | The settings above |
 
 The schema lives in `src/shared/database/schema.sql`. Older files are upgraded in place when opened (versions 1 to 6 are covered by tests).
