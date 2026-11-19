@@ -182,6 +182,26 @@ CREATE TABLE diet_day_ticks (
 );
 
 -- Something eaten on top of the plan. amount is in the food's unit (grams for a packet); pieces is only for showing.
+-- Whole diets kept under a name ("Summer cut"), to switch back to from any date. Copies of the plan items.
+CREATE TABLE saved_diets (
+    id       INTEGER PRIMARY KEY,
+    name     TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    saved_on TEXT NOT NULL CHECK (saved_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
+);
+CREATE TABLE saved_diet_items (
+    diet_id        INTEGER NOT NULL REFERENCES saved_diets(id) ON DELETE CASCADE,
+    meal           TEXT NOT NULL,
+    position       INTEGER NOT NULL,
+    food_id        INTEGER NOT NULL REFERENCES foods(id) ON DELETE RESTRICT,
+    quantity       REAL NOT NULL CHECK (quantity > 0),
+    cycle_mode     TEXT NOT NULL DEFAULT 'daily' CHECK (cycle_mode IN ('daily', 'weeks', 'days', 'weekdays', 'training')),
+    cycle_on       INTEGER,
+    cycle_off      INTEGER,
+    cycle_start    TEXT,
+    cycle_weekdays INTEGER,
+    PRIMARY KEY (diet_id, meal, food_id)
+);
+
 -- label, time_tag and note are optional: a name of its own (street food logged against a preset), when it was eaten, a note.
 CREATE TABLE diet_extras (
     id      INTEGER PRIMARY KEY,
@@ -210,4 +230,4 @@ INSERT INTO settings (key, value) VALUES
     ('diet_fat_percent', '20'),
     ('fat_ceiling_g_per_lb', '0.4');
 
-PRAGMA user_version = 11;
+PRAGMA user_version = 12;

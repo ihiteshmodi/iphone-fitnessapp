@@ -120,6 +120,19 @@ struct DietPlanView: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            NavigationLink {
+                SavedDietsView(services: services, day: model.editFrom, onChange: { session.didChange() })
+            } label: {
+                HStack {
+                    Text("Saved diets").font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
+                    Spacer()
+                    Text("Save, switch back").font(.system(size: 12)).foregroundColor(Theme.muted)
+                    Image(systemName: "chevron.right").foregroundColor(Theme.muted)
+                }
+                .card()
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("plan-saved-diets")
             startCard
             totalsCard
             if let plan = model.plan {

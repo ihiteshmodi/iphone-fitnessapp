@@ -71,6 +71,7 @@ Screenshots of the real app.
 - **Daily plan:** your meals and quantities. A change starts on a date you choose (today by default) and never rewrites earlier days. Nothing counts until you tick it: tick an item, or one box to tick a whole meal, as you eat. A new meal can be placed anywhere ("After Brunch"), and the ↑ ↓ arrows move a meal; like every plan change they apply from the edit date, so earlier days keep their meals.
 - **Extras:** log something that is not in the plan by pieces, grams or share of a pack ("4 biscuits" from a 250 g pack of 35), see the result before saving, and re-add recent extras in one tap. Tap an extra to change how much (3 pieces to 4) without adding another, or remove it. Each extra can say when it was eaten (Morning, Noon, Evening, Night; guessed from the clock) and carry a note, and the list is grouped by time of day.
 - **Quick add:** for food with no label. *By weight* logs grams against a preset food whose unit stands for a weight (fill in "grams one unit stands for" on the food); *Calories only* logs just the calories. Both take a name of their own ("Kaju katli").
+- **Saved diets:** Plan → Saved diets keeps the diet in force under a name ("High-protein 2-meal") with its meals, totals and an *In force* tag. *Use from…* switches the plan to a saved diet from any date; earlier days keep the diet they had.
 - **Cycles:** an item can follow a cycle: weeks on and off counted Monday to Sunday (for example 2 on, 1 off), days on and off, chosen weekdays, or training days. Off days are greyed, not counted in calories or cost, and need no tick.
 - **Targets:** protein is a minimum (180 g by default). The fat limit is the smaller of 20% of the day's calories and a weight cap (7-day average weight in lb × 0.4 g). All three numbers are editable.
 - **Cost and calories:** every day shows its total calories, macros and cost. The Body tab, the weekly average and the calorie target use these days.
@@ -213,7 +214,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 11)
+### Database tables (schema version 12)
 
 | Table | Holds |
 |---|---|
@@ -227,6 +228,7 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `foods`, `recipe_items` | Foods, supplements and packaged snacks with nutrition and price; recipes and their ingredient lines |
 | `diet_plans`, `diet_plan_items` | The daily plan from a start date, with each item's meal, quantity and cycle |
 | `diet_day_ticks`, `diet_extras` | Plan items ticked as eaten on a day, and extras eaten on top of the plan (with an optional name, time of day and note) |
+| `saved_diets`, `saved_diet_items` | Diets kept under a name: a copy of the plan's meals, foods, quantities and cycles |
 | `break_periods` | Break mode: start and end day of each break (no end while it is still on) |
 | `settings` | The settings above |
 
@@ -261,7 +263,7 @@ The schema lives in `src/shared/database/schema.sql`. Older files are upgraded i
 | `Tolerance must be between 0% and 50%` | Changing the measurement tolerance |
 | `Log body weight for both of the last two weeks` | Calorie target without enough weigh-ins |
 | `A food with that name already exists` / `Give the food a name` | Saving a food |
-| `Flour is used by a recipe, a plan or a logged day` | Deleting a food that is still in use |
+| `Flour is used by a recipe, a plan, a saved diet or a logged day` | Deleting a food that is still in use |
 | `A recipe cannot contain itself` | Adding an ingredient that leads back to the recipe |
 | `Enter an amount above 0` / `Loose rice has no piece size` | Adding an extra |
 | `Choose at least one weekday` / `A weekly cycle starts on a Monday` | Saving a cycle |

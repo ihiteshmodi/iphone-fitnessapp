@@ -46,7 +46,7 @@ Feature: A library of foods and recipes
   Scenario: A food used by a recipe, a plan or a logged day cannot be deleted
     Given "Flour" is an ingredient of "Flatbread"
     When I delete "Flour"
-    Then it is rejected with "Flour is used by a recipe, a plan or a logged day"
+    Then it is rejected with "Flour is used by a recipe, a plan, a saved diet or a logged day"
 
   Scenario: Foods can be searched and filtered by kind
     Given foods of kinds food, supplement and recipe

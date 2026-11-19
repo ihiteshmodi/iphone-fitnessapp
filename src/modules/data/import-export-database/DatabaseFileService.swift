@@ -242,6 +242,29 @@ public struct DatabaseFileService {
                     WHERE name = 'Extra calorie batches' AND unit = 'unit' AND base_qty = 1 AND protein = 0 AND carbs = 7 AND fat = 7
                     """)
             }
+            // Version 12: saved diets.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS saved_diets (
+                    id       INTEGER PRIMARY KEY,
+                    name     TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    saved_on TEXT NOT NULL CHECK (saved_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS saved_diet_items (
+                    diet_id        INTEGER NOT NULL REFERENCES saved_diets(id) ON DELETE CASCADE,
+                    meal           TEXT NOT NULL,
+                    position       INTEGER NOT NULL,
+                    food_id        INTEGER NOT NULL REFERENCES foods(id) ON DELETE RESTRICT,
+                    quantity       REAL NOT NULL CHECK (quantity > 0),
+                    cycle_mode     TEXT NOT NULL DEFAULT 'daily' CHECK (cycle_mode IN ('daily', 'weeks', 'days', 'weekdays', 'training')),
+                    cycle_on       INTEGER,
+                    cycle_off      INTEGER,
+                    cycle_start    TEXT,
+                    cycle_weekdays INTEGER,
+                    PRIMARY KEY (diet_id, meal, food_id)
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

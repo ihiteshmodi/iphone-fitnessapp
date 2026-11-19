@@ -23,6 +23,7 @@ let package = Package(
                 "diet/diet-calories/diet-calories.feature",
                 "diet/diet-plan/diet-plan.feature",
                 "diet/extra-notes/extra-notes.feature",
+                "diet/saved-diets/saved-diets.feature",
                 "diet/food-library/food-library.feature",
                 "diet/portions/portions.feature",
                 "diet/supplement-cycles/supplement-cycles.feature",

@@ -81,9 +81,10 @@ public final class FoodLibrary {
         let used = try db.query("""
             SELECT (SELECT COUNT(*) FROM recipe_items WHERE food_id = ?1)
                  + (SELECT COUNT(*) FROM diet_plan_items WHERE food_id = ?1)
-                 + (SELECT COUNT(*) FROM diet_extras WHERE food_id = ?1) AS n
+                 + (SELECT COUNT(*) FROM diet_extras WHERE food_id = ?1)
+                 + (SELECT COUNT(*) FROM saved_diet_items WHERE food_id = ?1) AS n
             """, [.int(Int64(id))]).first?.int("n") ?? 0
-        guard used == 0 else { throw ValidationError("\(food.name) is used by a recipe, a plan or a logged day") }
+        guard used == 0 else { throw ValidationError("\(food.name) is used by a recipe, a plan, a saved diet or a logged day") }
         try db.execute("DELETE FROM foods WHERE id = ?", [.int(Int64(id))])
     }
 

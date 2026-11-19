@@ -137,7 +137,7 @@ final class FoodLibraryTests: XCTestCase {
         let ids = try addFlatbread()
 
         XCTAssertThrowsError(try library.delete(ids.flour)) {
-            XCTAssertEqual($0 as? ValidationError, ValidationError("Flour is used by a recipe, a plan or a logged day"))
+            XCTAssertEqual($0 as? ValidationError, ValidationError("Flour is used by a recipe, a plan, a saved diet or a logged day"))
         }
     }
 
