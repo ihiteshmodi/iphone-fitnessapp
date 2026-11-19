@@ -21,6 +21,21 @@ public struct FoodBook {
         try cost(of: id, quantity: quantity, visiting: [])
     }
 
+    /// Extra nutrients of `quantity` of the food's own unit; a recipe adds up its ingredients like `nutrition`.
+    public func profile(of id: Int, quantity: Double) throws -> NutrientProfile {
+        try profile(of: id, quantity: quantity, visiting: [])
+    }
+
+    private func profile(of id: Int, quantity: Double, visiting: Set<Int>) throws -> NutrientProfile {
+        guard let food = foods[id] else { throw ValidationError("That food is not in the library") }
+        guard food.isRecipe else { return NutrientProfile.of(food.draft.nutrients).scaled(by: quantity / food.draft.baseQuantity) }
+        guard !visiting.contains(id) else { throw ValidationError("A recipe cannot contain itself") }
+        let batch = try (lines[id] ?? []).reduce(NutrientProfile.empty) {
+            $0 + (try profile(of: $1.foodID, quantity: $1.quantity, visiting: visiting.union([id])))
+        }
+        return batch.scaled(by: quantity / (food.draft.recipeMakes ?? 1))
+    }
+
     private func nutrition(of id: Int, quantity: Double, visiting: Set<Int>) throws -> Nutrition {
         guard let food = foods[id] else { throw ValidationError("That food is not in the library") }
         guard food.isRecipe else { return food.perBase.scaled(by: quantity / food.draft.baseQuantity) }

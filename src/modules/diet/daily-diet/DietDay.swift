@@ -21,6 +21,8 @@ public struct DietLine: Equatable, Identifiable {
     public let cost: Cost
     /// Where the item is in its cycle; nil for an item taken every day.
     public let cycle: CycleState?
+    /// Extra nutrients the line would give if eaten.
+    public var profile = NutrientProfile.empty
     public var id: String { "\(meal)|\(foodID)" }
 }
 
@@ -38,6 +40,12 @@ public struct DietMeal: Equatable {
     private var tickable: [DietLine] { lines.filter { if case .offCycle = $0.state { return false } else { return true } } }
 
     public var eatenCalories: Double { lines.filter { $0.state == .eaten }.reduce(0) { $0 + $1.nutrition.calories } }
+    /// What the ticked items give, protein included; for per-meal rules such as leucine.
+    public var eatenNutrition: Nutrition { lines.filter { $0.state == .eaten }.reduce(Nutrition.zero) { $0 + $1.nutrition } }
+    public var eatenProfile: NutrientProfile { lines.filter { $0.state == .eaten }.reduce(NutrientProfile.empty) { $0 + $1.profile } }
+    /// The meal as planned with everything on today ticked: for checking the plan itself.
+    public var plannedNutrition: Nutrition { tickable.reduce(Nutrition.zero) { $0 + $1.nutrition } }
+    public var plannedProfile: NutrientProfile { tickable.reduce(NutrientProfile.empty) { $0 + $1.profile } }
     /// What the meal would give with everything that is on today ticked.
     public var plannedCalories: Double { tickable.reduce(0) { $0 + $1.nutrition.calories } }
     /// False when every item is off its cycle today, so there is nothing to tick.
@@ -84,6 +92,7 @@ public struct DietExtra: Equatable, Identifiable {
     public let nutrition: Nutrition
     public let cost: Cost
     public var details = ExtraDetails()
+    public var profile = NutrientProfile.empty
 
     /// The extra's own name when it has one (street food logged against a preset), else the food's.
     public var displayName: String { details.label ?? name }
@@ -117,6 +126,11 @@ public struct DietDay: Equatable {
     public let total: Nutrition
     public let cost: Cost
     public let targets: DietTargets
+
+    /// Extra nutrients of what counts today: ticked items plus extras.
+    public var eatenProfile: NutrientProfile {
+        meals.reduce(NutrientProfile.empty) { $0 + $1.eatenProfile } + extras.reduce(NutrientProfile.empty) { $0 + $1.profile }
+    }
 
     /// Morning, noon, evening, night, then extras with no time; empty groups left out.
     public var extrasByTime: [ExtraGroup] {

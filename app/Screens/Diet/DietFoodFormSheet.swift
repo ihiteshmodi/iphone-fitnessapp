@@ -20,6 +20,9 @@ final class FoodFormModel: ObservableObject {
     @Published var sodium = ""
     @Published var notes = ""
     @Published var estimateGrams = ""
+    /// Typed text per extra nutrient; empty means unknown.
+    @Published var nutrientTexts: [Nutrient: String] = [:]
+    @Published var omega3Form: Omega3Form?
 
     static let kinds: [FoodKind] = [.food, .topping, .supplement, .herb, .liquid, .packaged]
     static let units = ["g", "ml", "unit", "capsule", "piece"]
@@ -52,6 +55,24 @@ final class FoodFormModel: ObservableObject {
         sodium = d.sodium == 0 ? "" : Format.number(d.sodium)
         notes = d.notes ?? ""
         estimateGrams = d.estimateGrams.map { Format.number($0) } ?? ""
+        nutrientTexts = d.nutrients.mapValues { Format.number($0, maxDecimals: 3) }
+        omega3Form = d.omega3Form
+    }
+
+    func filledCount(_ group: NutrientGroup) -> Int {
+        Nutrient.allCases.filter { $0.group == group && !(nutrientTexts[$0] ?? "").trimmingCharacters(in: .whitespaces).isEmpty }.count
+    }
+
+    /// Groups that matter for this food open by default; the rest stay folded so adding a food stays quick.
+    func isRelevant(_ group: NutrientGroup) -> Bool {
+        if filledCount(group) > 0 { return true }
+        switch group {
+        case .aminoAcids: return (Format.decimal(protein) ?? 0) > 0
+        case .fatTypes: return (Format.decimal(fat) ?? 0) > 0
+        case .omega: return kind == .supplement && (Format.decimal(fat) ?? 0) > 0
+        case .alcoholCaffeine: return false
+        case .vitamins, .minerals: return kind == .supplement
+        }
     }
 
     /// Foods counted in units, capsules or pieces have no weight per piece: one of them is the piece.
@@ -92,6 +113,12 @@ final class FoodFormModel: ObservableObject {
         d.recipeMakes = nil
         d.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes
         d.estimateGrams = try number(estimateGrams, "the grams for quick add")
+        var nutrients: [Nutrient: Double] = [:]
+        for (key, text) in nutrientTexts {
+            if let value = try number(text, key.title) { nutrients[key] = value }
+        }
+        d.nutrients = nutrients
+        d.omega3Form = omega3Form
         return d
     }
 
@@ -178,6 +205,7 @@ struct DietFoodFormSheet: View {
                     BodyField(label: "Notes", text: $model.notes, identifier: "food-notes-field", keyboard: .default)
                     BodyField(label: "Quick add by weight: grams one \(model.unit) stands for (optional)", text: $model.estimateGrams,
                               unit: "g", identifier: "food-estimate-grams-field")
+                    FoodNutrientSections(model: model)
                     if let check = model.pieceCheck { pieceCheckCard(check) }
                     Button("Save food", action: save).buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("food-save-button")
                     if model.existing != nil {
@@ -279,5 +307,57 @@ struct DietFoodFormSheet: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+
+/// The extra nutrients, one folding section per group. Every field is optional; blank means unknown.
+struct FoodNutrientSections: View {
+    @ObservedObject var model: FoodFormModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("More nutrients (optional, per \(model.baseQuantity) \(model.unit))")
+            ForEach(NutrientGroup.allCases, id: \.self) { group in
+                FoodNutrientGroupView(model: model, group: group)
+            }
+        }
+    }
+}
+
+private struct FoodNutrientGroupView: View {
+    @ObservedObject var model: FoodFormModel
+    let group: NutrientGroup
+    @State private var isOpen: Bool?
+
+    var body: some View {
+        DisclosureGroup(isExpanded: Binding(get: { isOpen ?? model.isRelevant(group) }, set: { isOpen = $0 })) {
+            VStack(spacing: 8) {
+                ForEach(Nutrient.allCases.filter { $0.group == group }, id: \.self) { key in
+                    BodyField(label: key.title, text: Binding(get: { model.nutrientTexts[key] ?? "" }, set: { model.nutrientTexts[key] = $0 }),
+                              unit: key.unit, identifier: "food-nutrient-\(key.rawValue)")
+                }
+                if group == .omega {
+                    Picker("Omega-3 form", selection: $model.omega3Form) {
+                        Text("Not set").tag(Omega3Form?.none)
+                        ForEach(Omega3Form.allCases, id: \.self) { Text($0.rawValue).tag(Omega3Form?.some($0)) }
+                    }
+                    .tint(Theme.green)
+                    .accessibilityIdentifier("food-omega3-form")
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            HStack {
+                Text(group.rawValue).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                Spacer()
+                Text("\(model.filledCount(group)) filled").font(.system(size: 12)).foregroundColor(Theme.muted)
+            }
+        }
+        .tint(Theme.green)
+        .padding(12)
+        .background(Theme.card)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .accessibilityIdentifier("food-nutrients-\(group.rawValue)")
     }
 }

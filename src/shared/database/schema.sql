@@ -179,7 +179,8 @@ CREATE TABLE foods (
     piece_weight    REAL CHECK (piece_weight IS NULL OR piece_weight > 0),
     recipe_makes    REAL CHECK (recipe_makes IS NULL OR recipe_makes > 0),
     notes           TEXT,
-    estimate_grams  REAL CHECK (estimate_grams IS NULL OR estimate_grams > 0)
+    estimate_grams  REAL CHECK (estimate_grams IS NULL OR estimate_grams > 0),
+    omega3_form     TEXT CHECK (omega3_form IS NULL OR omega3_form IN ('rTG', 'TG', 'EE', 'algae', 'unknown'))
 );
 
 CREATE TABLE recipe_items (
@@ -220,6 +221,14 @@ CREATE TABLE diet_day_ticks (
 );
 
 -- Something eaten on top of the plan. amount is in the food's unit (grams for a packet); pieces is only for showing.
+-- Extra nutrients per food, per base_qty (keys such as leucine, trans, epa, vitamin_d). No row = unknown, never 0.
+CREATE TABLE food_nutrients (
+    food_id  INTEGER NOT NULL REFERENCES foods(id) ON DELETE CASCADE,
+    nutrient TEXT NOT NULL,
+    amount   REAL NOT NULL CHECK (amount >= 0),
+    PRIMARY KEY (food_id, nutrient)
+);
+
 -- Whole diets kept under a name ("Summer cut"), to switch back to from any date. Copies of the plan items.
 CREATE TABLE saved_diets (
     id       INTEGER PRIMARY KEY,
@@ -275,4 +284,4 @@ INSERT INTO settings (key, value) VALUES
     ('diet_fat_percent', '20'),
     ('fat_ceiling_g_per_lb', '0.4');
 
-PRAGMA user_version = 14;
+PRAGMA user_version = 15;

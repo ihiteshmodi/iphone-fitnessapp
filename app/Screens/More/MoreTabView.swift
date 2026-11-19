@@ -21,6 +21,7 @@ struct MoreTabView: View {
                         .id(ObjectIdentifier(services))
                     deloadCard
                     CoachPresetsCard()
+                    NutrientDataCard()
                     historyCard
                     pastDataCard
                     planCard

@@ -69,7 +69,7 @@ Screenshots of the real app.
 - **Volume per muscle:** training volume over time for each muscle group.
 
 **Diet**
-- **Food library:** foods, supplements and packaged snacks with nutrition (per 100 g, per serving or per piece) and price. Calories come from the label when you type them, otherwise from protein, carbs and fat. Editing a food updates every day that used it.
+- **Food library:** foods, supplements and packaged snacks with nutrition (per 100 g, per serving or per piece) and price. Optional extra nutrients fold away by group: 11 amino acids, MUFA/PUFA/trans fat, EPA/DHA/ALA/omega-6 and the omega-3 form, alcohol (7 kcal/g) and caffeine, 14 vitamins and 9 minerals. A blank is *unknown*, never 0, and recipes add their ingredients up; a trans-fat extra shows a red dot and its grams. Calories come from the label when you type them, otherwise from protein, carbs and fat. Editing a food updates every day that used it.
 - **Recipes:** a recipe is made of other foods, for one piece or a whole batch ("makes 9 pieces", "makes 1000 g"). Its nutrition and cost are worked out from the current ingredients. *Cook for* shows every ingredient scaled to another amount (11 pieces → 5) without changing the recipe, and *Duplicate as a new recipe* copies it under a new name to make a variation (Maintenance shake → Soybean shake).
 - **Daily plan:** your meals and quantities. A change starts on a date you choose (today by default) and never rewrites earlier days. Nothing counts until you tick it: tick an item, or one box to tick a whole meal, as you eat. A new meal can be placed anywhere ("After Brunch"), and the ↑ ↓ arrows move a meal; like every plan change they apply from the edit date, so earlier days keep their meals.
 - **Extras:** log something that is not in the plan by pieces, grams or share of a pack ("4 biscuits" from a 250 g pack of 35), see the result before saving, and re-add recent extras in one tap. Tap an extra to change how much (3 pieces to 4) without adding another, or remove it. Each extra can say when it was eaten (Morning, Noon, Evening, Night; guessed from the clock) and carry a note, and the list is grouped by time of day.
@@ -212,6 +212,7 @@ There are no environment variables or secrets. The app is configured by settings
 | `output/fitness.sqlite` | If present at build time it is bundled and offered as **Load my data** on first launch | absent (button hidden) | No |
 | `output/fitness.seed.sqlite` | Test fixture built by `tools/seed-db`; used by the parity tests and the UI tests | absent (10 parity tests skip) | No |
 | `output/meridian-presets.json` | Coach presets made by `python tools/meridian-presets/build_presets.py "<Train & Eat folder>"`; bundled when present and loaded from More → Coach presets. Paid-program content, so it stays out of the repository | absent (card hidden) | No |
+| `output/nutrient-values.csv` | Approved extra nutrient values for your foods (`name,key,amount`); bundled when present and applied from More → Nutrient data | absent (card hidden) | No |
 | `-UITestImportPath <file>` | Simulator tests only: import this database at launch | unset | No |
 | `-UITestInitialTab <0-4>` | Simulator tests only: start on a tab (0 Workout, 1 Body, 2 Diet, 3 Progress, 4 More) | `0` | No |
 
@@ -219,7 +220,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 14)
+### Database tables (schema version 15)
 
 | Table | Holds |
 |---|---|
@@ -232,6 +233,7 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `exercise_muscles` | Muscles chosen per exercise (no rows means automatic) |
 | `body_weights`, `body_measurements`, `measurement_targets` | Weigh-ins, readings, targets with a grow or reduce direction |
 | `calorie_defaults`, `calorie_entries` | Calories per day from a start date, and single-day overrides |
+| `food_nutrients` | Extra nutrients per food (leucine, trans, epa, vitamin_d…); no row means unknown |
 | `foods`, `recipe_items` | Foods, supplements and packaged snacks with nutrition and price; recipes and their ingredient lines |
 | `diet_plans`, `diet_plan_items` | The daily plan from a start date, with each item's meal, quantity and cycle |
 | `diet_meal_skips` | Planned meals knowingly skipped on a day |

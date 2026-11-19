@@ -90,12 +90,15 @@ public struct FoodDraft: Equatable {
     public var notes: String?
     /// Quick add by weight: grams of real food one unit stands for. Nil when the food is not a quick-add preset.
     public var estimateGrams: Double?
+    /// Amino acids, fat types, omega, alcohol, caffeine, vitamins and minerals per `baseQuantity`. Missing = unknown.
+    public var nutrients: [Nutrient: Double]
+    public var omega3Form: Omega3Form?
 
     public init(name: String, kind: FoodKind = .food, unit: String = "g", baseQuantity: Double = 100,
                 protein: Double = 0, carbs: Double = 0, fat: Double = 0, fiber: Double = 0, satFat: Double = 0, sodium: Double = 0,
                 labelCalories: Double? = nil, price: Double? = nil, packSize: Double? = nil,
                 piecesPerPack: Double? = nil, pieceWeight: Double? = nil, recipeMakes: Double? = nil, notes: String? = nil,
-                estimateGrams: Double? = nil) {
+                estimateGrams: Double? = nil, nutrients: [Nutrient: Double] = [:], omega3Form: Omega3Form? = nil) {
         self.name = name
         self.kind = kind
         self.unit = unit
@@ -114,6 +117,8 @@ public struct FoodDraft: Equatable {
         self.recipeMakes = recipeMakes
         self.notes = notes
         self.estimateGrams = estimateGrams
+        self.nutrients = nutrients
+        self.omega3Form = omega3Form
     }
 }
 
@@ -131,10 +136,10 @@ public struct Food: Equatable, Identifiable {
     public var unit: String { draft.unit }
     public var isRecipe: Bool { draft.kind == .recipe }
 
-    /// Nutrition for `baseQuantity` of the unit, calories included (label value, else 4 x protein + 4 x carbs + 9 x fat).
+    /// Nutrition for `baseQuantity` of the unit, calories included (label value, else 4 x protein + 4 x carbs + 9 x fat + 7 x alcohol).
     /// Not meaningful for a recipe, whose nutrition is worked out from its ingredients.
     public var perBase: Nutrition {
-        Nutrition(calories: draft.labelCalories ?? (4 * draft.protein + 4 * draft.carbs + 9 * draft.fat),
+        Nutrition(calories: draft.labelCalories ?? (4 * draft.protein + 4 * draft.carbs + 9 * draft.fat + 7 * (draft.nutrients[.alcohol] ?? 0)),
                   protein: draft.protein, carbs: draft.carbs, fat: draft.fat,
                   fiber: draft.fiber, satFat: draft.satFat, sodium: draft.sodium)
     }

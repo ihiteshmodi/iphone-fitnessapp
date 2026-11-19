@@ -39,6 +39,10 @@ targets:
           PRESETS="${SRCROOT}/output/meridian-presets.json"
           PRESETS_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/meridian-presets.json"
           if [ -f "$PRESETS" ]; then cp -f "$PRESETS" "$PRESETS_DEST"; else rm -f "$PRESETS_DEST"; fi
+          # Approved nutrient values for the owner's foods (personal data, never committed).
+          VALUES="${SRCROOT}/output/nutrient-values.csv"
+          VALUES_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/nutrient-values.csv"
+          if [ -f "$VALUES" ]; then cp -f "$VALUES" "$VALUES_DEST"; else rm -f "$VALUES_DEST"; fi
     dependencies:
       - package: FitnessCore
     info:

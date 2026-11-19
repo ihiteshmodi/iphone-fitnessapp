@@ -280,3 +280,39 @@ struct CoachPresetsCard: View {
         }
     }
 }
+
+
+/// Applies the nutrient values the owner approved, bundled as output/nutrient-values.csv (personal data, never committed).
+struct NutrientDataCard: View {
+    @EnvironmentObject private var services: Services
+    @EnvironmentObject private var session: AppSession
+    @State private var status: String?
+
+    static var bundledFile: URL? { Bundle.main.url(forResource: "nutrient-values", withExtension: "csv") }
+
+    var body: some View {
+        if let url = Self.bundledFile {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel("Nutrient data")
+                Text("Amino acids, fat types, omega, vitamins and minerals for your foods, as approved. Applying again only overwrites those values.")
+                    .font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
+                Button("Apply nutrient data") { apply(url) }
+                    .buttonStyle(PrimaryButtonStyle(ghost: true))
+                    .accessibilityIdentifier("apply-nutrient-data")
+                if let status { Text(status).font(.system(size: 12)).foregroundColor(Theme.green) }
+            }
+            .card()
+        }
+    }
+
+    private func apply(_ url: URL) {
+        do {
+            let result = try NutrientImporter(services.db).apply(try String(contentsOf: url, encoding: .utf8))
+            let missing = result.missingFoods.isEmpty ? "" : " Not found: \(result.missingFoods.joined(separator: ", "))."
+            status = "Applied \(result.applied) values.\(missing)"
+            session.didChange()
+        } catch {
+            status = error.localizedDescription
+        }
+    }
+}

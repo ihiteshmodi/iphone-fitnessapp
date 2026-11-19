@@ -27,6 +27,7 @@ let package = Package(
                 "diet/recipe-tools/recipe-tools.feature",
                 "diet/unconfirmed-meals/unconfirmed-meals.feature",
                 "diet/food-library/food-library.feature",
+                "diet/nutrient-fields/nutrient-fields.feature",
                 "diet/portions/portions.feature",
                 "diet/supplement-cycles/supplement-cycles.feature",
                 "logging/edit-sets/edit-sets.feature",

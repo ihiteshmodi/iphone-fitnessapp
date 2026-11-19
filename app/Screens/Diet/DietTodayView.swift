@@ -341,8 +341,15 @@ struct DietExtraRow: View {
             Button(action: onEdit) {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(extra.displayName).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                        HStack(spacing: 4) {
+                            Text(extra.displayName).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                            if transFat != nil { Circle().fill(Theme.red).frame(width: 7, height: 7).accessibilityLabel("Has trans fat") }
+                        }
                         Text(detail).font(.system(size: 12)).foregroundColor(Theme.muted)
+                        if let trans = transFat {
+                            Text("Trans \(Format.number(trans, maxDecimals: 1)) g").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.red)
+                                .accessibilityIdentifier("extra-trans-\(extra.displayName)")
+                        }
                         if let note = extra.details.note {
                             Text(note).font(.system(size: 12)).italic().foregroundColor(Theme.muted)
                         }
@@ -366,6 +373,12 @@ struct DietExtraRow: View {
         }
         .padding(.vertical, 9).padding(.horizontal, 10)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1).padding(.horizontal, 10) }
+    }
+
+    /// Only shown when there is some: the vault's rule is to keep trans fat near zero.
+    private var transFat: Double? {
+        guard let trans = extra.profile[.trans], trans > 0 else { return nil }
+        return trans
     }
 
     private var detail: String {

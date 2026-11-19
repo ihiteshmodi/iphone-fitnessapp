@@ -33,7 +33,8 @@ public final class DietDayService {
                 return DietLine(meal: item.meal, foodID: item.foodID, name: food.name, unit: food.unit, quantity: item.quantity, state: state,
                                 nutrition: try book.nutrition(of: item.foodID, quantity: item.quantity),
                                 cost: try book.cost(of: item.foodID, quantity: item.quantity),
-                                cycle: item.cycle == .daily ? nil : cycle)
+                                cycle: item.cycle == .daily ? nil : cycle,
+                                profile: try book.profile(of: item.foodID, quantity: item.quantity))
             }
             meals.append(DietMeal(name: meal.name, lines: lines))
         }
@@ -209,7 +210,8 @@ public final class DietDayService {
                              pieces: row.optionalDouble("pieces"),
                              nutrition: try book.nutrition(of: food.id, quantity: row.double("amount")),
                              cost: try book.cost(of: food.id, quantity: row.double("amount")),
-                             details: Self.details(row))
+                             details: Self.details(row),
+                             profile: try book.profile(of: food.id, quantity: row.double("amount")))
         }
     }
 

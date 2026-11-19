@@ -9,11 +9,11 @@ public final class FoodLibrary {
     // MARK: Read
 
     public func food(_ id: Int) throws -> Food? {
-        try db.query("SELECT * FROM foods WHERE id = ?", [.int(Int64(id))]).first.map(Self.food)
+        try db.query("SELECT * FROM foods WHERE id = ?", [.int(Int64(id))]).first.map { Self.food($0, nutrients: try nutrients(of: id)) }
     }
 
     public func food(named name: String) throws -> Food? {
-        try db.query("SELECT * FROM foods WHERE name = ?", [.text(name)]).first.map(Self.food)
+        try db.query("SELECT * FROM foods WHERE name = ?", [.text(name)]).first.map { Self.food($0, nutrients: try nutrients(of: $0.int("id"))) }
     }
 
     /// Name order. `matching` is a part of the name; empty returns everything.
@@ -24,12 +24,12 @@ public final class FoodLibrary {
             sql += " AND kind = ?"
             params.append(.text(kind.rawValue))
         }
-        return try db.query(sql + " ORDER BY name COLLATE NOCASE", params).map(Self.food)
+        return try db.query(sql + " ORDER BY name COLLATE NOCASE", params).map { Self.food($0, nutrients: try nutrients(of: $0.int("id"))) }
     }
 
     /// Foods that stand for a weight of real food, for quick add by weight. By name.
     public func estimatePresets() throws -> [Food] {
-        try db.query("SELECT * FROM foods WHERE estimate_grams IS NOT NULL ORDER BY name").map(Self.food)
+        try db.query("SELECT * FROM foods WHERE estimate_grams IS NOT NULL ORDER BY name").map { Self.food($0, nutrients: try nutrients(of: $0.int("id"))) }
     }
 
     public func ingredients(of recipeID: Int) throws -> [RecipeLine] {
@@ -39,7 +39,11 @@ public final class FoodLibrary {
 
     /// Every food and recipe line in memory, for adding up a whole day.
     public func book() throws -> FoodBook {
-        let foods = Dictionary(uniqueKeysWithValues: try db.query("SELECT * FROM foods").map { Self.food($0) }.map { ($0.id, $0) })
+        var nutrients: [Int: [Nutrient: Double]] = [:]
+        for row in try db.query("SELECT food_id, nutrient, amount FROM food_nutrients") {
+            if let key = Nutrient(rawValue: row.text("nutrient")) { nutrients[row.int("food_id"), default: [:]][key] = row.double("amount") }
+        }
+        let foods = Dictionary(uniqueKeysWithValues: try db.query("SELECT * FROM foods").map { Self.food($0, nutrients: nutrients[$0.int("id")] ?? [:]) }.map { ($0.id, $0) })
         var lines: [Int: [RecipeLine]] = [:]
         for row in try db.query("SELECT recipe_id, food_id, quantity FROM recipe_items ORDER BY recipe_id, position") {
             lines[row.int("recipe_id"), default: []].append(RecipeLine(foodID: row.int("food_id"), quantity: row.double("quantity")))
@@ -59,10 +63,12 @@ public final class FoodLibrary {
         try requireUniqueName(draft.name, except: nil)
         try db.execute("""
             INSERT INTO foods (name, kind, unit, base_qty, protein, carbs, fat, fiber, sat_fat, sodium, label_calories,
-                               price, pack_size, pieces_per_pack, piece_weight, recipe_makes, notes, estimate_grams)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               price, pack_size, pieces_per_pack, piece_weight, recipe_makes, notes, estimate_grams, omega3_form)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, Self.values(draft))
-        return db.lastInsertRowID
+        let id = db.lastInsertRowID
+        try saveNutrients(draft.nutrients, of: id)
+        return id
     }
 
     public func update(_ id: Int, _ draft: FoodDraft) throws {
@@ -71,9 +77,10 @@ public final class FoodLibrary {
         try db.execute("""
             UPDATE foods SET name = ?, kind = ?, unit = ?, base_qty = ?, protein = ?, carbs = ?, fat = ?, fiber = ?, sat_fat = ?,
                              sodium = ?, label_calories = ?, price = ?, pack_size = ?, pieces_per_pack = ?, piece_weight = ?,
-                             recipe_makes = ?, notes = ?, estimate_grams = ?
+                             recipe_makes = ?, notes = ?, estimate_grams = ?, omega3_form = ?
             WHERE id = ?
             """, Self.values(draft) + [.int(Int64(id))])
+        try saveNutrients(draft.nutrients, of: id)
     }
 
     /// A new food with everything copied (and a recipe's ingredients), under a new name. The two are independent after.
@@ -137,6 +144,7 @@ public final class FoodLibrary {
         guard draft.baseQuantity.isFinite, draft.baseQuantity > 0 else { throw ValidationError("Nutrition must be per a quantity above 0") }
         let nutrients = [draft.protein, draft.carbs, draft.fat, draft.fiber, draft.satFat, draft.sodium] + [draft.labelCalories].compactMap { $0 }
         guard nutrients.allSatisfy({ $0.isFinite && $0 >= 0 }) else { throw ValidationError("Nutrition cannot be negative") }
+        guard draft.nutrients.values.allSatisfy({ $0.isFinite && $0 >= 0 }) else { throw ValidationError("Nutrition cannot be negative") }
         if let price = draft.price { guard price.isFinite, price >= 0 else { throw ValidationError("Price cannot be negative") } }
         for size in [draft.packSize, draft.piecesPerPack, draft.pieceWeight, draft.recipeMakes, draft.estimateGrams].compactMap({ $0 }) {
             guard size.isFinite, size > 0 else { throw ValidationError("Sizes must be above 0") }
@@ -152,10 +160,27 @@ public final class FoodLibrary {
         [.text(draft.name.trimmingCharacters(in: .whitespaces)), .text(draft.kind.rawValue), .text(draft.unit), .double(draft.baseQuantity),
          .double(draft.protein), .double(draft.carbs), .double(draft.fat), .double(draft.fiber), .double(draft.satFat), .double(draft.sodium),
          .optional(draft.labelCalories), .optional(draft.price), .optional(draft.packSize), .optional(draft.piecesPerPack),
-         .optional(draft.pieceWeight), .optional(draft.recipeMakes), .optional(draft.notes), .optional(draft.estimateGrams)]
+         .optional(draft.pieceWeight), .optional(draft.recipeMakes), .optional(draft.notes), .optional(draft.estimateGrams),
+         .optional(draft.omega3Form?.rawValue)]
     }
 
-    private static func food(_ row: Row) -> Food {
+    private func nutrients(of id: Int) throws -> [Nutrient: Double] {
+        var values: [Nutrient: Double] = [:]
+        for row in try db.query("SELECT nutrient, amount FROM food_nutrients WHERE food_id = ?", [.int(Int64(id))]) {
+            if let key = Nutrient(rawValue: row.text("nutrient")) { values[key] = row.double("amount") }
+        }
+        return values
+    }
+
+    private func saveNutrients(_ values: [Nutrient: Double], of id: Int) throws {
+        try db.execute("DELETE FROM food_nutrients WHERE food_id = ?", [.int(Int64(id))])
+        for (key, amount) in values {
+            try db.execute("INSERT INTO food_nutrients (food_id, nutrient, amount) VALUES (?, ?, ?)",
+                           [.int(Int64(id)), .text(key.rawValue), .double(amount)])
+        }
+    }
+
+    private static func food(_ row: Row, nutrients: [Nutrient: Double]) -> Food {
         Food(id: row.int("id"), draft: FoodDraft(
             name: row.text("name"), kind: FoodKind(rawValue: row.text("kind")) ?? .food, unit: row.text("unit"),
             baseQuantity: row.double("base_qty"), protein: row.double("protein"), carbs: row.double("carbs"), fat: row.double("fat"),
@@ -163,6 +188,7 @@ public final class FoodLibrary {
             labelCalories: row.optionalDouble("label_calories"), price: row.optionalDouble("price"), packSize: row.optionalDouble("pack_size"),
             piecesPerPack: row.optionalDouble("pieces_per_pack"), pieceWeight: row.optionalDouble("piece_weight"),
             recipeMakes: row.optionalDouble("recipe_makes"), notes: row.optionalText("notes"),
-            estimateGrams: row.optionalDouble("estimate_grams")))
+            estimateGrams: row.optionalDouble("estimate_grams"), nutrients: nutrients,
+            omega3Form: row.optionalText("omega3_form").flatMap(Omega3Form.init(rawValue:))))
     }
 }

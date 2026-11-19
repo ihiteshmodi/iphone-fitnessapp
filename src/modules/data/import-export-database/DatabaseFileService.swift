@@ -320,6 +320,18 @@ public struct DatabaseFileService {
                     warmup_sets INTEGER NOT NULL DEFAULT 0 CHECK (warmup_sets BETWEEN 0 AND 3)
                 )
                 """)
+            // Version 15: extra nutrients per food and the omega-3 form.
+            if !(try db.query("PRAGMA table_info(foods)").map { $0.text("name") }).contains("omega3_form") {
+                try db.execute("ALTER TABLE foods ADD COLUMN omega3_form TEXT CHECK (omega3_form IS NULL OR omega3_form IN ('rTG', 'TG', 'EE', 'algae', 'unknown'))")
+            }
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS food_nutrients (
+                    food_id  INTEGER NOT NULL REFERENCES foods(id) ON DELETE CASCADE,
+                    nutrient TEXT NOT NULL,
+                    amount   REAL NOT NULL CHECK (amount >= 0),
+                    PRIMARY KEY (food_id, nutrient)
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }
