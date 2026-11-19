@@ -216,6 +216,14 @@ public struct DatabaseFileService {
                     """)
                 try db.execute("DROP TABLE diet_day_skips")
             }
+            // Version 10: break mode.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS break_periods (
+                    id        INTEGER PRIMARY KEY,
+                    starts_on TEXT NOT NULL CHECK (starts_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    ends_on   TEXT CHECK (ends_on IS NULL OR (ends_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND ends_on >= starts_on))
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

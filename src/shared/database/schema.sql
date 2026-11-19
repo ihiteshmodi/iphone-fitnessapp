@@ -110,6 +110,13 @@ CREATE TABLE settings (
     value TEXT NOT NULL
 );
 
+-- Days off logging (a trip, a holiday). ends_on is empty while the break is still on. The calorie maths leaves these days out.
+CREATE TABLE break_periods (
+    id        INTEGER PRIMARY KEY,
+    starts_on TEXT NOT NULL CHECK (starts_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    ends_on   TEXT CHECK (ends_on IS NULL OR (ends_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND ends_on >= starts_on))
+);
+
 -- A food, a supplement or a recipe. Nutrition is for base_qty of the food's unit (100 for grams, 1 for a capsule or a piece).
 -- label_calories is what the pack says; when it is empty calories are worked out as 4 x protein + 4 x carbs + 9 x fat.
 -- price is for one pack of pack_size units. pieces_per_pack and piece_weight let "4 biscuits" become grams.
@@ -197,4 +204,4 @@ INSERT INTO settings (key, value) VALUES
     ('diet_fat_percent', '20'),
     ('fat_ceiling_g_per_lb', '0.4');
 
-PRAGMA user_version = 9;
+PRAGMA user_version = 10;

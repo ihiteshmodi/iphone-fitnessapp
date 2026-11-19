@@ -25,7 +25,7 @@ final class DietSchemaTests: DatabaseFileTestCase {
         let db = try Database.inMemory()
 
         XCTAssertTrue(Set(dietTables).isSubset(of: try tableNames(in: db)))
-        XCTAssertEqual(db.userVersion, 9)
+        XCTAssertEqual(db.userVersion, Schema.currentVersion)
         XCTAssertEqual(try DietSettings(db).load(), DietRules(proteinMinimumGrams: 180, fatPercentOfCalories: 20, fatCeilingGramsPerPound: 0.4))
     }
 

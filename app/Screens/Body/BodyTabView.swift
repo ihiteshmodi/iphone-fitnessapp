@@ -44,6 +44,8 @@ private struct BodyScreen: View {
                         Text(loadError).font(.system(size: 13)).foregroundColor(Theme.red).card()
                     }
                     dayPicker
+                    if let period = model.currentBreak { onBreakCard(period) }
+                    beforeBreakCard
                     ringCard
                     Button("Open today's diet") { session.openDiet(on: model.today) }
                         .buttonStyle(PrimaryButtonStyle(ghost: true))
@@ -122,6 +124,46 @@ private struct BodyScreen: View {
         .font(.system(size: 15, weight: .semibold))
         .foregroundColor(Theme.green)
         .padding(.horizontal, 4)
+    }
+
+    private func onBreakCard(_ period: BreakPeriod) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SectionLabel("On a break")
+            Text("Since \(Format.shortDate(period.start)). Nothing needs logging; these days are left out of the calorie maths.")
+                .font(.system(size: 13)).foregroundColor(Theme.text).fixedSize(horizontal: false, vertical: true)
+        }
+        .card(highlighted: true)
+        .accessibilityIdentifier("body-on-break")
+    }
+
+    @ViewBuilder
+    private var beforeBreakCard: some View {
+        if let title = model.beforeBreakTitle {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionLabel(title).padding(.bottom, 4)
+                infoRow("Maintenance", "\(model.beforeBreakMaintenance ?? "–") kcal", id: "before-break-maintenance")
+                infoRow("Eating", "\(model.beforeBreakEaten ?? "–") kcal", id: "before-break-eaten")
+                if let status = model.beforeBreakStatus {
+                    infoRow("You were", status, id: "before-break-status")
+                }
+                if let weight = model.weightAcrossBreak {
+                    infoRow("Weight over the break", weight, id: "before-break-weight")
+                }
+            }
+            .card()
+        }
+    }
+
+    private func infoRow(_ label: String, _ value: String, id: String) -> some View {
+        HStack {
+            Text(label).font(.system(size: 14)).foregroundColor(Theme.muted)
+            Spacer()
+            Text(value).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+        }
+        .padding(.vertical, 8)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.line).frame(height: 1) }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(id)
     }
 
     private var ringCard: some View {

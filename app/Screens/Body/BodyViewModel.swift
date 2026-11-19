@@ -36,6 +36,9 @@ final class BodyViewModel: ObservableObject {
     @Published private(set) var loadError: String?
     /// nil shows the live numbers; a past day shows the calorie maths as it stood on that day.
     @Published private(set) var asOf: ISODate?
+    @Published private(set) var currentBreak: BreakPeriod?
+    /// Shown while on a break and while recalibrating after one, so the pre-break picture is never lost.
+    @Published private(set) var beforeBreak: (period: BreakPeriod, summary: BeforeBreak)?
 
     private let services: Services
 
@@ -74,9 +77,35 @@ final class BodyViewModel: ObservableObject {
             averagesNotice = error.localizedDescription
         }
 
+        currentBreak = try? services.breaks.current(on: shownDay)
+        let isRecalibrating = averagesNotice?.hasPrefix("Recalibrating") == true
+        if currentBreak != nil || isRecalibrating,
+           let period = (try? services.breaks.periods())?.last(where: { $0.start <= shownDay }),
+           let summary = try? services.breaks.beforeBreak(period, calories: services.calories) {
+            beforeBreak = (period, summary)
+        } else {
+            beforeBreak = nil
+        }
+
         let advice = try? (asOf.map { try services.calories.advice(asOf: $0) } ?? services.calories.currentAdvice())
         target = advice?.target
         averageEaten = advice?.target.caloriesEaten ?? (try? services.calories.averageCalories(endingOn: shownDay.adding(days: -1), days: 7)) ?? nil
+    }
+
+    // MARK: Break
+
+    var beforeBreakTitle: String? { beforeBreak.map { "Before your break · \(Format.shortDate($0.period.start.adding(days: -1)))" } }
+    var beforeBreakMaintenance: String? { beforeBreak.map { BodyNumbers.grouped($0.summary.advice.target.maintenanceCalories) } }
+    var beforeBreakEaten: String? { beforeBreak.map { BodyNumbers.grouped($0.summary.advice.target.caloriesEaten) } }
+    var beforeBreakStatus: String? {
+        guard let target = beforeBreak?.summary.advice.target else { return nil }
+        let balance = target.balance == .maintenance ? "holding weight" : "\(target.balance.rawValue.lowercased()) \(BodyNumbers.grouped(abs(target.dailyBalanceKcal)))/day"
+        return "\(target.plannedMode.rawValue) · \(balance)"
+    }
+    var weightAcrossBreak: String? {
+        guard let summary = beforeBreak?.summary, let before = summary.weightBeforeKg else { return nil }
+        guard let after = summary.weightAfterKg else { return "\(Format.number(before)) kg before" }
+        return "\(Format.number(before)) → \(Format.number(after)) kg"
     }
 
     // MARK: Ring card

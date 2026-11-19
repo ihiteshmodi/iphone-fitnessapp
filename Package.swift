@@ -31,6 +31,7 @@ let package = Package(
                 "logging/log-sets/log-sets.feature",
                 "nutrition/calorie-target/calorie-target.feature",
                 "nutrition/calorie-history/calorie-history.feature",
+                "nutrition/break-mode/break-mode.feature",
                 "nutrition/daily-calories/daily-calories.feature",
                 "nutrition/nutrition-settings/nutrition-settings.feature",
                 "planning/deload-mode/deload-mode.feature",

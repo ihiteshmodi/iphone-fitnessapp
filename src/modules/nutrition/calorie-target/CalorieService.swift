@@ -68,11 +68,16 @@ public final class CalorieService {
     private let db: Database
     private let nutrition: NutritionSettings
     private let diet: DietDayService
+    private let breaks: BreakModeService
+
+    /// Comparing two 7-day averages needs both weeks clear of a break.
+    public static let recalibrationDays = 14
 
     public init(_ db: Database) {
         self.db = db
         nutrition = NutritionSettings(db)
         diet = DietDayService(db)
+        breaks = BreakModeService(db)
     }
 
     /// Mean weight of the 7 days ending at the latest weigh-in, and of the 7 days before that.
@@ -83,18 +88,26 @@ public final class CalorieService {
 
     private func weeklyAverages(upTo day: ISODate?) throws -> WeeklyAverages {
         let notEnough = ValidationError("Log body weight for both of the last two weeks")
-        let latestRow = try day.map {
-            try db.query("SELECT MAX(measured_on) AS latest FROM body_weights WHERE measured_on <= ?", [.text($0.string)])
-        } ?? db.query("SELECT MAX(measured_on) AS latest FROM body_weights")
-        guard let latestText = latestRow.first?.optionalText("latest"), let latest = ISODate(latestText) else { throw notEnough }
+        let periods = try breaks.periods()
+        let weighIns = try db.query("SELECT measured_on, weight_kg FROM body_weights WHERE measured_on <= ? ORDER BY measured_on",
+                                    [.text(day?.string ?? "9999-12-31")]).compactMap { row -> (ISODate, Double)? in
+            guard let measured = ISODate(row.text("measured_on")), !periods.contains(where: { $0.contains(measured) }) else { return nil }
+            return (measured, row.double("weight_kg"))
+        }
+        guard let latest = weighIns.last?.0 else { throw notEnough }
 
-        func average(from start: ISODate, to end: ISODate) throws -> Double? {
-            try db.query("SELECT AVG(weight_kg) AS average FROM body_weights WHERE measured_on BETWEEN ? AND ?",
-                         [.text(start.string), .text(end.string)]).first?.optionalDouble("average")
+        let windowStart = latest.adding(days: -(Self.recalibrationDays - 1))
+        if let lastBreakEnd = periods.compactMap(\.end).filter({ $0 >= windowStart && $0 < latest }).max() {
+            throw ValidationError("Recalibrating after your break: \(latest.days(since: lastBreakEnd)) of \(Self.recalibrationDays) days")
         }
 
-        guard let current = try average(from: latest.adding(days: -6), to: latest),
-              let past = try average(from: latest.adding(days: -13), to: latest.adding(days: -7)) else { throw notEnough }
+        func average(from start: ISODate, to end: ISODate) -> Double? {
+            let values = weighIns.filter { start <= $0.0 && $0.0 <= end }.map(\.1)
+            return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
+        }
+
+        guard let current = average(from: latest.adding(days: -6), to: latest),
+              let past = average(from: latest.adding(days: -13), to: latest.adding(days: -7)) else { throw notEnough }
         return WeeklyAverages(latestWeighIn: latest, currentAverageKg: current, pastAverageKg: past)
     }
 
@@ -169,8 +182,12 @@ public final class CalorieService {
 
     /// Mean of the days that have calories, over the `days` days ending at `end`; nil when none do.
     /// A diet day with nothing ticked and no extras was not logged, so it is left out rather than counted as 0.
+    /// Break days are left out too.
     public func averageCalories(endingOn end: ISODate, days count: Int) throws -> Double? {
-        let values = try days(endingOn: end, count: count).filter { !$0.isUnloggedDietDay }.compactMap(\.calories)
+        let periods = try breaks.periods()
+        let values = try days(endingOn: end, count: count)
+            .filter { day in !day.isUnloggedDietDay && !periods.contains { $0.contains(day.date) } }
+            .compactMap(\.calories)
         return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
     }
 

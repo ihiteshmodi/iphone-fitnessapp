@@ -60,6 +60,7 @@ Screenshots of the real app.
 - **Weigh-ins:** log your weight on any day, edit or delete old ones.
 - **Calories:** a daily default that starts on a date you choose, a change for any single day, and a calorie target with macros. Days that have a diet plan count the diet instead (see below), and a total you type for one day still wins.
 - **What your weight says:** your actual deficit or surplus from the weight trend, next to your planned mode.
+- **Break mode:** start a break today or plan one with dates (More → Break mode). Break days need no food, workouts or weigh-ins and are left out of the calorie maths. Afterwards the Body tab says *Recalibrating* until there are 14 days of weigh-ins after the break (two clean weeks to compare), and keeps a *Before your break* card with maintenance, what you were eating, whether you were cutting or bulking, and your weight before and after.
 - **Calorie history:** step back (‹ ›) or pick any past day on the Body tab to see maintenance, calories eaten, deficit or surplus, the target and cutting macros as they stood that day, worked out only from weigh-ins and food up to then.
 - **Measurements:** targets that grow or reduce, % from target, and a colour tolerance (green, amber, red).
 - **Volume per muscle:** training volume over time for each muscle group.
@@ -211,7 +212,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 9)
+### Database tables (schema version 10)
 
 | Table | Holds |
 |---|---|
@@ -225,6 +226,7 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `foods`, `recipe_items` | Foods, supplements and packaged snacks with nutrition and price; recipes and their ingredient lines |
 | `diet_plans`, `diet_plan_items` | The daily plan from a start date, with each item's meal, quantity and cycle |
 | `diet_day_ticks`, `diet_extras` | Plan items ticked as eaten on a day, and extras eaten on top of the plan |
+| `break_periods` | Break mode: start and end day of each break (no end while it is still on) |
 | `settings` | The settings above |
 
 The schema lives in `src/shared/database/schema.sql`. Older files are upgraded in place when opened (versions 1 to 6 are covered by tests).

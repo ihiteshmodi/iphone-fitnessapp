@@ -21,6 +21,8 @@ final class DietViewModel: ObservableObject {
     @Published private(set) var typedCalories: Double?
     @Published private(set) var rules = DietRules(proteinMinimumGrams: 180, fatPercentOfCalories: 20, fatCeilingGramsPerPound: 0.4)
     @Published private(set) var date: ISODate
+    /// The break this day falls in, if any: nothing needs logging then.
+    @Published private(set) var breakPeriod: BreakPeriod?
     @Published var errorMessage: String?
 
     private let services: Services
@@ -40,6 +42,7 @@ final class DietViewModel: ObservableObject {
             rules = try services.dietRules.load()
             let counted = try services.calories.day(date)
             typedCalories = counted.source == .manual ? counted.calories : nil
+            breakPeriod = try services.breaks.current(on: date)
         } catch {
             errorMessage = error.localizedDescription
         }

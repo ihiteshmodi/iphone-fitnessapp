@@ -17,6 +17,8 @@ struct MoreTabView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     backupCard
+                    BreakModeCard(services: services, onChange: { session.didChange() })
+                        .id(ObjectIdentifier(services))
                     deloadCard
                     historyCard
                     pastDataCard

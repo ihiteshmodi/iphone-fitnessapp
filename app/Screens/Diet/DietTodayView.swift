@@ -11,6 +11,7 @@ struct DietTodayView: View {
     var body: some View {
         VStack(spacing: 12) {
             dateBar
+            if let period = model.breakPeriod { breakNotice(period) }
             if let typed = model.typedCalories { typedNotice(typed) }
             if let day = model.day {
                 summaryCard(day)
@@ -27,6 +28,16 @@ struct DietTodayView: View {
                 extrasCard(day)
             }
         }
+    }
+
+    private func breakNotice(_ period: BreakPeriod) -> some View {
+        let until = period.end.map { " until \(Format.shortDate($0))" } ?? ""
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("On a break since \(Format.shortDate(period.start))\(until)").font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+            Text("Nothing needs logging. These days are left out of the calorie maths.").font(.system(size: 12)).foregroundColor(Theme.muted)
+        }
+        .card(highlighted: true)
+        .accessibilityIdentifier("diet-break-notice")
     }
 
     private func typedNotice(_ typed: Double) -> some View {
