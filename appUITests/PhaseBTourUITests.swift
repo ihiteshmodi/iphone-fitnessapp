@@ -111,4 +111,21 @@ final class PhaseBTourUITests: XCTestCase {
             scrollSnaps("b13-room-labs", times: 3)
         }
     }
+
+    /// L12 (no blank title band on More, Edit plan, Library) and L9 (test-first lines show lab results).
+    func testH_MoreTitlesAndTestFirst() {
+        guard openLabs() else { return }
+        app.tabBars.buttons.element(boundBy: 4).tap()
+        sleep(1)
+        top()
+        snap("b14-more-top")
+        if open("edit-plan-row", snap: "b15-edit-plan") { app.goBack(); sleep(1) }
+        if open("library-row", snap: "b16-library") { app.goBack(); sleep(1) }
+        top()
+        if open("supplements-row", snap: "b17-supplements") {
+            let search = element("supplement-search")
+            if search.exists { search.tap(); search.typeText("B12"); sleep(1) }
+            if open("supplement-vitamin-b12", snap: "b18-supplement-b12", swipes: 3) { app.swipeUp(); snap("b18-supplement-b12-scroll") }
+        }
+    }
 }

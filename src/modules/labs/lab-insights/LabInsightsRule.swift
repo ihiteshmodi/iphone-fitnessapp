@@ -47,7 +47,7 @@ private struct Evaluation {
         items += try DrawPlanner(catalogue: catalogue, draws: draws, sex: sex).retests().compactMap { due in
             guard let from = due.from, let last = due.lastDate, today >= from else { return nil }
             return Insight(ruleID: "lab-retest-\(due.marker.id)", kind: .labs, severity: .tip, title: "Retest \(due.marker.name)",
-                           detail: "Last tested \(last.string). \(due.rule?.text ?? "")", why: due.rule?.source.map { "Vault \($0)" } ?? "Vault retest timing",
+                           detail: "Last tested \(last.dayMonthYear). \(due.rule?.text ?? "")", why: due.rule?.source.map { "Vault \($0)" } ?? "Vault retest timing",
                            day: last)
         }
         return items
@@ -55,7 +55,7 @@ private struct Evaluation {
 
     private func readingItems(_ marker: LabMarker, _ result: LabResult) -> [Insight] {
         let reading = LabReader.read(value: result.value, unit: result.unit, marker: marker, sex: sex)
-        let value = "\(LabInsightsRule.number(result.value)) \(result.unit) on \(result.date.string)."
+        let value = "\(LabInsightsRule.number(result.value)) \(result.unit) on \(result.date.dayMonthYear)."
         var items: [Insight] = []
         if let worst = reading.doctorLines.first {
             items.append(Insight(ruleID: "lab-doctor-\(marker.id)", kind: .labs, severity: .fix, title: "\(worst.urgency.title): \(marker.name)",
