@@ -62,9 +62,9 @@ final class Services: ObservableObject {
         let library = Bundle.main.url(forResource: "supplement-library", withExtension: "json")
             .flatMap { try? Data(contentsOf: $0) }.flatMap { try? SupplementLibrary(data: $0) }
         supplementLibrary = library
-        let supplementRules: [SetupRule] = [SupplementOnRampRule()] + (library.map { [SupplementCheckRule(library: $0)] } ?? [])
         let labs = Bundle.main.url(forResource: "labs-catalogue", withExtension: "json")
             .flatMap { try? Data(contentsOf: $0) }.flatMap { try? LabCatalogue(data: $0) }
+        let supplementRules: [SetupRule] = [SupplementOnRampRule()] + (library.map { [SupplementCheckRule(library: $0, labs: labs)] } ?? [])
         labCatalogue = labs
         labSettings = LabSettings(db)
         insights = InsightService(db, daily: NutritionRules.daily + CheckInRules.daily + TrainingRules.daily,

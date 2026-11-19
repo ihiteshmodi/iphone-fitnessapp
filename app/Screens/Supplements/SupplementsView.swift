@@ -99,6 +99,15 @@ struct SupplementsView: View {
 
 struct SupplementDetailView: View {
     let entry: SupplementEntry
+    @EnvironmentObject private var services: Services
+
+    /// Each test with the owner's latest result when the labs catalogue is bundled.
+    private var testFirst: String? {
+        guard !entry.testFirst.isEmpty else { return nil }
+        guard let catalogue = services.labCatalogue, let sex = try? services.labSettings.load().sex else { return entry.testFirst.joined(separator: ", ") }
+        let lookup = LabTestLookup(catalogue: catalogue, draws: LabDrawService(services.db, catalogue: catalogue), sex: sex)
+        return entry.testFirst.map { (try? lookup.summary(of: $0)) ?? $0 }.joined(separator: "\n")
+    }
 
     var body: some View {
         ScrollView {
@@ -115,7 +124,7 @@ struct SupplementDetailView: View {
                 field("Forms", entry.forms)
                 field("Timing", entry.timing)
                 field("Cycling", entry.cycling)
-                field("Test first", entry.testFirst.isEmpty ? nil : entry.testFirst.joined(separator: ", "))
+                field("Test first", testFirst)
                 field("Interactions", entry.interactions)
                 field("Side effects", entry.sideEffects)
                 field("Unresolved · revisit in Labs", entry.contradictions)

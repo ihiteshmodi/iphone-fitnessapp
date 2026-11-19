@@ -121,8 +121,13 @@ public struct SupplementLibrary {
 public struct SupplementCheckRule: SetupRule {
     public let id = "supplement-checks"
     let library: SupplementLibrary
+    /// With the labs catalogue, each test-first name is shown with the owner's latest result.
+    let labs: LabCatalogue?
 
-    public init(library: SupplementLibrary) { self.library = library }
+    public init(library: SupplementLibrary, labs: LabCatalogue? = nil) {
+        self.library = library
+        self.labs = labs
+    }
 
     public func evaluate(on day: ISODate, db: Database) throws -> [Insight] {
         guard let plan = try DietPlanService(db).plan(inForceOn: day) else { return [] }
@@ -131,6 +136,7 @@ public struct SupplementCheckRule: SetupRule {
         var reasons: [String] = []
         var testFirst: [String] = []
         var testedEntries: Set<String> = []
+        let lookup = try labs.map { LabTestLookup(catalogue: $0, draws: LabDrawService(db, catalogue: $0), sex: try LabSettings(db).load().sex) }
         for taken in Self.dailySupplements(plan.items, book: book) {
             let food = taken.food
             guard let entry = library.match(food.name) else { continue }
@@ -145,7 +151,10 @@ public struct SupplementCheckRule: SetupRule {
                 if amount > high { problems.append("\(text) is above \(Self.number(low))-\(Self.number(high)) \(unit)") }
                 if amount < low { problems.append("\(text) is below \(Self.number(low))-\(Self.number(high)) \(unit)") }
             }
-            if !entry.testFirst.isEmpty, testedEntries.insert(entry.id).inserted { testFirst.append("\(entry.name): \(entry.testFirst.joined(separator: ", "))") }
+            if !entry.testFirst.isEmpty, testedEntries.insert(entry.id).inserted {
+                let tests = try lookup.map { lookup in try entry.testFirst.map(lookup.summary(of:)) } ?? entry.testFirst
+                testFirst.append("\(entry.name): \(tests.joined(separator: ", "))")
+            }
         }
         var items: [Insight] = []
         if !problems.isEmpty {
@@ -155,7 +164,7 @@ public struct SupplementCheckRule: SetupRule {
         }
         if !testFirst.isEmpty {
             items.append(Insight(ruleID: "supplement-test-first", kind: .setup, severity: .tip, title: "Test first",
-                                 detail: "Check with bloodwork: \(testFirst.joined(separator: "; ")). Blood Labs will link these markers.",
+                                 detail: "Check with bloodwork: \(testFirst.joined(separator: "; ")).",
                                  why: "Vault: test first, then supplement for a real gap, and judge it after 8-12 weeks."))
         }
         return items
