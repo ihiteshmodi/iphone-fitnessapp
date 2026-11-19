@@ -191,6 +191,33 @@ public final class CalorieService {
         return values.isEmpty ? nil : values.reduce(0, +) / Double(values.count)
     }
 
+    /// Mean effective calories over the same days `averageCalories` counts. A diet day uses its own macros; a day with
+    /// only a typed or default total uses the digestion share of the days that have macros. Nil when no day has macros.
+    public func effectiveAverage(endingOn end: ISODate, days count: Int) throws -> Double? {
+        try effectiveCalories(endingOn: end, days: count)?.average
+    }
+
+    public func effectiveCalories(endingOn end: ISODate, days count: Int) throws -> EffectiveCalories? {
+        let periods = try breaks.periods()
+        let counted = try days(endingOn: end, count: count)
+            .filter { day in !day.isUnloggedDietDay && !periods.contains { $0.contains(day.date) } }
+            .compactMap { day -> (calories: Double, cost: DigestionCost?)? in
+                guard let calories = day.calories else { return nil }
+                guard day.source == .plan else { return (calories, nil) }
+                let eaten = try diet.day(day.date)
+                return (calories, DigestionCost(eaten.total, alcoholGrams: eaten.eatenProfile[.alcohol] ?? 0))
+            }
+        let known = counted.compactMap { day in day.cost.map { (calories: day.calories, cost: $0) } }
+        let knownCalories = known.reduce(0) { $0 + $1.calories }
+        guard !counted.isEmpty, knownCalories > 0 else { return nil }
+        let share = known.reduce(0) { $0 + $1.cost.total } / knownCalories
+        let effective = counted.map { $0.calories - ($0.cost?.total ?? $0.calories * share) }
+        let n = Double(known.count)
+        let averageCost = DigestionCost(byCalories: known.reduce(0) { $0 + $1.cost.protein } / n, carbs: known.reduce(0) { $0 + $1.cost.carbs } / n,
+                                        fat: known.reduce(0) { $0 + $1.cost.fat } / n, alcohol: known.reduce(0) { $0 + $1.cost.alcohol } / n)
+        return EffectiveCalories(average: effective.reduce(0, +) / Double(effective.count), share: share, typicalDayCost: averageCost)
+    }
+
     private func defaultInForce(on date: ISODate) throws -> CalorieDefault? {
         try db.query("""
             SELECT effective_from, calories, multiplier FROM calorie_defaults

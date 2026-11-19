@@ -167,8 +167,52 @@ private struct BodyScreen: View {
     }
 
     private var ringCard: some View {
+        VStack(spacing: 8) {
+            ringRow
+            if model.effectiveText != nil { effectiveSection }
+        }
+        .card()
+    }
+
+    /// Total and effective side by side, with the digestion cost by macro folded under Details.
+    private var effectiveSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(model.usesEffective ? "Total eaten" : "Effective").font(.system(size: 13)).foregroundColor(Theme.muted)
+                Spacer()
+                Text("\(model.usesEffective ? BodyNumbers.grouped(model.averageEaten ?? 0) : model.effectiveText ?? "–") / day")
+                    .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.green)
+                    .accessibilityIdentifier("body-effective-calories")
+            }
+            DisclosureGroup("Details") {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let digestion = model.digestionText { Text(digestion).font(.system(size: 12)).foregroundColor(Theme.muted) }
+                    ForEach(model.digestionRows, id: \.0) { row in
+                        HStack {
+                            Text(row.0).font(.system(size: 12)).foregroundColor(Theme.muted)
+                            Spacer()
+                            Text(row.1).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.text)
+                        }
+                    }
+                    Picker("Targets use", selection: Binding(get: { model.calorieBasis }, set: { model.setCalorieBasis($0) })) {
+                        Text("Total").tag(CalorieBasis.total)
+                        Text("Effective").tag(CalorieBasis.effective)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("calorie-basis-picker")
+                    .padding(.top, 4)
+                }
+                .padding(.top, 4)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .tint(Theme.green)
+            .accessibilityIdentifier("body-effective-details")
+        }
+    }
+
+    private var ringRow: some View {
         HStack(spacing: 16) {
-            RingView(progress: model.ringProgress, size: 120, lineWidth: 12, label: model.eatenText, subLabel: "eaten / day")
+            RingView(progress: model.ringProgress, size: 120, lineWidth: 12, label: model.eatenText, subLabel: model.eatenCaption)
             VStack(alignment: .leading, spacing: 4) {
                 if let phase = model.phaseText { Pill(text: phase, tone: model.phaseTone) }
                 SectionLabel("Maintenance").padding(.top, 6)
@@ -189,7 +233,6 @@ private struct BodyScreen: View {
             }
             Spacer(minLength: 0)
         }
-        .card()
     }
 
     @ViewBuilder

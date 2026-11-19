@@ -37,6 +37,7 @@ let package = Package(
                 "nutrition/calorie-target/calorie-target.feature",
                 "nutrition/calorie-history/calorie-history.feature",
                 "nutrition/break-mode/break-mode.feature",
+                "nutrition/effective-calories/effective-calories.feature",
                 "nutrition/daily-calories/daily-calories.feature",
                 "nutrition/nutrition-settings/nutrition-settings.feature",
                 "planning/deload-mode/deload-mode.feature",

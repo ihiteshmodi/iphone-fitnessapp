@@ -28,6 +28,13 @@ public struct AppSettings: Equatable {
     public var fatPercent: Double
     /// How far a measurement may be from its target (in percent, in the wrong direction) and still count as on track.
     public var measurementTolerancePercent: Double
+    /// Whether targets, maintenance and surplus/deficit are shown in total or effective calories.
+    public var calorieBasis: CalorieBasis = .total
+}
+
+public enum CalorieBasis: String, Equatable {
+    case total
+    case effective
 }
 
 /// Each setting is a separate key so one knob never changes another (deload vs history start).
@@ -52,7 +59,8 @@ public final class SettingsRepository {
             ignoreDeloadSessions: values["ignore_deload_sessions"] != "0",
             proteinGramsPerLb: Double(values["protein_g_per_lb"] ?? "") ?? 1.2,
             fatPercent: Double(values["fat_percent_of_calories"] ?? "") ?? 25,
-            measurementTolerancePercent: Double(values["measurement_tolerance_percent"] ?? "") ?? 3
+            measurementTolerancePercent: Double(values["measurement_tolerance_percent"] ?? "") ?? 3,
+            calorieBasis: CalorieBasis(rawValue: values["calorie_basis"] ?? "") ?? .total
         )
     }
 
@@ -67,6 +75,7 @@ public final class SettingsRepository {
     }
 
     public func setDayLabelMode(_ mode: DayLabelMode) throws { try save("day_label_mode", mode.rawValue) }
+    public func setCalorieBasis(_ basis: CalorieBasis) throws { try save("calorie_basis", basis.rawValue) }
     public func setDeloadEnabled(_ enabled: Bool) throws { try save("deload_enabled", enabled ? "1" : "0") }
     public func setIgnoreDeloadSessions(_ ignore: Bool) throws { try save("ignore_deload_sessions", ignore ? "1" : "0") }
 

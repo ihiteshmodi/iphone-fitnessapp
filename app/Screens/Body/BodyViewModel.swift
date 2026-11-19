@@ -37,6 +37,8 @@ final class BodyViewModel: ObservableObject {
     /// nil shows the live numbers; a past day shows the calorie maths as it stood on that day.
     @Published private(set) var asOf: ISODate?
     @Published private(set) var currentBreak: BreakPeriod?
+    @Published private(set) var effective: EffectiveCalories?
+    @Published private(set) var calorieBasis = CalorieBasis.total
     /// Shown while on a break and while recalibrating after one, so the pre-break picture is never lost.
     @Published private(set) var beforeBreak: (period: BreakPeriod, summary: BeforeBreak)?
 
@@ -90,6 +92,31 @@ final class BodyViewModel: ObservableObject {
         let advice = try? (asOf.map { try services.calories.advice(asOf: $0) } ?? services.calories.currentAdvice())
         target = advice?.target
         averageEaten = advice?.target.caloriesEaten ?? (try? services.calories.averageCalories(endingOn: shownDay.adding(days: -1), days: 7)) ?? nil
+        let foodEnd = (advice?.averages.latestWeighIn ?? shownDay).adding(days: -1)
+        effective = try? services.calories.effectiveCalories(endingOn: foodEnd, days: 7)
+        calorieBasis = (try? services.settings.load().calorieBasis) ?? .total
+    }
+
+    // MARK: Effective calories
+
+    var usesEffective: Bool { calorieBasis == .effective && effective != nil }
+
+    /// Calories digestion takes from what was eaten, per day on average; maintenance and target move by the same amount.
+    private var digestion: Double { (averageEaten ?? 0) - (effective?.average ?? averageEaten ?? 0) }
+
+    var effectiveText: String? { effective.map { BodyNumbers.grouped($0.average) } }
+    var digestionText: String? {
+        effective.map { "Digestion uses \(BodyNumbers.grouped(digestion)) kcal a day (\(Format.number($0.share * 100, maxDecimals: 1))%)" }
+    }
+    var digestionRows: [(String, String)] {
+        guard let cost = effective?.typicalDayCost else { return [] }
+        return [("Protein · 25%", cost.protein), ("Carbs · 7.5%", cost.carbs), ("Fat · 1.5%", cost.fat), ("Alcohol · 0%", cost.alcohol)]
+            .map { ($0.0, "−\(BodyNumbers.grouped($0.1))") }
+    }
+
+    func setCalorieBasis(_ basis: CalorieBasis) {
+        try? services.settings.setCalorieBasis(basis)
+        load()
     }
 
     // MARK: Break
@@ -110,7 +137,11 @@ final class BodyViewModel: ObservableObject {
 
     // MARK: Ring card
 
-    var eatenText: String { averageEaten.map { BodyNumbers.grouped($0.rounded()) } ?? "–" }
+    var eatenText: String {
+        let shown = usesEffective ? effective?.average : averageEaten
+        return shown.map { BodyNumbers.grouped($0.rounded()) } ?? "–"
+    }
+    var eatenCaption: String { usesEffective ? "effective / day" : "eaten / day" }
 
     var ringProgress: Double {
         guard let target, target.maintenanceCalories > 0 else { return 0 }
@@ -119,8 +150,15 @@ final class BodyViewModel: ObservableObject {
 
     var phaseText: String? { target?.phase.rawValue }
     var phaseTone: Pill.Tone { target?.phase == .cut ? .amber : .green }
-    var maintenanceText: String { target.map { BodyNumbers.grouped($0.maintenanceCalories.rounded()) } ?? "–" }
-    var newTargetText: String? { target.map { "New target \(BodyNumbers.grouped(Double($0.adjustedTarget)))" } }
+    var maintenanceText: String {
+        target.map { BodyNumbers.grouped(($0.maintenanceCalories - (usesEffective ? digestion : 0)).rounded()) } ?? "–"
+    }
+    var newTargetText: String? {
+        target.map { t in
+            let shown = usesEffective ? (t.maintenanceCalories - digestion) * t.multiplier : Double(t.adjustedTarget)
+            return "New target \(BodyNumbers.grouped(shown))\(usesEffective ? " effective" : "")"
+        }
+    }
 
     /// Explains why there is no target yet.
     var ringHint: String? {

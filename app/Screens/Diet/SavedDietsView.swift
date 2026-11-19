@@ -28,7 +28,8 @@ final class SavedDietsModel: ObservableObject {
     func delete(_ diet: SavedDiet) { perform { try self.services.savedDiets.delete(diet.id) } }
 
     func summary(_ diet: SavedDiet) -> String {
-        "\(diet.mealCount) meals · \(diet.itemCount) foods · \(Format.grouped(diet.nutrition.calories)) kcal · P \(Format.number(diet.nutrition.protein, maxDecimals: 0)) g"
+        let effective = DigestionCost(diet.nutrition).effective(of: diet.nutrition.calories)
+        return "\(diet.mealCount) meals · \(diet.itemCount) foods · \(Format.grouped(diet.nutrition.calories)) kcal (effective \(Format.grouped(effective))) · P \(Format.number(diet.nutrition.protein, maxDecimals: 0)) g"
     }
 
     private func perform(_ action: () throws -> Void) {
