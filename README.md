@@ -75,7 +75,7 @@ Screenshots of the real app.
 - **Recipes:** a recipe is made of other foods, for one piece or a whole batch ("makes 9 pieces", "makes 1000 g"). Its nutrition and cost are worked out from the current ingredients. *Cook for* shows every ingredient scaled to another amount (11 pieces → 5) without changing the recipe, and *Duplicate as a new recipe* copies it under a new name to make a variation (Maintenance shake → Soybean shake).
 - **Daily plan:** your meals and quantities. A change starts on a date you choose (today by default) and never rewrites earlier days. Nothing counts until you tick it: tick an item, or one box to tick a whole meal, as you eat. A new meal can be placed anywhere ("After Brunch"), and the ↑ ↓ arrows move a meal; like every plan change they apply from the edit date, so earlier days keep their meals.
 - **Extras:** log something that is not in the plan by pieces, grams or share of a pack ("4 biscuits" from a 250 g pack of 35), see the result before saving, and re-add recent extras in one tap. Tap an extra to change how much (3 pieces to 4) without adding another, or remove it. Each extra can say when it was eaten (Morning, Noon, Evening, Night; guessed from the clock) and carry a note, and the list is grouped by time of day.
-- **Quick add:** for food with no label. *By weight* logs grams against a preset food whose unit stands for a weight (fill in "grams one unit stands for" on the food); *Calories only* logs just the calories. Both take a name of their own ("Kaju katli").
+- **Quick add:** for food with no label. *By weight* logs grams against a preset food whose unit stands for a weight (fill in "grams one unit stands for" on the food); *Calories only* logs just the calories. Both take a name of their own ("Kaju katli"). Upgrading to schema 19 makes "Extra calorie batches" 12.7 g carbs + 5.5 g fat per 100 kcal batch (70/30 by grams, as outside snacks and sweets are mostly carbs) standing for 20 g of food, and recounts every day it was logged.
 - **Did you eat these?** When you open today in Diet, planned meals of the last 7 days that were left unticked are listed: *Ate it* ticks the meal on its day, *Skipped* records that you really skipped it so the app stops asking. Break days and days with typed calories are never asked about.
 - **Saved diets:** Plan → Saved diets keeps the diet in force under a name ("High-protein 2-meal") with its meals, totals and an *In force* tag. *Use from…* switches the plan to a saved diet from any date; earlier days keep the diet they had.
 - **Cycles:** an item can follow a cycle: weeks on and off counted Monday to Sunday (for example 2 on, 1 off), days on and off, chosen weekdays, or training days. Off days are greyed, not counted in calories or cost, and need no tick.
@@ -86,7 +86,7 @@ Screenshots of the real app.
 - **Library:** every supplement the vault covers, *worth taking*, *conditional* or *not recommended*, with the reason, dose, forms, timing, cycling, test-first markers, interactions and side effects. Search a product before you buy it. Where the vault gives two different numbers both are shown as *unresolved*, to settle with Blood Labs.
 - **Your supplements:** each supplement in your foods is matched to the library. Room for improvement flags a dose outside the vault's range, a not-recommended product, test-first supplements (pointing to bloodwork), and starting two new supplements less than 2 weeks apart.
 - **Multivitamin what if:** a multivitamin with vitamin and mineral values shows 1, 2 or 3 tablets on top of today's food against daily targets and the vault's upper limits, with fat-soluble vitamins (A, D, E, K) marked because they build up.
-- The library file (`output/supplement-library.json`) is the vault's content, so it is bundled at build time and never committed.
+- The library file (`output/supplement-library.json`) is in the repository and bundled at build time.
 
 **AI diet review** (More → Tools → Export diet for AI review)
 - Writes one markdown file: the planned day meal by meal (calories, protein, fibre, leucine), the eaten average over the logged days of the last 14 (each nutrient against its daily target, plus which nutrients have no data), extras eaten, supplements with their library verdict, and open Room for improvement items.
@@ -101,7 +101,7 @@ Screenshots of the real app.
 - **Labs:** filled in by Blood Labs later. **Archived:** accepted items (still tracked) and rules that don't apply to you (not checked); *Restore* brings them back.
 - **Check-in (optional):** on Diet → Today, urine colour (Clear, Pale yellow, Dark yellow), a walk tick after each meal (any time that day; yesterday stays editable), heavy sweat yes/no, and once a week the signs of being under-recovered. Unanswered is no data. Dark urine 2 days running, clear 3 days running, and 3+ recovery signs two weeks running show up in Room for improvement; walks are only a weekly share.
 - **Sweaty activity (More → Tools):** for a hike or long sweaty session, how much Himalayan salt and potassium chloride to put in the water you carry and how often to sip, from the vault's per-hour numbers. Your daily workout mix is left as it is.
-- **Daily targets:** the day's amino acids, vitamins, minerals, fiber and omega-6 against their daily targets; unknown values are shown as unknown, never as a miss.
+- **Daily targets:** the day's amino acids, vitamins, minerals and fiber against their daily targets (omega-6 is tracked but has no target, because the vault gives none); unknown values are shown as unknown, never as a miss.
 
 **Data**
 - **One SQLite file** on the phone. Export it, restore it, or import another one. Older files are upgraded automatically.
@@ -243,7 +243,7 @@ There are no environment variables or secrets. The app is configured by settings
 | `output/fitness.seed.sqlite` | Test fixture built by `tools/seed-db`; used by the parity tests and the UI tests | absent (10 parity tests skip) | No |
 | `output/meridian-presets.json` | Coach presets made by `python tools/meridian-presets/build_presets.py "<Train & Eat folder>"`; bundled when present and loaded from More → Coach presets. Paid-program content, so it stays out of the repository | absent (card hidden) | No |
 | `output/nutrient-values.csv` | Approved extra nutrient values for your foods (`name,key,amount`); bundled when present and applied from More → Nutrient data | absent (card hidden) | No |
-| `output/supplement-library.json` | The vault's supplement library; bundled when present (More → Supplements). Paid-program content, so it stays out of the repository | absent (library hidden) | No |
+| `output/supplement-library.json` | The vault's supplement library; in the repository and bundled (More → Supplements) | absent (library hidden) | No |
 | `-UITestImportPath <file>` | Simulator tests only: import this database at launch | unset | No |
 | `-UITestInitialTab <0-4>` | Simulator tests only: start on a tab (0 Workout, 1 Body, 2 Diet, 3 Progress, 4 More) | `0` | No |
 
@@ -251,7 +251,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 18)
+### Database tables (schema version 19)
 
 | Table | Holds |
 |---|---|

@@ -194,7 +194,7 @@ CREATE TABLE break_periods (
 -- label_calories is what the pack says; when it is empty calories are worked out as 4 x protein + 4 x carbs + 9 x fat.
 -- price is for one pack of pack_size units. pieces_per_pack and piece_weight let "4 biscuits" become grams.
 -- A recipe (kind = 'recipe') has no nutrition of its own: it is worked out from recipe_items and divided by recipe_makes units.
--- estimate_grams: quick add by weight, the grams of real food one unit stands for (a "batch" of 10 g of a sweet).
+-- estimate_grams: quick add by weight, the grams of real food one unit stands for (a 100 kcal "batch" is about 20 g of a sweet).
 CREATE TABLE foods (
     id              INTEGER PRIMARY KEY,
     name            TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -320,4 +320,4 @@ INSERT INTO settings (key, value) VALUES
     ('fat_max_percent', '35'),
     ('fat_floor_g_per_kg', '0.8');
 
-PRAGMA user_version = 18;
+PRAGMA user_version = 19;

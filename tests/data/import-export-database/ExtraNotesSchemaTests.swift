@@ -2,6 +2,7 @@ import XCTest
 @testable import FitnessCore
 
 /// Version 11: extras gain a name, time and note, and the 91-calorie "Extra calorie batches" becomes 100 calories.
+/// Version 19: a batch is 70% carbs and 30% fat by grams (12.7 g + 5.5 g), and stands for 20 g of food.
 final class ExtraNotesSchemaTests: DatabaseFileTestCase {
     private func installVersion10Database(batchCarbs: Double, batchFat: Double) throws {
         let url = try makeFitnessDatabase(named: "v10.sqlite")
@@ -19,14 +20,27 @@ final class ExtraNotesSchemaTests: DatabaseFileTestCase {
         try FileManager.default.copyItem(at: url, to: location.databaseURL)
     }
 
-    func testUpgradingMakesTheBatch100CaloriesOnEveryDayItWasUsed() throws {
+    func testUpgradingMakesTheBatchMostlyCarbsOnEveryDayItWasUsed() throws {
         try installVersion10Database(batchCarbs: 7, batchFat: 7)
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
 
         let batch = try XCTUnwrap(try FoodLibrary(db).food(66))
-        XCTAssertEqual([batch.draft.carbs, batch.draft.fat, batch.draft.estimateGrams], [7.7, 7.7, 10])
-        XCTAssertEqual(try DietDayService(db).day(date("2026-11-18")).extras.first?.nutrition.calories ?? 0, 300.3, accuracy: 1e-6)
+        XCTAssertEqual([batch.draft.carbs, batch.draft.fat, batch.draft.estimateGrams], [12.7, 5.5, 20])
+        XCTAssertEqual(try DietDayService(db).day(date("2026-11-18")).extras.first?.nutrition.calories ?? 0, 3 * (12.7 * 4 + 5.5 * 9), accuracy: 1e-6)
+    }
+
+    func testAVersion18BatchOf7Point7GramsEachBecomes70PercentCarbs() throws {
+        let url = try makeFitnessDatabase(named: "v18.sqlite")
+        let raw = try Database(path: url.path)
+        try raw.execute("INSERT INTO foods (id, name, kind, unit, base_qty, protein, carbs, fat, fiber, sat_fat, sodium, estimate_grams) VALUES (66, 'Extra calorie batches', 'food', 'unit', 1, 0, 7.7, 7.7, 0, 0, 0, 10)")
+        try raw.execute("PRAGMA user_version = 18")
+        try FileManager.default.copyItem(at: url, to: location.databaseURL)
+
+        let db = try XCTUnwrap(try service.openLiveDatabase())
+
+        let batch = try XCTUnwrap(try FoodLibrary(db).food(66))
+        XCTAssertEqual([batch.draft.carbs, batch.draft.fat, batch.draft.estimateGrams], [12.7, 5.5, 20])
     }
 
     func testABatchAlreadyChangedByHandIsLeftAsItIs() throws {

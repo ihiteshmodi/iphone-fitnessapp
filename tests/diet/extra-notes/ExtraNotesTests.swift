@@ -37,15 +37,15 @@ final class ExtraNotesTests: XCTestCase {
     }
 
     func testQuickAddByWeightUsesThePresetGramsPerUnit() throws {
-        let batch = try library.add(FoodDraft(name: "Extra calorie batches", unit: "unit", baseQuantity: 1, carbs: 7.7, fat: 7.7, estimateGrams: 10))
+        let batch = try library.add(FoodDraft(name: "Extra calorie batches", unit: "unit", baseQuantity: 1, carbs: 12.7, fat: 5.5, estimateGrams: 20))
 
         try diet.quickAddByWeight(presetID: batch, grams: 30, on: day, details: ExtraDetails(label: "Kaju katli", time: .evening))
 
         let extra = try XCTUnwrap(try extras().first)
         XCTAssertEqual(extra.displayName, "Kaju katli")
-        XCTAssertEqual(extra.amount, 3, accuracy: 1e-9)
-        XCTAssertEqual(extra.nutrition.calories, 100.1 * 3, accuracy: 1e-6)
-        XCTAssertEqual(extra.nutrition.carbs, 23.1, accuracy: 1e-9)
+        XCTAssertEqual(extra.amount, 1.5, accuracy: 1e-9)
+        XCTAssertEqual(extra.nutrition.calories, 100.3 * 1.5, accuracy: 1e-6)
+        XCTAssertEqual(extra.nutrition.carbs, 19.05, accuracy: 1e-9)
         XCTAssertEqual(try library.estimatePresets().map(\.id), [batch])
     }
 

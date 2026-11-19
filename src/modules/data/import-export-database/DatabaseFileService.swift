@@ -378,6 +378,14 @@ public struct DatabaseFileService {
                     mark    TEXT CHECK (mark IS NULL OR mark IN ('refeed', 'normal', 'skipped'))
                 )
                 """)
+            // Version 19: outside snacks and sweets are mostly carbs, so the owner chose 70% carbs and 30% fat by grams
+            // (still 100 kcal), standing for 20 g of food (about 500 kcal per 100 g), on every day it was used.
+            try db.execute("""
+                UPDATE foods SET carbs = 12.7, fat = 5.5, estimate_grams = 20,
+                    notes = 'Each batch is 100 calories (12.7 g carbs + 5.5 g fat, 70/30 by grams) and stands for about 20 g of a sweet or snack'
+                WHERE name = 'Extra calorie batches' AND unit = 'unit' AND base_qty = 1 AND protein = 0 AND carbs = 7.7 AND fat = 7.7
+                    AND (estimate_grams IS NULL OR estimate_grams = 10)
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }
