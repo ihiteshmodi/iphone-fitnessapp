@@ -43,6 +43,10 @@ targets:
           VALUES="${SRCROOT}/output/nutrient-values.csv"
           VALUES_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/nutrient-values.csv"
           if [ -f "$VALUES" ]; then cp -f "$VALUES" "$VALUES_DEST"; else rm -f "$VALUES_DEST"; fi
+          # The vault's supplement library (paid-program content, never committed).
+          LIBRARY="${SRCROOT}/output/supplement-library.json"
+          LIBRARY_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/supplement-library.json"
+          if [ -f "$LIBRARY" ]; then cp -f "$LIBRARY" "$LIBRARY_DEST"; else rm -f "$LIBRARY_DEST"; fi
     dependencies:
       - package: FitnessCore
     info:

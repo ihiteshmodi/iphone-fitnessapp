@@ -59,6 +59,7 @@ let package = Package(
                 "insights/nutrition-rules/nutrition-rules.feature",
                 "insights/check-in/check-in.feature",
                 "insights/training-rules/training-rules.feature",
+                "supplements/supplement-library/supplement-library.feature",
             ]
         ),
     ]

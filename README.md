@@ -82,6 +82,12 @@ Screenshots of the real app.
 - **Targets:** protein is a minimum (180 g by default). Fat follows the vault: 20–35% of the day's calories, and never under 0.8 g per kg of 7-day average body weight (whichever is higher is the minimum). All the numbers are editable.
 - **Cost and calories:** every day shows its total calories, macros and cost. The Body tab, the weekly average and the calorie target use these days.
 
+**Supplements** (More → Tools → Supplements)
+- **Library:** every supplement the vault covers, *worth taking*, *conditional* or *not recommended*, with the reason, dose, forms, timing, cycling, test-first markers, interactions and side effects. Search a product before you buy it. Where the vault gives two different numbers both are shown as *unresolved*, to settle with Blood Labs.
+- **Your supplements:** each supplement in your foods is matched to the library. Room for improvement flags a dose outside the vault's range, a not-recommended product, test-first supplements (pointing to bloodwork), and starting two new supplements less than 2 weeks apart.
+- **Multivitamin what if:** a multivitamin with vitamin and mineral values shows 1, 2 or 3 tablets on top of today's food against daily targets and the vault's upper limits, with fat-soluble vitamins (A, D, E, K) marked because they build up.
+- The library file (`output/supplement-library.json`) is the vault's content, so it is bundled at build time and never committed.
+
 **Room for improvement** (Diet → Today)
 - **Today:** what fired today or yesterday, worst first: trans fat (Fix), leucine under 3 g in a protein meal, fiber under 14 g per 1,000 kcal (with the psyllium fix), fat outside 20–35% / under 0.8 g per kg, EPA + DHA under 250 mg, caffeine in the evening (stop 8–10 h before bed), and your own rules: flax or chia, collagen not counted. *Dismiss* hides an item for that day.
 - **Trends:** each rule over 7, 30 or 90 days as a strip (red fired, green fine, grey no data) with "fired on x of y days".
@@ -225,6 +231,7 @@ There are no environment variables or secrets. The app is configured by settings
 | `output/fitness.seed.sqlite` | Test fixture built by `tools/seed-db`; used by the parity tests and the UI tests | absent (10 parity tests skip) | No |
 | `output/meridian-presets.json` | Coach presets made by `python tools/meridian-presets/build_presets.py "<Train & Eat folder>"`; bundled when present and loaded from More → Coach presets. Paid-program content, so it stays out of the repository | absent (card hidden) | No |
 | `output/nutrient-values.csv` | Approved extra nutrient values for your foods (`name,key,amount`); bundled when present and applied from More → Nutrient data | absent (card hidden) | No |
+| `output/supplement-library.json` | The vault's supplement library; bundled when present (More → Supplements). Paid-program content, so it stays out of the repository | absent (library hidden) | No |
 | `-UITestImportPath <file>` | Simulator tests only: import this database at launch | unset | No |
 | `-UITestInitialTab <0-4>` | Simulator tests only: start on a tab (0 Workout, 1 Body, 2 Diet, 3 Progress, 4 More) | `0` | No |
 

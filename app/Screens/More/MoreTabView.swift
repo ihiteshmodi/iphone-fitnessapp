@@ -128,6 +128,15 @@ struct MoreTabView: View {
     private var toolsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("Tools")
+            NavigationLink { SupplementsView() } label: {
+                MoreRow(title: "Supplements", subtitle: "Your supplements checked, the full library (also what not to buy), multivitamin what if") {
+                    Image(systemName: "chevron.right").foregroundColor(Theme.muted)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityIdentifier("supplements-row")
             NavigationLink { SweatyActivityView() } label: {
                 MoreRow(title: "Sweaty activity", subtitle: "What to put in your bottle for a hike or a long, sweaty session") {
                     Image(systemName: "chevron.right").foregroundColor(Theme.muted)

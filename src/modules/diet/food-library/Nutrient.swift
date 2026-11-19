@@ -167,3 +167,40 @@ public enum DailyTargetReport {
         }
     }
 }
+
+extension Nutrient {
+    /// Vitamins A, D, E and K are stored in the body, so too much builds up rather than leaving in urine.
+    public var isFatSoluble: Bool { [.vitaminA, .vitaminD, .vitaminE, .vitaminK].contains(self) }
+
+    /// Daily upper limits as the vault states them, in `unit`. Nil where none is given or the vault gives two
+    /// different values (see `upperLimitNote`); those are settled with bloodwork in Blood Labs.
+    public var upperLimit: Double? {
+        switch self {
+        case .vitaminA: return 3000
+        case .vitaminD: return 100
+        case .vitaminE: return 1000
+        case .vitaminC: return 2000
+        case .b3: return 35
+        case .folate: return 1000
+        case .magnesium: return 350
+        case .zinc: return 40
+        case .copper: return 10
+        case .iron: return 45
+        case .selenium: return 400
+        case .manganese: return 11
+        case .boron: return 20
+        default: return nil
+        }
+    }
+
+    public var upperLimitNote: String? {
+        switch self {
+        case .b6: return "100 mg (US) or 12 mg (EU)"
+        case .magnesium: return "350 mg from supplements"
+        case .iron: return "45 mg from supplements"
+        case .folate: return "1,000 mcg of folic acid"
+        case .vitaminA: return "3,000 mcg of preformed vitamin A"
+        default: return nil
+        }
+    }
+}

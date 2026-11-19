@@ -29,6 +29,8 @@ final class Services: ObservableObject {
     let insights: InsightService
     let checkIn: CheckInService
     let refeeds: RefeedService
+    /// The vault's supplement library, bundled from output/supplement-library.json when present.
+    let supplementLibrary: SupplementLibrary?
 
     init(db: Database, clock: AppClock) {
         self.db = db
@@ -54,8 +56,12 @@ final class Services: ObservableObject {
         savedDiets = SavedDietService(db)
         savedWorkouts = SavedWorkoutService(db)
         routines = RoutineService(db)
+        let library = Bundle.main.url(forResource: "supplement-library", withExtension: "json")
+            .flatMap { try? Data(contentsOf: $0) }.flatMap { try? SupplementLibrary(data: $0) }
+        supplementLibrary = library
+        let supplementRules: [SetupRule] = [SupplementOnRampRule()] + (library.map { [SupplementCheckRule(library: $0)] } ?? [])
         insights = InsightService(db, daily: NutritionRules.daily + CheckInRules.daily + TrainingRules.daily,
-                                  setup: NutritionRules.setup + TrainingRules.setup + RefeedRules.setup)
+                                  setup: NutritionRules.setup + TrainingRules.setup + RefeedRules.setup + supplementRules)
         checkIn = CheckInService(db)
         refeeds = RefeedService(db)
     }
