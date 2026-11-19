@@ -12,7 +12,7 @@
 set -u
 cd "$(dirname "$0")/.."
 
-UDID="${SIM_UDID:-8DD81A59-E276-47FB-9BA4-86566EC0972B}"   # iPhone 17
+UDID="${SIM_UDID:-3D385AA0-10AA-4330-BF75-C068445C799E}"   # iPhone 15 Pro Max, the only device the app is used on
 CLASS_LIMIT_SECONDS="${CLASS_LIMIT_SECONDS:-600}"
 QUIET_WARNING_SECONDS=60
 BAR_WIDTH=24
@@ -23,7 +23,8 @@ mkdir -p "$LOGS"
 # Every class starts from a fresh copy. Only the diet tests get a made-up diet on top (nothing personal; see
 # tools/diet-import/demo_diet.py); the other classes check the app as it is without a diet plan.
 stage_database() {
-  cp output/fitness.seed.sqlite /Users/Shared/fitness-ui-seed.sqlite
+  # UI_SEED_DB=output/fitness.sqlite runs a screenshot tour on the real data instead of the test fixture.
+  cp "${UI_SEED_DB:-output/fitness.seed.sqlite}" /Users/Shared/fitness-ui-seed.sqlite
   if [ "$1" = "DietUITests" ]; then
     python3 tools/diet-import/demo_diet.py --db /Users/Shared/fitness-ui-seed.sqlite --replace >/dev/null
   fi
