@@ -53,6 +53,7 @@ let package = Package(
                 "progress/measurement-tolerance/measurement-tolerance.feature",
                 "progress/muscle-volume/muscle-volume.feature",
                 "settings/app-settings/app-settings.feature",
+                "insights/room-for-improvement/room-for-improvement.feature",
             ]
         ),
     ]

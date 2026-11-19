@@ -221,7 +221,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 15)
+### Database tables (schema version 16)
 
 | Table | Holds |
 |---|---|
@@ -241,6 +241,7 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `diet_day_ticks`, `diet_extras` | Plan items ticked as eaten on a day, and extras eaten on top of the plan (with an optional name, time of day and note) |
 | `saved_diets`, `saved_diet_items` | Diets kept under a name: a copy of the plan's meals, foods, quantities and cycles |
 | `break_periods` | Break mode: start and end day of each break (no end while it is still on) |
+| `insight_dismissals`, `insight_rules` | Room for improvement: items dismissed for a day, and rules accepted or marked as not applying |
 | `settings` | The settings above |
 
 The schema lives in `src/shared/database/schema.sql`. Older files are upgraded in place when opened (versions 1 to 6 are covered by tests).

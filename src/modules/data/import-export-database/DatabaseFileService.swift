@@ -332,6 +332,20 @@ public struct DatabaseFileService {
                     PRIMARY KEY (food_id, nutrient)
                 )
                 """)
+            // Version 16: room for improvement.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS insight_dismissals (
+                    key TEXT PRIMARY KEY
+                )
+                """)
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS insight_rules (
+                    rule_id TEXT PRIMARY KEY,
+                    title   TEXT NOT NULL,
+                    status  TEXT NOT NULL CHECK (status IN ('accepted', 'not_applicable')),
+                    note    TEXT
+                )
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

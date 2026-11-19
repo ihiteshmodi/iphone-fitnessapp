@@ -143,6 +143,17 @@ CREATE TABLE calorie_defaults (
     multiplier     REAL NOT NULL DEFAULT 1 CHECK (multiplier > 0)
 );
 
+-- Room for improvement: items dismissed for one day (key = rule@day), and rules accepted or marked as not applying.
+CREATE TABLE insight_dismissals (
+    key TEXT PRIMARY KEY
+);
+CREATE TABLE insight_rules (
+    rule_id TEXT PRIMARY KEY,
+    title   TEXT NOT NULL,
+    status  TEXT NOT NULL CHECK (status IN ('accepted', 'not_applicable')),
+    note    TEXT
+);
+
 CREATE TABLE settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -284,4 +295,4 @@ INSERT INTO settings (key, value) VALUES
     ('diet_fat_percent', '20'),
     ('fat_ceiling_g_per_lb', '0.4');
 
-PRAGMA user_version = 15;
+PRAGMA user_version = 16;
