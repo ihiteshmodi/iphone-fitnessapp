@@ -153,6 +153,9 @@ struct ResultFields: View {
 }
 
 struct MarkerPicker: View {
+    /// Measured markers, plus formula ones a lab may print itself (globulin, A/G); the rest are only ever worked out.
+    static func typeable(_ marker: LabMarker) -> Bool { !marker.computed || marker.formula != nil }
+
     let catalogue: LabCatalogue
     let picked: (LabMarker) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -160,7 +163,7 @@ struct MarkerPicker: View {
 
     var body: some View {
         NavigationStack {
-            List(search.isEmpty ? catalogue.markers.filter { !$0.computed } : catalogue.search(search).filter { !$0.computed }) { marker in
+            List((search.isEmpty ? catalogue.markers : catalogue.search(search)).filter(Self.typeable)) { marker in
                 Button {
                     picked(marker)
                     dismiss()
@@ -204,7 +207,7 @@ struct DrawDetailView: View {
                 if let note = draw.draft.note { Text(note).font(.system(size: 13)) }
             }
             Section("Results") {
-                ForEach(results) { result in resultRow(result) }
+                ForEach(results) { result in resultRow(result).deleteDisabled(result.isCalculated) }
                     .onDelete { offsets in
                         for index in offsets { perform { try model.draw.deleteResult(results[index].id) } }
                     }
@@ -252,6 +255,7 @@ struct DrawDetailView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(marker.name)
+                        if result.isCalculated { Text("Calculated from this draw").font(.system(size: 11)).foregroundColor(Theme.muted) }
                         if result.labLow != nil || result.labHigh != nil {
                             Text("Lab range \(result.labLow.map { Format.number($0) } ?? "…")–\(result.labHigh.map { Format.number($0) } ?? "…")")
                                 .font(.system(size: 11)).foregroundColor(Theme.muted)

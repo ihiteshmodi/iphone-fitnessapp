@@ -66,6 +66,7 @@ struct MarkerDetailView: View {
                 if !history.isEmpty { historyCard }
                 sevenPoints
                 if !doctorLines.isEmpty { doctorCard }
+                if let formula = marker.formula { listCard("How the app works it out", [formulaText(formula)]) }
                 if !marker.retest.isEmpty { listCard("When to retest", marker.retest.map(\.text)) }
                 if !marker.prep.isEmpty { listCard("Before the draw", marker.prep.map { model.catalogue.prepStep($0)?.text ?? $0 }) }
                 if !marker.disputes.isEmpty { disputesCard }
@@ -78,6 +79,15 @@ struct MarkerDetailView: View {
         .navigationTitle(marker.name)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { history = (try? model.draw.history(of: marker.id)) ?? [] }
+    }
+
+    private func formulaText(_ formula: LabFormula) -> String {
+        var text = formula.expr
+        for (id, unit) in formula.inputs {
+            text = text.replacingOccurrences(of: "{\(id)}", with: "\(model.catalogue.marker(id)?.name ?? id) (\(unit))")
+        }
+        let condition = formula.onlyIf.map { " Only when \($0.replacingOccurrences(of: "{", with: "").replacingOccurrences(of: "}", with: ""))." } ?? ""
+        return "\(text), from the same draw.\(condition) A value the lab printed is used instead."
     }
 
     private var bands: [LabBand] { marker.bands.filter { $0.sex == nil || $0.sex == .any || $0.sex == model.sex || $0.sex == .female } }
@@ -94,7 +104,8 @@ struct MarkerDetailView: View {
                     Spacer()
                     LabStatusPill(status: reading.status)
                 }
-                Text("Latest: \(Format.longDate(latest.date))").font(.system(size: 12)).foregroundColor(Theme.muted)
+                Text("Latest: \(Format.longDate(latest.date))\(latest.isCalculated ? " · calculated from that draw" : "")")
+                    .font(.system(size: 12)).foregroundColor(Theme.muted)
                 if !reading.edgeLabels.isEmpty {
                     Text("On the edge of \(reading.edgeLabels.joined(separator: " and "))").font(.system(size: 12)).foregroundColor(Theme.amber)
                 }

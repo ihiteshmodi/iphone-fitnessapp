@@ -2,6 +2,8 @@
 
   python3 tools/labs-catalogue/merge_catalogue.py OUT FRAGMENT.json [FRAGMENT.json ...]
 
+A fragment may carry only {"id", "formula"} per marker: the vault's quoted formulas, attached to markers described elsewhere.
+
 The same marker can come from several chapters (the Start Here chapter adds doctor lines to markers that other chapters
 describe in full); their lists are joined and exact repeats dropped. Panels, prep steps, patterns and genes with the same
 id keep the first and report the clash.
@@ -11,7 +13,7 @@ import sys
 
 LIST_FIELDS = ["aliases", "howTested", "pushesUp", "pushesDown", "nextTo", "whatToDo", "other", "bands", "doctor",
                "retest", "prep", "disputes", "units"]
-SCALAR_FIELDS = ["name", "chapter", "lesson", "sample", "what", "needsLabRange", "computed", "links"]
+SCALAR_FIELDS = ["name", "chapter", "lesson", "sample", "what", "needsLabRange", "computed", "links", "formula"]
 
 
 def _key(item):

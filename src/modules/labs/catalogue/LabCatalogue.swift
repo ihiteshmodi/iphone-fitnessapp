@@ -196,10 +196,11 @@ public struct LabMarker: Decodable, Equatable, Identifiable {
     public let prep: [String]
     public let disputes: [LabDispute]
     public let links: LabLinks?
+    public let formula: LabFormula?
 
     enum CodingKeys: String, CodingKey {
         case id, name, aliases, chapter, lesson, units, sample, needsLabRange, computed, what, howTested, pushesUp, pushesDown
-        case nextTo, whatToDo, other, bands, doctor, retest, prep, disputes, links
+        case nextTo, whatToDo, other, bands, doctor, retest, prep, disputes, links, formula
     }
 
     public init(from decoder: Decoder) throws {
@@ -226,6 +227,7 @@ public struct LabMarker: Decodable, Equatable, Identifiable {
         prep = try c.decodeIfPresent([String].self, forKey: .prep) ?? []
         disputes = try c.decodeIfPresent([LabDispute].self, forKey: .disputes) ?? []
         links = try c.decodeIfPresent(LabLinks.self, forKey: .links)
+        formula = try c.decodeIfPresent(LabFormula.self, forKey: .formula)
     }
 
     /// howTested may be written as one sentence or a list.
@@ -236,11 +238,23 @@ public struct LabMarker: Decodable, Equatable, Identifiable {
 
     public var defaultUnit: String? { units.first { $0.isDefault }?.unit ?? units.first?.unit }
 
+    /// A calculated ratio has no unit, so its unit-less bands and values compare as they are.
+    public var isUnitlessRatio: Bool { computed && (defaultUnit == nil || defaultUnit == "ratio") }
+
     /// The value in the default unit, or nil when the unit is unknown or has no stated factor.
     public func toDefault(_ value: Double, unit: String) -> Double? {
-        if unit == defaultUnit { return value }
+        if unit == defaultUnit || (isUnitlessRatio && (unit.isEmpty || unit == "ratio")) { return value }
         return units.first { $0.unit == unit }?.toDefault.map { value * $0 }
     }
+}
+
+/// A formula the vault quotes, written with {marker-id} inputs, each read in the stated unit, from one draw.
+public struct LabFormula: Codable, Equatable {
+    public let expr: String
+    public let inputs: [String: String]
+    /// Only worked out when this holds (for example the vault's "apply when glucose is above 100").
+    public let onlyIf: String?
+    public let source: String?
 }
 
 public struct LabPanel: Codable, Equatable, Identifiable {

@@ -28,4 +28,21 @@ final class RealCatalogueTests: XCTestCase {
             XCTAssertEqual(marker.units.filter(\.isDefault).count, 1, marker.id)
         }
     }
+
+    func testEveryFormulaReadsOnlyItsInputsInUnitsTheyHave() throws {
+        let catalogue = try realCatalogue()
+        let formulas = catalogue.markers.filter { $0.formula != nil }
+        XCTAssertGreaterThan(formulas.count, 15)
+        for marker in formulas {
+            let formula = try XCTUnwrap(marker.formula)
+            let named = try NSRegularExpression(pattern: "\\{([^}]+)\\}")
+                .matches(in: formula.expr, range: NSRange(formula.expr.startIndex..., in: formula.expr))
+                .map { String(formula.expr[Range($0.range(at: 1), in: formula.expr)!]) }
+            XCTAssertEqual(Set(named), Set(formula.inputs.keys), marker.id)
+            for (id, unit) in formula.inputs {
+                XCTAssertTrue(catalogue.marker(id)?.units.contains { $0.unit == unit } ?? false, "\(marker.id): \(id) in \(unit)")
+            }
+            XCTAssertNotNil(LabExpression.evaluate(formula.expr, values: formula.inputs.mapValues { _ in 3 }), marker.id)
+        }
+    }
 }

@@ -70,7 +70,7 @@ public enum LabReader {
 
     /// Band limits in the marker's default unit; nil when the band has no unit or no stated factor (D4).
     private static func bounds(of band: LabBand, in marker: LabMarker) -> (low: Double?, high: Double?)? {
-        guard let unit = band.unit else { return nil }
+        guard let unit = band.unit ?? marker.ratioUnit else { return nil }
         let low = band.low.flatMap { marker.toDefault($0, unit: unit) }
         let high = band.high.flatMap { marker.toDefault($0, unit: unit) }
         if (band.low != nil && low == nil) || (band.high != nil && high == nil) { return nil }
@@ -78,7 +78,7 @@ public enum LabReader {
     }
 
     private static func converted(_ value: Double, _ unit: String?, _ marker: LabMarker) -> Double? {
-        unit.flatMap { marker.toDefault(value, unit: $0) }
+        (unit ?? marker.ratioUnit).flatMap { marker.toDefault(value, unit: $0) }
     }
 
     private static func contains(_ b: (low: Double?, high: Double?), _ value: Double, _ band: LabBand) -> Bool {
@@ -100,4 +100,9 @@ public enum LabReader {
     private static func applies(_ bandSex: LabSex?, to sex: LabSex) -> Bool {
         bandSex == nil || bandSex == .any || bandSex == sex
     }
+}
+
+private extension LabMarker {
+    /// The unit a unit-less band or doctor line is read in: only a calculated ratio has one.
+    var ratioUnit: String? { isUnitlessRatio ? defaultUnit ?? "" : nil }
 }

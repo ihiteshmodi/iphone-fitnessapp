@@ -56,3 +56,13 @@ def test_a_chapter_alias_id_is_renamed_everywhere():
     assert data["markers"][0]["id"] == "total-bilirubin"
     assert data["panels"][0]["markers"] == ["total-bilirubin"]
     assert data["patterns"][0]["conditions"][0]["marker"] == "total-bilirubin"
+
+
+def test_a_formula_fragment_attaches_to_the_marker_it_names():
+    marker = {"id": "ratio", "name": "Ratio", "computed": True, "units": [{"unit": "ratio", "default": True}]}
+    formula = {"expr": "{a} / {b}", "inputs": {"a": "u", "b": "u"}}
+
+    merged, _ = merge([("k1", {"markers": [marker]}), ("formulas", {"markers": [{"id": "ratio", "formula": formula}]})])
+
+    assert merged["markers"][0]["formula"] == formula
+    assert merged["markers"][0]["name"] == "Ratio"

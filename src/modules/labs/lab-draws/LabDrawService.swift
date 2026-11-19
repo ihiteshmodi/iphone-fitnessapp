@@ -45,6 +45,8 @@ public struct LabResult: Equatable, Identifiable {
     /// The value in the marker's default unit; nil when the vault gives no factor for the typed unit.
     public let defaultValue: Double?
     public let defaultUnit: String?
+    /// Worked out from the draw's other results by a vault formula, not typed or printed by the lab; it cannot be deleted.
+    public var isCalculated = false
 }
 
 public final class LabDrawService {
@@ -97,13 +99,16 @@ public final class LabDrawService {
         try db.execute("DELETE FROM lab_results WHERE id = ?", [.int(Int64(id))])
     }
 
-    /// Newest first.
+    /// Newest first. A calculated marker is worked out on every draw that has its inputs.
     public func history(of markerID: String) throws -> [LabResult] {
-        try results(where: "r.marker_id = ?", [.text(markerID)])
+        guard catalogue.marker(markerID)?.formula != nil else { return try results(where: "r.marker_id = ?", [.text(markerID)]) }
+        return try draws().flatMap { try results(inDraw: $0.id).filter { $0.markerID == markerID } }
     }
 
+    /// What the lab reported, plus every vault formula the draw has the inputs for.
     public func results(inDraw drawID: Int) throws -> [LabResult] {
-        try results(where: "r.draw_id = ?", [.int(Int64(drawID))])
+        let stored = try results(where: "r.draw_id = ?", [.int(Int64(drawID))])
+        return stored + LabCalculator(catalogue: catalogue).calculate(from: stored)
     }
 
     private func results(where clause: String, _ params: [SQLValue]) throws -> [LabResult] {
