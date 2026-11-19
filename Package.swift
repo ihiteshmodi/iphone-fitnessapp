@@ -57,6 +57,7 @@ let package = Package(
                 "settings/app-settings/app-settings.feature",
                 "insights/room-for-improvement/room-for-improvement.feature",
                 "insights/nutrition-rules/nutrition-rules.feature",
+                "insights/diet-review/diet-review.feature",
                 "insights/check-in/check-in.feature",
                 "insights/training-rules/training-rules.feature",
                 "supplements/supplement-library/supplement-library.feature",

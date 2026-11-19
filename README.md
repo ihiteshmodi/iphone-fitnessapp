@@ -88,6 +88,11 @@ Screenshots of the real app.
 - **Multivitamin what if:** a multivitamin with vitamin and mineral values shows 1, 2 or 3 tablets on top of today's food against daily targets and the vault's upper limits, with fat-soluble vitamins (A, D, E, K) marked because they build up.
 - The library file (`output/supplement-library.json`) is the vault's content, so it is bundled at build time and never committed.
 
+**AI diet review** (More → Tools → Export diet for AI review)
+- Writes one markdown file: the planned day meal by meal (calories, protein, fibre, leucine), the eaten average over the logged days of the last 14 (each nutrient against its daily target, plus which nutrients have no data), extras eaten, supplements with their library verdict, and open Room for improvement items.
+- Share it with an agent that has read the vault. It checks what the app deliberately does not: iron vs tea and coffee, soaking and sprouting, omega-6 sources, absorption pairings and supplement timing. Reviews are saved to `docs/reviews/`, which is git-ignored.
+- Run it whenever the diet changes.
+
 **Room for improvement** (Diet → Today)
 - **Today:** what fired today or yesterday, worst first: trans fat (Fix), leucine under 3 g in a protein meal, fiber under 14 g per 1,000 kcal (with the psyllium fix), fat outside 20–35% / under 0.8 g per kg, EPA + DHA under 250 mg, caffeine in the evening (stop 8–10 h before bed), and your own rules: flax or chia, collagen not counted. *Dismiss* hides an item for that day.
 - **Trends:** each rule over 7, 30 or 90 days as a strip (red fired, green fine, grey no data) with "fired on x of y days".

@@ -125,9 +125,31 @@ struct MoreTabView: View {
 
     // MARK: Tools
 
+    private func exportDietReview() {
+        do {
+            let today = services.clock.today()
+            let open = try services.insights.today(on: today) + services.insights.setup(on: today)
+            let text = try DietReviewService(services.db, library: services.supplementLibrary).markdown(on: today, insights: open)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("diet-review-\(today.string).md")
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            shareItem = MoreShareItem(url: url)
+        } catch {
+            errorMessage = MoreErrorText.message(for: error)
+        }
+    }
+
     private var toolsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionLabel("Tools")
+            Button(action: exportDietReview) {
+                MoreRow(title: "Export diet for AI review", subtitle: "Plan, 14-day average, supplements and open items as a file for an agent that knows the vault") {
+                    Image(systemName: "square.and.arrow.up").foregroundColor(Theme.muted)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityIdentifier("diet-review-export")
             NavigationLink { SupplementsView() } label: {
                 MoreRow(title: "Supplements", subtitle: "Your supplements checked, the full library (also what not to buy), multivitamin what if") {
                     Image(systemName: "chevron.right").foregroundColor(Theme.muted)

@@ -38,3 +38,6 @@ __pycache__/
 
 # Private agent skills (kept locally, not in the repository)
 .agents/skills/
+
+# Personal AI diet reviews (vault content and personal data)
+docs/reviews/
