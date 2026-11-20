@@ -1,12 +1,15 @@
 #!/bin/bash
 # Runs the simulator UI tests in YOUR terminal with a live progress bar.
 #
-#   scripts/run-ui-tests.sh                      # all three classes, one after another
+#   scripts/run-ui-tests.sh                      # every class, one after another
 #   scripts/run-ui-tests.sh WorkoutFlowUITests   # a single class
 #
 # The bottom line redraws every 2 seconds, so you can tell it is alive:
 #   [██████░░░░░░░░░░░░░░░░░░] 3/11 tests  testing  running: testOpenExercise  02:41 ⠹
-# Every finished test prints a ✓ or ✗ line above it. If the log goes quiet for a minute a warning appears.
+# Every finished test prints a ✓ or ✗ line above it with its count, e.g. "✓ [12/55] testOpenExercise (23s)".
+# Captured output (an agent running it) gets one progress line a minute; .uitest-logs/progress.txt always has the latest.
+# On exit the simulator, the Simulator app and Xcode's build/test processes are stopped so the Mac is not left slow.
+# If the log goes quiet for a minute a warning appears.
 # Press Ctrl-C at any time: it stops xcodebuild and shuts the simulator down.
 # Gentle on the Mac: low CPU priority, one class at a time, hard per-test and per-class time limits.
 set -u
@@ -31,13 +34,26 @@ stage_database() {
 }
 
 build_pid=""
+# Everything a test run starts and leaves behind: the booted simulator, the Simulator app, and Xcode's build and test
+# daemons, which keep gigabytes of memory after xcodebuild exits and make the Mac feel slow.
+clean_up() {
+  xcrun simctl shutdown all >/dev/null 2>&1
+  osascript -e 'tell application "Simulator" to quit' >/dev/null 2>&1
+  local pids
+  pids=$(pgrep -x -u "$(id -u)" xcodebuild; pgrep -u "$(id -u)" -f 'XCBBuildService|SWBBuildService|testmanagerd|xctest|FitnessApp.app')
+  [ -n "$pids" ] && kill $pids >/dev/null 2>&1
+  sleep 2
+  pids=$(pgrep -x -u "$(id -u)" xcodebuild; pgrep -u "$(id -u)" -f 'XCBBuildService|SWBBuildService')
+  [ -n "$pids" ] && kill -9 $pids >/dev/null 2>&1
+  printf 'cleaned up: simulator shut down, Simulator app quit, Xcode build and test processes stopped\n'
+}
 stop_everything() {
   [ -n "$build_pid" ] && kill "$build_pid" 2>/dev/null
   xcrun simctl shutdown all >/dev/null 2>&1
   printf '\r\033[K\nstopped. simulator shut down.\n'
 }
 trap 'stop_everything; exit 130' INT TERM
-trap 'xcrun simctl shutdown all >/dev/null 2>&1' EXIT
+trap clean_up EXIT
 
 classes=(WorkoutFlowUITests BodyProgressUITests MorePlanDataUITests DietUITests PhaseAUITests PhaseBUITests)
 [ $# -gt 0 ] && classes=("$@")
@@ -63,6 +79,11 @@ bar() {
 
 clock() { printf '%02d:%02d' $(($1 / 60)) $(($1 % 60)); }
 
+# In a terminal the bottom line redraws every 2 s. When the output is captured (an agent, a log file) a redrawn line
+# is noise, so one plain line is printed a minute instead. Either way .uitest-logs/progress.txt holds the latest line.
+interactive=0; [ -t 1 ] && interactive=1
+last_plain=0
+
 draw() {  # $1 = seconds since start, $2 = seconds the log has been quiet
   local line
   line=$(printf '[%s] %d/%d tests  %s' "$(bar)" "$done_count" "$total" "$phase")
@@ -70,7 +91,13 @@ draw() {  # $1 = seconds since start, $2 = seconds the log has been quiet
   line+=$(printf '  %s %s' "$(clock "$1")" "${spinner[$((tick % 10))]}")
   [ "$failed_count" -gt 0 ] && line+="  ✗$failed_count"
   [ "$2" -ge "$QUIET_WARNING_SECONDS" ] && line+="  ⚠ no output for $(clock "$2"), Ctrl-C to stop"
-  printf '\r\033[K%s' "$line"
+  printf '%s\n' "$line" >"$LOGS/progress.txt"
+  if [ "$interactive" -eq 1 ]; then
+    printf '\r\033[K%s' "$line"
+  elif [ $(($1 - last_plain)) -ge 60 ]; then
+    last_plain=$1
+    printf '%s\n' "$line"
+  fi
 }
 
 handle_line() {  # prints finished tests above the progress line
@@ -80,13 +107,13 @@ handle_line() {  # prints finished tests above the progress line
     phase="testing"
     case "$state" in
       started) current_test="$test" ;;
-      passed)  done_count=$((done_count + 1)); current_test=""; printf '\r\033[K  ✓ %s (%ss)\n' "$test" "$secs" ;;
+      passed)  done_count=$((done_count + 1)); current_test=""; printf '\r\033[K  ✓ [%d/%d] %s (%ss)\n' "$done_count" "$total" "$test" "$secs" ;;
       failed)  done_count=$((done_count + 1)); failed_count=$((failed_count + 1)); failed_names+=" $test"; current_test=""
-               printf '\r\033[K  ✗ %s (%ss)\n' "$test" "$secs" ;;
+               printf '\r\033[K  ✗ [%d/%d] %s (%ss)\n' "$done_count" "$total" "$test" "$secs" ;;
     esac
   elif [[ "$line" =~ Test\ Case\ \'-\[FitnessAppUITests\.[A-Za-z]+\ ([A-Za-z0-9_]+)\]\'\ exceeded\ execution\ time ]]; then
     done_count=$((done_count + 1)); failed_count=$((failed_count + 1)); failed_names+=" ${BASH_REMATCH[1]}(time)"; current_test=""
-    printf '\r\033[K  ✗ %s (ran past its time allowance)\n' "${BASH_REMATCH[1]}"
+    printf '\r\033[K  ✗ [%d/%d] %s (ran past its time allowance)\n' "$done_count" "$total" "${BASH_REMATCH[1]}"
   elif [[ "$line" =~ Executed\ [0-9]+\ tests? ]]; then
     # xcodebuild sometimes hangs after printing the final result; the main loop stops it shortly after this.
     tests_finished_at=$(date +%s)
