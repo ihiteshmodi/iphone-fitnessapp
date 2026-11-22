@@ -45,4 +45,48 @@ final class RealCatalogueTests: XCTestCase {
             XCTAssertNotNil(LabExpression.evaluate(formula.expr, values: formula.inputs.mapValues { _ in 3 }), marker.id)
         }
     }
+
+    func testAffineUnitConversionRoundTripsToAndFromDefaultUnit() throws {
+        let json = #"""
+        {"markers": [{"id": "glycated", "name": "Glycated",
+          "units": [{"unit": "%", "default": true}, {"unit": "mmol/mol", "toDefault": 0.09149131, "toDefaultOffset": 2.15004575}]}]}
+        """#
+        let marker = try XCTUnwrap(try LabCatalogue(data: Data(json.utf8)).marker("glycated"))
+
+        let inDefault = try XCTUnwrap(marker.toDefault(31.0, unit: "mmol/mol"))
+        XCTAssertEqual(inDefault, 4.986, accuracy: 0.005)
+        let backToIFCC = try XCTUnwrap(marker.fromDefault(inDefault, to: "mmol/mol"))
+        XCTAssertEqual(backToIFCC, 31.0, accuracy: 0.01)
+    }
+
+    func testCompiledClinicalRulesDecodeStrataPatternEnginesProtocolsAndOverviewFlags() throws {
+        let catalogue = try realCatalogue()
+
+        XCTAssertNotNil(catalogue.globalProtocols)
+        XCTAssertFalse(catalogue.globalProtocols?.checklist.morningOf.isEmpty ?? true)
+        XCTAssertFalse(catalogue.globalProtocols?.emergencySymptoms.isEmpty ?? true)
+
+        let engines = catalogue.patterns.compactMap(\.engine)
+        XCTAssertEqual(engines.count, 6)
+        let thyroid = try XCTUnwrap(engines.first { $0.slug == "thyroid-conversion" })
+        let ratio = try XCTUnwrap(thyroid.calculatedRatios.first)
+        XCTAssertEqual(ratio.scaleFactor, 100.0)
+        XCTAssertFalse(thyroid.interventions.whatNotToDo.isEmpty)
+
+        let ferritin = try XCTUnwrap(catalogue.markerByLessonOrID("02.10.02"))
+        XCTAssertEqual(ferritin.id, "ferritin")
+        XCTAssertFalse(ferritin.strata.isEmpty)
+        XCTAssertFalse(ferritin.coTests.isEmpty)
+        XCTAssertFalse(ferritin.interventions?.whatNotToDo.isEmpty ?? true)
+        XCTAssertFalse(ferritin.escalation?.specialists.isEmpty ?? true)
+
+        let overviews = catalogue.markers.filter(\.isOverview)
+        XCTAssertGreaterThanOrEqual(overviews.count, 5)
+        XCTAssertTrue(overviews.allSatisfy { $0.bands.isEmpty })
+
+        XCTAssertEqual(catalogue.panel("baseline-male")?.tag, "male")
+        XCTAssertEqual(catalogue.panel("baseline-female")?.tag, "female")
+        XCTAssertEqual(catalogue.panel("baseline-upgrades")?.when, "upgrade")
+        XCTAssertFalse(catalogue.panel("baseline-male")?.drawNotes?.isEmpty ?? true)
+    }
 }

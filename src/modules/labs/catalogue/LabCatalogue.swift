@@ -10,6 +10,7 @@ public struct LabCatalogue {
     public let genes: [LabGene]
     /// The genetics volume's testing tiers, core rules and failures to avoid.
     public let geneticsGuide: [LabGuideItem]
+    public let globalProtocols: LabGlobalProtocols?
 
     private struct File: Decodable {
         let markers: [LabMarker]?
@@ -18,26 +19,31 @@ public struct LabCatalogue {
         let patterns: [LabPattern]?
         let genes: [LabGene]?
         let geneticsGuide: [LabGuideItem]?
+        let globalProtocols: LabGlobalProtocols?
     }
 
     public init(data: Data) throws {
         let file: File
         do { file = try JSONDecoder().decode(File.self, from: data) } catch { throw ValidationError("The labs catalogue could not be read: \(error)") }
         self.init(markers: file.markers ?? [], panels: file.panels ?? [], prep: file.prep ?? [], patterns: file.patterns ?? [],
-                  genes: file.genes ?? [], geneticsGuide: file.geneticsGuide ?? [])
+                  genes: file.genes ?? [], geneticsGuide: file.geneticsGuide ?? [], globalProtocols: file.globalProtocols)
     }
 
     public init(markers: [LabMarker] = [], panels: [LabPanel] = [], prep: [LabPrepStep] = [], patterns: [LabPattern] = [], genes: [LabGene] = [],
-                geneticsGuide: [LabGuideItem] = []) {
+                geneticsGuide: [LabGuideItem] = [], globalProtocols: LabGlobalProtocols? = nil) {
         self.markers = markers
         self.panels = panels
         self.prep = prep
         self.patterns = patterns
         self.genes = genes
         self.geneticsGuide = geneticsGuide
+        self.globalProtocols = globalProtocols
     }
 
     public func marker(_ id: String) -> LabMarker? { markers.first { $0.id == id } }
+    public func markerByLessonOrID(_ key: String) -> LabMarker? {
+        marker(key) ?? markers.first { $0.lessonID == key || $0.lesson == key }
+    }
     public func panel(_ id: String) -> LabPanel? { panels.first { $0.id == id } }
     public func prepStep(_ id: String) -> LabPrepStep? { prep.first { $0.id == id } }
     public func gene(_ id: String) -> LabGene? { genes.first { $0.id == id } }
@@ -103,14 +109,24 @@ public struct LabUnit: Codable, Equatable {
     public let isDefault: Bool
     /// Multiply a value in this unit to get the default unit. Only where the vault states the factor.
     public let toDefault: Double?
+    /// Optional linear offset added after multiplying by `toDefault` (for affine scales such as IFCC mmol/mol -> NGSP %).
+    public let toDefaultOffset: Double?
 
-    enum CodingKeys: String, CodingKey { case unit, isDefault = "default", toDefault }
+    enum CodingKeys: String, CodingKey { case unit, isDefault = "default", toDefault, toDefaultOffset }
+
+    public init(unit: String, isDefault: Bool = false, toDefault: Double? = nil, toDefaultOffset: Double? = nil) {
+        self.unit = unit
+        self.isDefault = isDefault
+        self.toDefault = toDefault
+        self.toDefaultOffset = toDefaultOffset
+    }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         unit = try c.decode(String.self, forKey: .unit)
         isDefault = try c.decodeIfPresent(Bool.self, forKey: .isDefault) ?? false
         toDefault = try c.decodeIfPresent(Double.self, forKey: .toDefault)
+        toDefaultOffset = try c.decodeIfPresent(Double.self, forKey: .toDefaultOffset)
     }
 }
 
@@ -197,10 +213,20 @@ public struct LabMarker: Decodable, Equatable, Identifiable {
     public let disputes: [LabDispute]
     public let links: LabLinks?
     public let formula: LabFormula?
+    public let lessonID: String?
+    public let isOverview: Bool
+    public let coTests: [String]
+    public let discordance: [String]
+    public let strata: [LabStratum]
+    public let preAnalytic: LabPreAnalytic?
+    public let specimens: [LabSpecimenAssay]
+    public let interventions: LabInterventions?
+    public let escalation: LabEscalation?
 
     enum CodingKeys: String, CodingKey {
         case id, name, aliases, chapter, lesson, units, sample, needsLabRange, computed, what, howTested, pushesUp, pushesDown
         case nextTo, whatToDo, other, bands, doctor, retest, prep, disputes, links, formula
+        case lessonID, isOverview, coTests, discordance, strata, preAnalytic, specimens, interventions, escalation
     }
 
     public init(from decoder: Decoder) throws {
@@ -228,6 +254,15 @@ public struct LabMarker: Decodable, Equatable, Identifiable {
         disputes = try c.decodeIfPresent([LabDispute].self, forKey: .disputes) ?? []
         links = try c.decodeIfPresent(LabLinks.self, forKey: .links)
         formula = try c.decodeIfPresent(LabFormula.self, forKey: .formula)
+        lessonID = try c.decodeIfPresent(String.self, forKey: .lessonID)
+        isOverview = try c.decodeIfPresent(Bool.self, forKey: .isOverview) ?? false
+        coTests = try c.decodeIfPresent([String].self, forKey: .coTests) ?? []
+        discordance = try c.decodeIfPresent([String].self, forKey: .discordance) ?? []
+        strata = try c.decodeIfPresent([LabStratum].self, forKey: .strata) ?? []
+        preAnalytic = try c.decodeIfPresent(LabPreAnalytic.self, forKey: .preAnalytic)
+        specimens = try c.decodeIfPresent([LabSpecimenAssay].self, forKey: .specimens) ?? []
+        interventions = try c.decodeIfPresent(LabInterventions.self, forKey: .interventions)
+        escalation = try c.decodeIfPresent(LabEscalation.self, forKey: .escalation)
     }
 
     /// howTested may be written as one sentence or a list.
@@ -244,7 +279,14 @@ public struct LabMarker: Decodable, Equatable, Identifiable {
     /// The value in the default unit, or nil when the unit is unknown or has no stated factor.
     public func toDefault(_ value: Double, unit: String) -> Double? {
         if unit == defaultUnit || (isUnitlessRatio && (unit.isEmpty || unit == "ratio")) { return value }
-        return units.first { $0.unit == unit }?.toDefault.map { value * $0 }
+        guard let spec = units.first(where: { $0.unit == unit }), let factor = spec.toDefault else { return nil }
+        return value * factor + (spec.toDefaultOffset ?? 0)
+    }
+
+    public func fromDefault(_ defaultValue: Double, to unit: String) -> Double? {
+        if unit == defaultUnit || (isUnitlessRatio && (unit.isEmpty || unit == "ratio")) { return defaultValue }
+        guard let spec = units.first(where: { $0.unit == unit }), let factor = spec.toDefault, factor != 0 else { return nil }
+        return (defaultValue - (spec.toDefaultOffset ?? 0)) / factor
     }
 }
 
@@ -267,6 +309,21 @@ public struct LabPanel: Codable, Equatable, Identifiable {
     public let triggerMarkers: [String]?
     public let source: String?
     public let tag: String?
+    public let drawNotes: [String: String]?
+
+    public init(id: String, name: String, markers: [String], askFor: String? = nil, when: String? = nil, trigger: String? = nil,
+                triggerMarkers: [String]? = nil, source: String? = nil, tag: String? = nil, drawNotes: [String: String]? = nil) {
+        self.id = id
+        self.name = name
+        self.markers = markers
+        self.askFor = askFor
+        self.when = when
+        self.trigger = trigger
+        self.triggerMarkers = triggerMarkers
+        self.source = source
+        self.tag = tag
+        self.drawNotes = drawNotes
+    }
 }
 
 public struct LabPrepStep: Codable, Equatable, Identifiable {
@@ -319,10 +376,177 @@ public struct LabPattern: Codable, Equatable, Identifiable {
     public let doctor: String?
     public let computable: Bool?
     public let source: String?
+    public let engine: LabPatternEngine?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, markers, conditions, needed, repeatText = "repeat", meaning, whatToDo, retest, doctor, computable, source
+        case id, name, markers, conditions, needed, repeatText = "repeat", meaning, whatToDo, retest, doctor, computable, source, engine
     }
+}
+
+public struct LabStratumBand: Codable, Equatable {
+    public let tier: String
+    public let min: Double?
+    public let max: Double?
+    public let meaning: String?
+}
+
+public struct LabStratum: Codable, Equatable {
+    public let population: String
+    public let sex: LabSex
+    public let unit: String?
+    public let standardLow: Double?
+    public let standardHigh: Double?
+    public let optimalLow: Double?
+    public let optimalHigh: Double?
+    public let sweetSpot: String?
+    public let bands: [LabStratumBand]
+    public let ageMin: Int?
+    public let ageMax: Int?
+    public let cyclePhase: String?
+    public let pregnancy: String?
+    public let modifier: String?
+    public let assay: String?
+    public let requiresHRT: Bool?
+}
+
+public struct LabWashout: Codable, Equatable {
+    public let item: String
+    public let window: String
+    public let effect: String
+}
+
+public struct LabPreAnalytic: Codable, Equatable {
+    public let fastingRequired: Bool
+    public let fastingHours: String?
+    public let timingWindow: String?
+    public let washouts: [LabWashout]
+    public let sampleHandling: String?
+    public let redrawTriggers: [String]
+}
+
+public struct LabSpecimenAssay: Codable, Equatable {
+    public let matrix: String
+    public let preferredAssay: String
+    public let targetPopulation: String
+    public let assayPitfall: String
+}
+
+public struct LabSupplementIntervention: Codable, Equatable {
+    public let name: String
+    public let dose: String?
+    public let target: String?
+    public let notes: String?
+}
+
+public struct LabInterventions: Codable, Equatable {
+    public let tier1Foundations: [String]
+    public let tier2Nutrition: [String]
+    public let tier3Supplements: [LabSupplementIntervention]
+    public let tier4Peptides: [String]
+    public let whatNotToDo: [String]
+}
+
+public struct LabEscalation: Codable, Equatable {
+    public let urgentSameDay: [String]
+    public let routineSoon: [String]
+    public let specialists: [String]
+}
+
+public struct LabRatioThreshold: Codable, Equatable {
+    public let band: String
+    public let condition: String
+    public let min: Double?
+    public let max: Double?
+    public let meaning: String
+}
+
+public struct LabPatternRatio: Codable, Equatable {
+    public let ratioID: String
+    public let markerID: String?
+    public let name: String
+    public let formula: String
+    public let scaleFactor: Double
+    public let thresholds: [LabRatioThreshold]
+}
+
+public struct LabSignatureCondition: Codable, Equatable {
+    public let target: String?
+    public let rawTarget: String?
+    public let state: String
+    public let scaleFactor: Double
+}
+
+public struct LabPrimarySignature: Codable, Equatable {
+    public let `operator`: String
+    public let minMatches: Int?
+    public let conditions: [LabSignatureCondition]
+}
+
+public struct LabPhenotypeRule: Codable, Equatable {
+    public let target: String?
+    public let condition: String
+    public let scaleFactor: Double
+}
+
+public struct LabPhenotype: Codable, Equatable {
+    public let name: String
+    public let rules: [LabPhenotypeRule]
+    public let interpretation: String
+}
+
+public struct LabProgressionStage: Codable, Equatable {
+    public let stage: String
+    public let criteria: String
+    public let timeline: String?
+}
+
+public struct LabLookAlike: Codable, Equatable {
+    public let condition: String
+    public let howToRuleOut: String
+}
+
+public struct LabUpstreamCause: Codable, Equatable {
+    public let driver: String
+    public let mechanism: String
+}
+
+public struct LabConfoundingMedication: Codable, Equatable {
+    public let medication: String
+    public let effect: String
+}
+
+public struct LabPatternEngine: Codable, Equatable {
+    public let patternID: String
+    public let slug: String
+    public let section: String
+    public let markersRequired: [String]
+    public let cofactorMarkers: [String]
+    public let nonBloodInputs: [String]
+    public let calculatedRatios: [LabPatternRatio]
+    public let primarySignature: LabPrimarySignature
+    public let phenotypes: [LabPhenotype]
+    public let progressionStaging: [LabProgressionStage]
+    public let differentialLookAlikes: [LabLookAlike]
+    public let upstreamCauses: [LabUpstreamCause]
+    public let confoundingMedications: [LabConfoundingMedication]
+    public let interventions: LabInterventions
+    public let escalation: LabEscalation
+}
+
+public struct LabDrawChecklist: Codable, Equatable {
+    public let nightBefore: [String]
+    public let morningOf: [String]
+    public let postDraw: [String]
+    public let loggingProtocol: [String]
+}
+
+public struct LabGlobalProtocols: Codable, Equatable {
+    public let fastingHours: String?
+    public let fastingAllowedIntake: String?
+    public let fastingExemptMarkers: [String]
+    public let recommendedDrawWindow: String?
+    public let checklist: LabDrawChecklist
+    public let emergencySymptoms: [String]
 }
 
 public struct LabGenotype: Codable, Equatable {

@@ -42,6 +42,6 @@ struct LabCalculator {
         if result.unit == unit { return result.value }
         guard let inDefault = result.defaultValue else { return nil }
         if result.defaultUnit == unit { return inDefault }
-        return catalogue.marker(id)?.units.first { $0.unit == unit }?.toDefault.map { inDefault / $0 }
+        return catalogue.marker(id)?.fromDefault(inDefault, to: unit)
     }
 }
