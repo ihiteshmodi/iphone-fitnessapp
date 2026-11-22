@@ -40,6 +40,7 @@ __pycache__/
 .vscode/
 # Added by code-review-graph
 .code-review-graph/
+.github/instructions/code-review-graph.instructions.md
 
 # Private agent skills (kept locally, not in the repository)
 .agents/skills/

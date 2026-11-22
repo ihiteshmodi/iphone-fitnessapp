@@ -56,18 +56,18 @@ Screenshots of the real app.
 - **Deload mode:** a lighter week that scales the weight and both ends of the rep range for display only, with an option to ignore deload sessions in your progress.
 - **Saved workouts:** Edit plan → Saved workouts keeps the whole workout plan under a name and switches back to it any time. Logged sets belong to exercises, so history and working weights carry over.
 - **Routines:** ready groups of exercises (like recipes for food), browsable by muscle. Save any day as a routine, and *+ Add routine* on a day copies a routine's exercises into it (exercises already there are skipped).
-- **Coach presets:** read-only coach routines and workouts, loaded once from More → Coach presets. Use them or copy and change them. The presets file comes from `tools/meridian-presets` and is never committed (see below).
+- **Coach presets:** read-only coach routines and workouts (`output/meridian-presets.json`), synced silently on launch. Use them or copy and change them.
 - **Plan and library editing:** add, rename, reorder and delete days and exercises, set main sets, warm-up sets and rep ranges, and name days by number or weekday.
 
 **Body and progress**
 - **Weigh-ins:** log your weight on any day, edit or delete old ones.
-- **Calories:** a daily default that starts on a date you choose, a change for any single day, and a calorie target with macros. Days that have a diet plan count the diet instead (see below), and a total you type for one day still wins.
+- **Calories & deliberate Goal Mode:** a daily default that starts on a date you choose, a single-day override, and an explicit **Goal Mode** (`Maintain`, `Cut`, `Bulk`). Diet breaks, refeeds, and cutting-speed checks fire **only** when Goal Mode is explicitly set to *Cut*, so natural weight loss while eating cleaner at Maintenance never triggers cutting alerts.
 - **Effective calories:** digestion uses part of what you eat (protein 25%, carbs 7.5%, fat 1.5%, alcohol 0%: the middle of the vault's ranges). The Body card shows total and effective side by side; *Details* breaks the cost down by macro and chooses whether targets and maintenance use total or effective calories. Saved diets show both too.
-- **Refeeds (while cutting):** a card on Body lets you pick refeed weekdays or dates, with the vault's guidance (1–2 days at maintenance, extra mostly carbs, protein and fat unchanged). On a refeed day it shows the maintenance target and you mark it *Refeed done*, *Normal day* or *Skipped*. After 6 weeks of cutting Room for improvement suggests a 1–2 week diet break (stronger at 12), and cut-rate checks wait 3 days after a refeed.
-- **What your weight says:** your actual deficit or surplus from the weight trend, next to your planned mode.
+- **Refeeds (while cutting):** a card on Body lets you pick refeed weekdays or dates, with the vault's guidance (1–2 days at maintenance, extra mostly carbs, protein and fat unchanged). On a refeed day it shows the maintenance target and you mark it *Refeed done*, *Normal day* or *Skipped*. After 6 weeks of deliberate cutting Room for improvement suggests a 1–2 week diet break (stronger at 12), and cut-rate checks wait 3 days after a refeed.
+- **What your weight says & Bloodwork:** your actual deficit or surplus from the weight trend sits right above **Bloodwork** on Body, above *Recent weigh-ins* and *Recent calories*.
 - **Break mode:** start a break today or plan one with dates (More → Break mode). Break days need no food, workouts or weigh-ins and are left out of the calorie maths. Afterwards the Body tab says *Recalibrating* until there are 14 days of weigh-ins after the break (two clean weeks to compare), and keeps a *Before your break* card with maintenance, what you were eating, whether you were cutting or bulking, and your weight before and after.
 - **Calorie history:** step back (‹ ›) or pick any past day on the Body tab to see maintenance, calories eaten, deficit or surplus, the target and cutting macros as they stood that day, worked out only from weigh-ins and food up to then.
-- **Measurements:** targets that grow or reduce, % from target, and a colour tolerance (green, amber, red). Open a site (Chest, Waist…) and tap **+ Add reading** to log a new measurement for any day.
+- **Measurements & site units:** targets that grow or reduce in `in`, `mm`, `cm`, or `%` (caliper skinfolds in `mm`, body fat in `%`, tape sites in `in`/`cm`), % from target, and a colour tolerance (green, amber, red). Open a site and tap **+ Add reading** or switch its unit.
 - **Volume per muscle:** training volume over time for each muscle group.
 
 **Diet**
@@ -85,7 +85,7 @@ Screenshots of the real app.
 **Supplements** (More → Tools → Supplements)
 - **Library:** every supplement the vault covers, *worth taking*, *conditional* or *not recommended*, with the reason, dose, forms, timing, cycling, test-first markers, interactions and side effects. Search a product before you buy it. Where the vault gives two different numbers both are shown as *unresolved*. Each test-first line shows your latest matching lab result (or "not tested yet").
 - **Your supplements:** each supplement in your foods is matched to the library. Room for improvement flags a dose outside the vault's range, a not-recommended product, test-first supplements with your latest result for each test, and starting two new supplements less than 2 weeks apart.
-- **Multivitamin what if:** a multivitamin with vitamin and mineral values shows 1, 2 or 3 tablets on top of today's food against daily targets and the vault's upper limits, with fat-soluble vitamins (A, D, E, K) marked because they build up.
+- **Multivitamin stack & optimizer:** lists every tracked vitamin and mineral explicitly with `0 / target` when absent (never `"unknown"`), lets you combine 0–3 units across multiple multivitamins (*Becadexamine*, *A to Z*, *Supradyn*, etc.) in *Tablets only* or *With today's food* mode, flags fat-soluble (A, D, E, K) and Upper Limit breaches, and includes a one-tap **Suggest Best Stack** optimizer for highest safe target coverage.
 - The library file (`output/supplement-library.json`) is in the repository and bundled at build time.
 
 **AI diet review** (More → Tools → Export diet for AI review)
@@ -94,6 +94,8 @@ Screenshots of the real app.
 - Run it whenever the diet changes.
 
 **Bloodwork** (Body → Bloodwork; shown when `output/labs-catalogue.json` is bundled)
+- **Guided quick-start & ★ Mandatory Core Tests:** a 4-step plain-English *How Bloodwork Works* walkthrough, gold **★ Core** badges on the ~22 foundational Tier-1 markers, and a top *★ X Mandatory Core Tests Pending* tracker splitting *Never tested* vs *Retest due* so you never wonder if all 80+ markers must be ordered at once.
+- **Visual range bars:** proportional color-coded horizontal spectrum bars (*Low → Normal → Optimal green → High*) with a glowing **You** pin on every numeric marker screen and compact mini-bars inside each draw.
 - **Profile & strict sex filtering:** a one-tap *Male / Female* confirmation banner on first visit (editable in Settings, alongside date of birth, athlete/smoker/ancestry flags, and female cycle/pregnancy/HRT stage). Selecting *Male* shows strictly Male and All-Adults bands, panels, checklists, and notes; selecting *Female* shows strictly Female and All-Adults items.
 - **Draws & smart unit scaling:** add a draw with its date, time, lab and pre-analytic state (hours fasted, hard training in 72 h, alcohol, biotin and iron stopped, recent illness, sleep, acute stress, recent vaccine/surgery, medications, and cycle day for women). Each result row shows the expected unit and typical range, auto-converts known conventional/SI/affine units, warns and offers a 1-tap unit switch on 10×/100×/1000× scale mismatches, accepts custom unit multipliers when a lab prints an unlisted unit, and supports `< LOD` detection limits, dipstick words, titers (`1:80`), assay selection (`LC-MS/MS`, `Equilibrium dialysis`, `Immunoassay`), and paired Systolic/Diastolic blood pressure.
 - **Pre-analytic validity gate:** checks collection time (7–10 AM hormone peak), fasting (skipping fasting-exempt markers), biotin/training/alcohol/iron/illness washouts, assay pitfalls, and urinalysis specific gravity (`< 1.005` dilution masking, `> 1.030` concentration artifact) and squamous contamination before flagging a result.
@@ -101,17 +103,17 @@ Screenshots of the real app.
 - **Calculated ratios & 6 pattern engines:** works out same-draw ratios (HOMA-IR, TG:HDL, TC:HDL, non-HDL, remnant cholesterol, globulin, A/G, BUN/creatinine, AST/ALT, corrected calcium and sodium, anion gap, transferrin saturation, UIBC, NLR and MLR including auto-derived differential counts, Mentzer, zinc:copper, T:E2, DHT/T, Free T3:reverse T3, Cortisol:DHEA-S, Free PSA %, spot UACR), evaluates the 6 multi-marker pattern engines (*Thyroid Conversion*, *HPA Axis Dysregulation*, *Inflammation Cascade*, *Iron & Inflammation*, *Metabolic Dysfunction Cluster*, *Heart Risk*) with matched phenotypes, progression stages, differential look-alikes, read-only Diet/Training/Waist context, and cross-marker discordance alerts.
 - **Safety escalation & stepped actions:** unconditional and symptom-paired panic checks, multilineage cytopenia detection, specialist routing, stepped interventions (*Foundations → Nutrition → Supplements → Educational Tier 4* when drug notes are on), and red *What not to do* guardrails.
 - **Plan a draw:** sex-filtered baseline panels with per-marker draw/assay notes, automatic reflex follow-up `co_tests` for out-of-optimal markers, optional Tier 2/3 upgrades, interactive Draw-Day Checklist (*Night before*, *Morning of*, *Post-draw*, *What to record*), prep countdown timeline, and retest windows.
-- **Genetics (Volume 07), TRT/Rx context & AI export:** 24 clinical gene rules organized into 5 action categories (*Hard safety rules & doctor referrals*, *Changes the form you take*, *Changes how a blood marker is read*, *Tightens targets & screening timing*, *Changes nothing — bloodwork wins*), a one-tap **TRT & Rx** clinical context sheet (initial prompt + editable anytime on Bloodwork, Genetics, and Labs Settings), automatic cross-checks against your active Diet Plan supplements/nutrients (`MTHFR` folic acid, `HFE` iron/Vit C, `LCT` lactose, `CYP1A2` caffeine, `GSTM1` NAC detox stacks, `CYP2D6/2C19` St. John's Wort), genotype-adjusted readings (`FUT2` B12 caveat, `APOE e4` `ApoB ≤ 60 mg/dL`, `Factor V + TRT` `Hematocrit > 52%`), external specialty lab orders (`tTG-IgA / Total IgA` for `HLA-DQ2/DQ8`), `output/lab-history.csv` one-tap import on More, and enriched `labs-review-<date>.md` export.
+- **Genetics (Volume 07), TRT/Rx context & AI export:** 24 clinical gene rules organized into 5 action categories (*Hard safety rules & doctor referrals*, *Changes the form you take*, *Changes how a blood marker is read*, *Tightens targets & screening timing*, *Changes nothing — bloodwork wins*), a one-tap **TRT & Rx** clinical context sheet (initial prompt + editable anytime on Bloodwork, Genetics, and Labs Settings), automatic cross-checks against your active Diet Plan supplements/nutrients (`MTHFR` folic acid, `HFE` iron/Vit C, `LCT` lactose, `CYP1A2` caffeine, `GSTM1` NAC detox stacks, `CYP2D6/2C19` St. John's Wort), genotype-adjusted readings (`FUT2` B12 caveat, `APOE e4` `ApoB ≤ 60 mg/dL`, `Factor V + TRT` `Hematocrit > 52%`), external specialty lab orders (`tTG-IgA / Total IgA` for `HLA-DQ2/DQ8`), and enriched `labs-review-<date>.md` export.
 
 **Room for improvement** (Diet → Today)
 - **Today:** what fired today or yesterday, worst first: trans fat (Fix), leucine under 3 g in a protein meal, fiber under 14 g per 1,000 kcal (with the psyllium fix), fat outside 20–35% / under 0.8 g per kg, EPA + DHA under 250 mg, caffeine in the evening (stop 8–10 h before bed), and your own rules: flax or chia, collagen not counted. *Dismiss* hides an item for that day.
 - **Trends:** each rule over 7, 30 or 90 days as a strip (red fired, green fine, grey no data) with "fired on x of y days".
 - **Setup:** one-time fixes to the diet plan: fewer than 3 protein meals, planned meals under 3 g leucine, low fiber or fat, omega-3 form not rTG or algae. They go away when the plan is fixed, or *Accept* them.
-- **Training:** back-to-back weekdays that train the same muscle (leave ~48 h; spreading days uses more of the 24–48 h protein window), a deload when a key lift (the first exercise of a day) drops 2 sessions in a row, 4–8 weeks pass without one, or recovery signs pile up (one tap turns deload mode on), a stalled key lift (no new best in 4 sessions), weekly hard sets per muscle outside 10–20, and a cut outside 0.5–1% of body weight a week or a surplus outside 5–10%.
+- **Training:** back-to-back weekdays that train the same muscle (leave ~48 h; spreading days uses more of the 24–48 h protein window), a deload when a key lift (the first exercise of a day) drops 2 sessions in a row, 4–8 weeks pass without one, or recovery signs pile up (one tap turns deload mode on), a stalled key lift (no new best in 4 sessions), weekly hard sets per muscle outside 10–20, and a cut outside 0.5–1% of body weight a week or a surplus outside 5–10% (only when Goal Mode is explicitly set to *Cut* or *Bulk*).
 - **Labs:** doctor alerts, results outside optimal (with the vault's actions for that side), disputed zones, patterns across markers, retests due and gene items; *Dismiss* hides one. **Archived:** accepted items (still tracked) and rules that don't apply to you (not checked); *Restore* brings them back.
 - **Check-in (optional):** on Diet → Today, urine colour (Clear, Pale yellow, Dark yellow), a walk tick after each meal (any time that day; yesterday stays editable), heavy sweat yes/no, and once a week the signs of being under-recovered. Unanswered is no data. Dark urine 2 days running, clear 3 days running, and 3+ recovery signs two weeks running show up in Room for improvement; walks are only a weekly share.
 - **Sweaty activity (More → Tools):** for a hike or long sweaty session, how much Himalayan salt and potassium chloride to put in the water you carry and how often to sip, from the vault's per-hour numbers. Your daily workout mix is left as it is.
-- **Daily targets:** the day's amino acids, vitamins, minerals and fiber against their daily targets (omega-6 is tracked but has no target, because the vault gives none); unknown values are shown as unknown, never as a miss.
+- **Meal Profile (GL & Amino Acids) & Daily targets:** each real food meal (*Brunch*, *Dinner*) shows a **Meal Profile** sheet with total Meal Glycemic Load (`GL = Σ GI × Net Carbs / 100`, Low/Medium/High) and per-meal Amino Acids (`Leucine 2.9 g`, `Isoleucine 1.3 g`, `Histidine 1.0 g`, etc.), plus descending food contributor `%` drill-downs when you tap GL or any amino acid. Whole-day *Daily targets* tracks fiber, vitamins, minerals and omega-3/6 with `0 / target` for absent nutrients.
 
 **Data**
 - **One SQLite file** on the phone. Export it, restore it, or import another one. Older files are upgraded automatically.
@@ -249,13 +251,10 @@ There are no environment variables or secrets. The app is configured by settings
 
 | Option | What it does | Default | Required |
 |---|---|---|---|
-| `output/fitness.sqlite` | If present at build time it is bundled and offered as **Load my data** on first launch | absent (button hidden) | No |
-| `output/fitness.seed.sqlite` | Test fixture built by `tools/seed-db`; used by the parity tests and the UI tests | absent (10 parity tests skip) | No |
-| `output/meridian-presets.json` | Coach presets made by `python tools/meridian-presets/build_presets.py "<Train & Eat folder>"`; bundled when present and loaded from More → Coach presets. Paid-program content, so it stays out of the repository | absent (card hidden) | No |
-| `output/nutrient-values.csv` | Approved extra nutrient values for your foods (`name,key,amount`); bundled when present and applied from More → Nutrient data | absent (card hidden) | No |
+| `output/fitness.sqlite` | If presNon-personal coach routine & workout templates; in the repository, bundled, and synced silently on launch | bundled | No |
+| `output/nutrient-values.csv` | Approved reference nutrient & glycemic-index values for foods (`name,key,amount`); in the repository, bundled, and synced silently on launch | bundled | No |
 | `output/supplement-library.json` | The vault's supplement library; in the repository and bundled (More → Supplements) | absent (library hidden) | No |
 | `output/labs-catalogue.json` | The bloodwork and genetics catalogue compiled by `tools/labs-catalogue/compile_clinical_rules.py` (and `merge_catalogue.py`); bundled when present. The vault's content, so it stays out of the repository | absent (Labs hidden) | No |
-| `output/lab-history.csv` | Your past lab results (`kind,date,time,lab,marker_id,value,unit,lab_low,lab_high,note`, plus a `setting` row for the date of birth); bundled when present and applied from More → Lab history. Personal health data, so it stays out of the repository | absent (card hidden) | No |
 | `-UITestImportPath <file>` | Simulator tests only: import this database at launch | unset | No |
 | `-UITestInitialTab <0-4>` | Simulator tests only: start on a tab (0 Workout, 1 Body, 2 Diet, 3 Progress, 4 More) | `0` | No |
 
@@ -263,7 +262,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 21)
+### Database tables (schema version 22)
 
 | Table | Holds |
 |---|---|
@@ -274,10 +273,10 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `saved_workouts`, `saved_workout_days`, `saved_workout_entries` | Whole workout plans kept under a name (presets are read-only) |
 | `routines`, `routine_entries` | Ready groups of exercises with sets and rep ranges |
 | `exercise_muscles` | Muscles chosen per exercise (no rows means automatic) |
-| `body_weights`, `body_measurements`, `measurement_targets` | Weigh-ins, readings, targets with a grow or reduce direction |
+| `body_weights`, `body_measurements`, `measurement_targets` | Weigh-ins, readings, targets with a grow or reduce direction and unit (`in`, `mm`, `cm`, `%`) |
 | `calorie_defaults`, `calorie_entries` | Calories per day from a start date, and single-day overrides |
 | `food_nutrients` | Extra nutrients per food (leucine, trans, epa, vitamin_d…); no row means unknown |
-| `foods`, `recipe_items` | Foods, supplements and packaged snacks with nutrition and price; recipes and their ingredient lines |
+| `foods`, `recipe_items` | Foods, supplements and packaged snacks with nutrition, glycemic index (`0–115`) and price; recipes and their ingredient lines |
 | `diet_plans`, `diet_plan_items` | The daily plan from a start date, with each item's meal, quantity and cycle |
 | `diet_meal_skips` | Planned meals knowingly skipped on a day |
 | `diet_day_ticks`, `diet_extras` | Plan items ticked as eaten on a day, and extras eaten on top of the plan (with an optional name, time of day and note) |
