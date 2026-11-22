@@ -380,3 +380,152 @@ def test_builds_sex_tagged_baseline_panels_and_global_protocols():
     assert by_id["baseline-upgrades"]["when"] == "upgrade"
     assert by_id["baseline-male"]["drawNotes"]["age-hormone"] == "7-10 AM LC-MS/MS"
     assert out["globalProtocols"]["fastingExemptMarkers"] == ["beta"]
+
+
+def test_compiles_genetics_five_categories_verifiers_external_ttg_and_non_lab_filters():
+    base, gp, bp, markers, patterns = _fixture_inputs()
+    # Add homocysteine, mma, b12, tg-antibodies to ensure tTG-IgA never links to tg-antibodies
+    markers.extend([
+        {
+            "marker_id": "02.02.06",
+            "slug": "tg-antibodies",
+            "name": "Thyroglobulin Antibodies",
+            "aliases": ["TgAb"],
+            "section": "Vol 02 - 02 Thyroid",
+            "units": {"primary": "IU/mL", "secondary": [], "conversion_formula": "NOT_STATED"},
+            "reference_strata": [],
+            "interpretation_logic": {"co_tests": [], "discordance_and_masking": []},
+        },
+        {
+            "marker_id": "02.05.04",
+            "slug": "homocysteine",
+            "name": "Homocysteine",
+            "aliases": [],
+            "section": "Vol 02 - 05 Glycemic",
+            "units": {"primary": "umol/L", "secondary": [], "conversion_formula": "NOT_STATED"},
+            "reference_strata": [],
+            "interpretation_logic": {"co_tests": [], "discordance_and_masking": []},
+        },
+        {
+            "marker_id": "02.11.08",
+            "slug": "mma",
+            "name": "MMA",
+            "aliases": [],
+            "section": "Vol 02 - 11 Vitamins",
+            "units": {"primary": "nmol/mL", "secondary": [], "conversion_formula": "NOT_STATED"},
+            "reference_strata": [],
+            "interpretation_logic": {"co_tests": [], "discordance_and_masking": []},
+        },
+    ])
+    genetics = [
+        {
+            "gene_entry_id": "07.00.01",
+            "chapter_id": "v07-c00-t01",
+            "title": "What a Genetic Variant Actually Is",
+            "section_prefix": "07.00",
+            "action_category": "foundational",
+            "genes": [{"symbol": "MTHFR", "full_name": "MTHFR", "rsids": [], "star_or_named_alleles": ["C677T"]}],
+            "core_thesis": "Genetics sets the prior, bloodwork sets the dose.",
+            "mechanism_summary": "Overview",
+            "variant_tiers": [],
+            "bloodwork_integration": {"phenotypic_verifiers": [], "epistatic_diagnostic_grid": [], "threshold_or_screening_shifts": {}},
+            "intervention_rules": {"change_nothing_mandate": False, "form_substitutions": [], "hard_contraindications_and_referrals": [], "what_not_to_do": ["Never treat a genotype."]},
+            "testing_and_ancestry_caveats": {"dtc_microarray_blind_spots": ["Tier 1 chip errors"], "ancestry_discrepancies": [], "timing_or_assay_traps": []},
+        },
+        {
+            "gene_entry_id": "07.02.01",
+            "chapter_id": "v07-c02-t01",
+            "title": "FUT2 - Reassuring B12",
+            "section_prefix": "07.02",
+            "action_category": "marker_shift",
+            "genes": [{"symbol": "FUT2", "full_name": "FUT2", "rsids": ["rs601338"], "star_or_named_alleles": ["AA", "GG"]}],
+            "core_thesis": "Serum B12 falsely reassures in non-secretors.",
+            "mechanism_summary": "H antigen",
+            "variant_tiers": [
+                {"genotype_or_phenotype": "rs601338 AA (Homozygous non-secretor)", "activity_or_risk_impact": "Non-secretor", "risk_level": "moderate_modifier", "clinical_rule": "Check MMA"},
+                {"genotype_or_phenotype": "rs601338 GG (Homozygous secretor)", "activity_or_risk_impact": "Secretor", "risk_level": "baseline", "clinical_rule": "Normal"},
+            ],
+            "bloodwork_integration": {
+                "phenotypic_verifiers": [
+                    {"marker_id": "02.11.08", "marker_name": "MMA", "role": "outranks_genotype", "rule": "Outranks serum B12"},
+                    {"marker_id": "02.05.04", "marker_name": "Homocysteine", "role": "mandatory_confirmer", "rule": "Confirm"},
+                ],
+                "epistatic_diagnostic_grid": [
+                    {"condition": "High Homocysteine AND High MMA in FUT2 non-secretor", "interpretation": "Cellular B12 deficiency", "action": "Replete B12"}
+                ],
+                "threshold_or_screening_shifts": {"advance_screening_years": None, "tightened_targets": [], "behavioral_strictness": ["Do not trust serum B12 alone"]},
+            },
+            "intervention_rules": {"change_nothing_mandate": False, "form_substitutions": [], "hard_contraindications_and_referrals": [], "what_not_to_do": []},
+            "testing_and_ancestry_caveats": {"dtc_microarray_blind_spots": [], "ancestry_discrepancies": ["rs1047781 in East Asians"], "timing_or_assay_traps": []},
+        },
+        {
+            "gene_entry_id": "07.02.02",
+            "chapter_id": "v07-c02-t02",
+            "title": "HLA-DQ2 and DQ8 - Celiac",
+            "section_prefix": "07.02",
+            "action_category": "marker_shift",
+            "genes": [{"symbol": "HLA-DQA1 / HLA-DQB1", "full_name": "HLA", "rsids": [], "star_or_named_alleles": ["DQ2.5", "DQ8"]}],
+            "core_thesis": "Negative rules celiac out.",
+            "mechanism_summary": "Antigen presentation",
+            "variant_tiers": [
+                {"genotype_or_phenotype": "HLA-DQ2 and HLA-DQ8 Negative", "activity_or_risk_impact": "Negative", "risk_level": "baseline", "clinical_rule": "Ruled out"},
+                {"genotype_or_phenotype": "HLA-DQ2.5 Positive", "activity_or_risk_impact": "Permissive", "risk_level": "mild_modifier", "clinical_rule": "Serology if symptomatic"},
+            ],
+            "bloodwork_integration": {
+                "phenotypic_verifiers": [
+                    {"marker_id": "", "marker_name": "tTG-IgA (Tissue Transglutaminase IgA) / Total IgA", "role": "mandatory_confirmer", "rule": "Keep eating gluten before test"}
+                ],
+                "epistatic_diagnostic_grid": [],
+                "threshold_or_screening_shifts": {},
+            },
+            "intervention_rules": {"change_nothing_mandate": False, "form_substitutions": [], "hard_contraindications_and_referrals": [], "what_not_to_do": ["Never cut gluten before serology"]},
+            "testing_and_ancestry_caveats": {},
+        },
+        {
+            "gene_entry_id": "07.04.03",
+            "chapter_id": "v07-c04-t03",
+            "title": "ACTN3 and ACE - Sports Gene",
+            "section_prefix": "07.04",
+            "action_category": "change_nothing",
+            "genes": [{"symbol": "ACTN3", "full_name": "ACTN3", "rsids": ["rs1815739"], "star_or_named_alleles": ["XX"]}, {"symbol": "ACE", "full_name": "ACE", "rsids": [], "star_or_named_alleles": ["DD"]}],
+            "core_thesis": "Changes no program.",
+            "mechanism_summary": "Fiber protein",
+            "variant_tiers": [{"genotype_or_phenotype": "ACTN3 XX", "activity_or_risk_impact": "Stop codon", "risk_level": "baseline", "clinical_rule": "Change nothing"}],
+            "bloodwork_integration": {
+                "phenotypic_verifiers": [
+                    {"marker_id": "N/A (Direct Performance Testing)", "marker_name": "Actual Gym Performance Testing", "role": "outranks_genotype", "rule": "Log lifts"},
+                    {"marker_id": "99.14.01", "marker_name": "Alpha Conversion", "role": "surveillance", "rule": "Pattern ref"},
+                ],
+                "epistatic_diagnostic_grid": [],
+                "threshold_or_screening_shifts": {},
+            },
+            "intervention_rules": {"change_nothing_mandate": True, "form_substitutions": [], "hard_contraindications_and_referrals": [], "what_not_to_do": []},
+            "testing_and_ancestry_caveats": {},
+        },
+    ]
+
+    out = compile_catalogue(base, gp, bp, markers, patterns, genetics=genetics)
+
+    assert any("Genetics sets the prior" in item["text"] for item in out["geneticsGuide"])
+    genes_by_id = {g["id"]: g for g in out["genes"]}
+    assert "07.00.01" not in genes_by_id
+    assert {"fut2", "hla-dq2-dq8", "actn3-ace"}.issubset(genes_by_id.keys())
+
+    fut2 = genes_by_id["fut2"]
+    assert fut2["bucket"] == "read"
+    assert fut2["actionCategory"] == "marker_shift"
+    assert [v["markerID"] for v in fut2["phenotypicVerifiers"]] == ["mma", "homocysteine"]
+
+    hla = genes_by_id["hla-dq2-dq8"]
+    ttg = hla["phenotypicVerifiers"][0]
+    assert ttg["kind"] == "external_lab"
+    assert ttg["markerID"] is None
+    assert "tTG-IgA" in ttg["markerName"]
+
+    actn = genes_by_id["actn3-ace"]
+    assert "actn3" in actn["legacyIDs"] and "ace" in actn["legacyIDs"]
+    assert actn["changeNothingMandate"] is True
+    v_kinds = {v["kind"]: v for v in actn["phenotypicVerifiers"]}
+    assert "non_lab" in v_kinds
+    assert v_kinds["pattern"]["patternID"] == "alpha-conversion"
+

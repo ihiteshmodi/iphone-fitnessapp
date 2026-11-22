@@ -15,7 +15,7 @@ final class RealCatalogueTests: XCTestCase {
         let draws = LabDrawService(try Database.inMemory(), catalogue: catalogue)
 
         XCTAssertGreaterThan(catalogue.markers.count, 100)
-        XCTAssertGreaterThan(catalogue.genes.count, 30)
+        XCTAssertGreaterThanOrEqual(catalogue.genes.count, 24)
         XCTAssertFalse(catalogue.geneticsGuide.isEmpty)
         let order = try DrawPlanner(catalogue: catalogue, draws: draws, sex: .male).order()
         XCTAssertFalse(order.isEmpty)
@@ -88,5 +88,22 @@ final class RealCatalogueTests: XCTestCase {
         XCTAssertEqual(catalogue.panel("baseline-female")?.tag, "female")
         XCTAssertEqual(catalogue.panel("baseline-upgrades")?.when, "upgrade")
         XCTAssertFalse(catalogue.panel("baseline-male")?.drawNotes?.isEmpty ?? true)
+
+        XCTAssertEqual(catalogue.genes.count, 24)
+        let fut2 = try XCTUnwrap(catalogue.gene("fut2"))
+        XCTAssertEqual(fut2.actionCategory, .markerShift)
+        XCTAssertTrue(fut2.phenotypicVerifiers.contains { $0.markerID == "mma" && $0.role == "outranks_genotype" })
+
+        let hla = try XCTUnwrap(catalogue.gene("hla-dq2-dq8"))
+        let ttg = try XCTUnwrap(hla.phenotypicVerifiers.first { $0.markerName.contains("tTG-IgA") })
+        XCTAssertEqual(ttg.kind, .externalLab)
+        XCTAssertNil(ttg.markerID)
+
+        let f5Alias = try XCTUnwrap(catalogue.gene("f5"))
+        XCTAssertEqual(f5Alias.id, "f5-f2")
+        XCTAssertEqual(f5Alias.actionCategory, .hardContraindication)
+
+        let vdr = try XCTUnwrap(catalogue.gene("vdr"))
+        XCTAssertTrue(vdr.changeNothingMandate)
     }
 }

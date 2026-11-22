@@ -524,7 +524,302 @@ def _parse_threshold_bounds(cond_text, scale=1.0):
     return None, None
 
 
-def compile_catalogue(base, global_protocols, baseline_panels, markers, patterns):
+GENE_ENTRY_MAP = {
+    "07.01.01": ("mthfr", "MTHFR", []),
+    "07.01.02": ("mtr-mtrr", "MTR / MTRR", ["mtr", "mtrr"]),
+    "07.01.03": ("fads1-fads2", "FADS1 / FADS2", ["fads1", "fads2"]),
+    "07.01.04": ("bco1", "BCO1", ["bcmo1"]),
+    "07.01.05": ("pemt", "PEMT", []),
+    "07.01.06": ("hfe", "HFE", []),
+    "07.02.01": ("fut2", "FUT2", []),
+    "07.02.02": ("hla-dq2-dq8", "HLA-DQ2 / DQ8", []),
+    "07.02.03": ("lct-mcm6", "LCT / MCM6", ["lct", "mcm6"]),
+    "07.03.01": ("apoe", "APOE", []),
+    "07.03.02": ("tcf7l2", "TCF7L2", []),
+    "07.03.03": ("fto", "FTO", []),
+    "07.03.04": ("cyp1a2", "CYP1A2", []),
+    "07.03.05": ("comt", "COMT", []),
+    "07.03.06": ("aldh2", "ALDH2", []),
+    "07.04.01": ("lpa-gene", "LPA", []),
+    "07.04.02": ("vdr", "VDR", ["gc-cyp2r1"]),
+    "07.04.03": ("actn3-ace", "ACTN3 / ACE", ["actn3", "ace"]),
+    "07.04.04": ("gstm1-gstt1", "GSTM1 / GSTT1", ["gstm1", "gstt1", "gstp1"]),
+    "07.04.05": ("sod2", "SOD2", []),
+    "07.04.06": ("salt-sensitivity", "Salt Sensitivity (AGT / ACE / CYP11B2 / ADD1)", ["agt", "cyp11b2", "add1"]),
+    "07.05.01": ("f5-f2", "Factor V Leiden / Prothrombin (F5 / F2)", ["f5", "f2"]),
+    "07.05.02": ("g6pd", "G6PD", []),
+    "07.05.03": ("cyp2d6-cyp2c19", "CYP2D6 / CYP2C19", ["cyp2d6", "cyp2c19"]),
+}
+
+ACTION_TO_BUCKET = {
+    "nutrient_swap": "take",
+    "marker_shift": "read",
+    "priority_shift": "priority",
+    "change_nothing": "nothing",
+    "hard_contraindication": "doctor",
+}
+
+
+def _slugify_gene(entry):
+    eid = entry.get("gene_entry_id") or ""
+    if eid in GENE_ENTRY_MAP:
+        return GENE_ENTRY_MAP[eid]
+    syms = [g.get("symbol", "") for g in (entry.get("genes") or []) if g.get("symbol")]
+    title_head = (entry.get("title") or eid).split(" - ")[0].strip()
+    raw = "-".join(syms) if syms else title_head
+    slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
+    legacy = [re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-") for s in syms if len(syms) > 1]
+    return slug, title_head, [x for x in legacy if x != slug]
+
+
+def _compile_genetics(genetics_entries, base_genes, base_guide, by_id, resolve_ref, pattern_id_to_slug):
+    if not genetics_entries:
+        return copy.deepcopy(base_genes or []), copy.deepcopy(base_guide or [])
+
+    base_by_id = {g["id"]: g for g in (base_genes or [])}
+    guide_out = []
+    genes_out = []
+
+    for entry in genetics_entries:
+        eid = entry.get("gene_entry_id") or ""
+        cat = entry.get("action_category") or "change_nothing"
+        ir = entry.get("intervention_rules") or {}
+        caveats = entry.get("testing_and_ancestry_caveats") or {}
+
+        if cat == "foundational":
+            if entry.get("core_thesis"):
+                guide_out.append({"text": entry["core_thesis"], "source": eid, "kind": "thesis"})
+            for rule in ir.get("what_not_to_do") or []:
+                guide_out.append({"text": rule, "source": eid, "kind": "guardrail"})
+            for blind in caveats.get("dtc_microarray_blind_spots") or []:
+                guide_out.append({"text": blind, "source": eid, "kind": "caveat"})
+            for anc in caveats.get("ancestry_discrepancies") or []:
+                guide_out.append({"text": anc, "source": eid, "kind": "ancestry"})
+            for trap in caveats.get("timing_or_assay_traps") or []:
+                guide_out.append({"text": trap, "source": eid, "kind": "assay"})
+            continue
+
+        slug, display_name, legacy_ids = _slugify_gene(entry)
+        bucket = ACTION_TO_BUCKET.get(cat, "nothing")
+
+        # Variant summary line from genes[].rsids & star_or_named_alleles
+        loci_parts = []
+        symbols = []
+        for g in entry.get("genes") or []:
+            sym = g.get("symbol") or ""
+            if sym and sym not in symbols:
+                symbols.append(sym)
+            bits = list(g.get("rsids") or []) + list(g.get("star_or_named_alleles") or [])
+            if bits:
+                loci_parts.append(f"{sym}: {', '.join(bits[:4])}" if len(entry.get("genes") or []) > 1 else ", ".join(bits[:5]))
+        variant_summary = "; ".join(loci_parts) if loci_parts else None
+
+        # Resolve phenotypic_verifiers accurately
+        bi = entry.get("bloodwork_integration") or {}
+        verifiers = []
+        orderable_marker_ids = []
+        confirm_names = []
+
+        for v in bi.get("phenotypic_verifiers") or []:
+            raw_mid = (v.get("marker_id") or "").strip()
+            m_name = v.get("marker_name") or raw_mid
+            role = v.get("role") or "surveillance"
+            rule_txt = v.get("rule") or ""
+
+            if raw_mid.startswith(("None", "N/A", "Prescriber-Ordered")):
+                verifiers.append({
+                    "kind": "non_lab",
+                    "markerID": None,
+                    "patternID": None,
+                    "markerName": m_name,
+                    "role": role,
+                    "rule": rule_txt,
+                })
+                continue
+
+            if raw_mid.startswith("Cuff"):
+                bp_id = "blood-pressure" if "blood-pressure" in by_id else None
+                verifiers.append({
+                    "kind": "marker" if bp_id else "non_lab",
+                    "markerID": bp_id,
+                    "patternID": None,
+                    "markerName": m_name,
+                    "role": role,
+                    "rule": rule_txt,
+                })
+                confirm_names.append(m_name)
+                continue
+
+            if raw_mid in pattern_id_to_slug:
+                verifiers.append({
+                    "kind": "pattern",
+                    "markerID": None,
+                    "patternID": pattern_id_to_slug[raw_mid],
+                    "markerName": m_name,
+                    "role": role,
+                    "rule": rule_txt,
+                })
+                continue
+
+            if not raw_mid or not re.match(r"^\d{2}\.\d{2}\.\d{2}$", raw_mid):
+                verifiers.append({
+                    "kind": "external_lab",
+                    "markerID": None,
+                    "patternID": None,
+                    "markerName": m_name,
+                    "role": role,
+                    "rule": rule_txt,
+                })
+                confirm_names.append(m_name)
+                continue
+
+            # Resolve 02.XX.YY marker ID with multi-analyte precision
+            resolved_ids = []
+            low_name = m_name.lower()
+            if raw_mid == "02.11.07" and "omega-3-index" in by_id:
+                resolved_ids.append("omega-3-index")
+            elif raw_mid == "02.11.03" and "rbc folate" in low_name and "rbc-folate" in by_id:
+                resolved_ids.append("rbc-folate")
+                if "folate" in by_id:
+                    resolved_ids.append("folate")
+            elif raw_mid == "02.06.08" and "remnant" in low_name and "remnant-cholesterol" in by_id:
+                if "non-hdl" in by_id:
+                    resolved_ids.append("non-hdl")
+                resolved_ids.append("remnant-cholesterol")
+            else:
+                r = resolve_ref(raw_mid)
+                if r:
+                    resolved_ids.append(r)
+
+            for rid in resolved_ids:
+                verifiers.append({
+                    "kind": "marker",
+                    "markerID": rid,
+                    "patternID": None,
+                    "markerName": by_id[rid]["name"] if rid in by_id else m_name,
+                    "role": role,
+                    "rule": rule_txt,
+                })
+                if role in ("mandatory_confirmer", "outranks_genotype", "safety_gate") and rid not in orderable_marker_ids:
+                    orderable_marker_ids.append(rid)
+            confirm_names.append(m_name)
+
+        # Collect legacy genotype strings from base genes so saved user genotypes continue to resolve
+        legacy_genotypes = []
+        for lid in [slug] + legacy_ids:
+            bg = base_by_id.get(lid)
+            if bg:
+                for lg in bg.get("genotypes") or []:
+                    g_str = lg.get("genotype")
+                    if g_str and g_str not in legacy_genotypes:
+                        legacy_genotypes.append(g_str)
+
+        genotypes_out = []
+        for vt in entry.get("variant_tiers") or []:
+            g_label = vt.get("genotype_or_phenotype") or ""
+            risk = vt.get("risk_level") or "baseline"
+            impact = vt.get("activity_or_risk_impact") or ""
+            c_rule = vt.get("clinical_rule") or ""
+
+            is_baseline = risk == "baseline"
+            urgency = None
+            if not is_baseline and cat == "hard_contraindication":
+                urgency = "urgent" if risk == "critical_red_line" else "routine"
+            elif risk == "critical_red_line" and eid in ("07.01.06", "07.03.06"):
+                urgency = "soon"
+
+            adds = []
+            if not is_baseline or cat == "change_nothing":
+                adds = list(orderable_marker_ids)
+                for v in verifiers:
+                    if v["kind"] == "external_lab" and v["role"] in ("mandatory_confirmer", "outranks_genotype", "safety_gate") and not is_baseline:
+                        if v["markerName"] not in adds:
+                            adds.append(v["markerName"])
+
+            genotypes_out.append({
+                "genotype": g_label,
+                "meaning": impact,
+                "actions": [c_rule] if c_rule else [],
+                "addsMarkers": adds,
+                "urgency": urgency,
+                "riskLevel": risk,
+                "clinicalRule": c_rule,
+            })
+
+        shifts_raw = bi.get("threshold_or_screening_shifts") or {}
+        shifts_obj = {
+            "advanceScreeningYears": shifts_raw.get("advance_screening_years"),
+            "tightenedTargets": list(shifts_raw.get("tightened_targets") or []),
+            "behavioralStrictness": list(shifts_raw.get("behavioral_strictness") or []),
+        }
+
+        swaps_out = [
+            {
+                "replaceOrAvoid": s.get("replace_or_avoid") or "",
+                "useInstead": s.get("use_instead") or "",
+                "targetGenotypes": list(s.get("target_genotypes") or []),
+                "crossVolumeRef": s.get("cross_volume_ref"),
+            }
+            for s in (ir.get("form_substitutions") or [])
+        ]
+
+        contras_out = [
+            {
+                "triggerGenotype": h.get("trigger_genotype") or "",
+                "forbiddenItems": list(h.get("forbidden_items") or []),
+                "mandatoryReferral": h.get("mandatory_referral"),
+                "coachStopLine": h.get("coach_stop_line") or "",
+            }
+            for h in (ir.get("hard_contraindications_and_referrals") or [])
+        ]
+
+        epistatic_out = [
+            {
+                "condition": eg.get("condition") or "",
+                "interpretation": eg.get("interpretation") or "",
+                "action": eg.get("action") or "",
+            }
+            for eg in (bi.get("epistatic_diagnostic_grid") or [])
+        ]
+
+        caveats_obj = {
+            "dtcBlindSpots": list(caveats.get("dtc_microarray_blind_spots") or []),
+            "ancestryDiscrepancies": list(caveats.get("ancestry_discrepancies") or []),
+            "timingOrAssayTraps": list(caveats.get("timing_or_assay_traps") or []),
+        }
+
+        genes_out.append({
+            "id": slug,
+            "entryID": eid,
+            "name": display_name,
+            "title": entry.get("title") or display_name,
+            "symbols": symbols,
+            "legacyIDs": legacy_ids,
+            "legacyGenotypes": legacy_genotypes,
+            "variant": variant_summary,
+            "bucket": bucket,
+            "actionCategory": cat,
+            "coreThesis": entry.get("core_thesis"),
+            "mechanismSummary": entry.get("mechanism_summary"),
+            "genotypes": genotypes_out,
+            "confirmWith": confirm_names,
+            "phenotypicVerifiers": verifiers,
+            "epistaticGrid": epistatic_out,
+            "thresholdShifts": shifts_obj,
+            "changeNothingMandate": bool(ir.get("change_nothing_mandate")),
+            "formSubstitutions": swaps_out,
+            "hardContraindications": contras_out,
+            "whatNotToDo": list(ir.get("what_not_to_do") or []),
+            "caveats": caveats_obj,
+            "source": eid,
+        })
+
+    if not guide_out:
+        guide_out = copy.deepcopy(base_guide or [])
+    return genes_out, guide_out
+
+
+def compile_catalogue(base, global_protocols, baseline_panels, markers, patterns, genetics=None):
     base_markers = copy.deepcopy((base or {}).get("markers") or [])
     by_id = {m["id"]: m for m in base_markers}
     ordered_ids = [m["id"] for m in base_markers]
@@ -1059,13 +1354,23 @@ def compile_catalogue(base, global_protocols, baseline_panels, markers, patterns
         "cacAgatston": comp.get("cac_agatston_strata"),
     }
 
+    pattern_id_to_slug = {pat["pattern_id"]: pat["slug"] for pat in (patterns or []) if pat.get("pattern_id") and pat.get("slug")}
+    compiled_genes, compiled_guide = _compile_genetics(
+        genetics_entries=genetics,
+        base_genes=(base or {}).get("genes"),
+        base_guide=(base or {}).get("geneticsGuide"),
+        by_id=by_id,
+        resolve_ref=resolve_ref,
+        pattern_id_to_slug=pattern_id_to_slug,
+    )
+
     return {
         "markers": [by_id[mid] for mid in ordered_ids],
         "panels": out_panels,
         "prep": copy.deepcopy((base or {}).get("prep") or []),
         "patterns": out_patterns,
-        "genes": copy.deepcopy((base or {}).get("genes") or []),
-        "geneticsGuide": copy.deepcopy((base or {}).get("geneticsGuide") or []),
+        "genes": compiled_genes,
+        "geneticsGuide": compiled_guide,
         "globalProtocols": compiled_global,
     }
 
@@ -1077,6 +1382,7 @@ def main(argv=None):
     parser.add_argument("--baseline-panels", required=True)
     parser.add_argument("--markers", required=True)
     parser.add_argument("--patterns", required=True)
+    parser.add_argument("--genetics", required=False)
     parser.add_argument("--out", required=True)
     args = parser.parse_args(argv)
 
@@ -1090,6 +1396,7 @@ def main(argv=None):
         baseline_panels=load(args.baseline_panels),
         markers=load(args.markers),
         patterns=load(args.patterns),
+        genetics=load(args.genetics) if args.genetics else None,
     )
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(compiled, f, ensure_ascii=False, indent=1)

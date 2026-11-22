@@ -49,7 +49,9 @@ public struct LabCatalogue {
     }
     public func panel(_ id: String) -> LabPanel? { panels.first { $0.id == id } }
     public func prepStep(_ id: String) -> LabPrepStep? { prep.first { $0.id == id } }
-    public func gene(_ id: String) -> LabGene? { genes.first { $0.id == id } }
+    public func gene(_ id: String) -> LabGene? {
+        genes.first { $0.id == id } ?? genes.first { $0.legacyIDs.contains(id) || $0.entryID == id }
+    }
 
     /// Name and aliases, ignoring case; every word typed must match.
     public func search(_ text: String) -> [LabMarker] {
@@ -582,22 +584,143 @@ public struct LabGlobalProtocols: Codable, Equatable {
     public let emergencySymptoms: [String]
 }
 
+public enum LabGeneActionCategory: String, Codable, Equatable {
+    case foundational
+    case nutrientSwap = "nutrient_swap"
+    case markerShift = "marker_shift"
+    case priorityShift = "priority_shift"
+    case changeNothing = "change_nothing"
+    case hardContraindication = "hard_contraindication"
+}
+
+public enum LabVerifierKind: String, Codable, Equatable {
+    case marker
+    case pattern
+    case externalLab = "external_lab"
+    case nonLab = "non_lab"
+}
+
+public struct LabPhenotypicVerifier: Codable, Equatable {
+    public let kind: LabVerifierKind
+    public let markerID: String?
+    public let patternID: String?
+    public let markerName: String
+    public let role: String
+    public let rule: String
+}
+
+public struct LabEpistaticCell: Codable, Equatable {
+    public let condition: String
+    public let interpretation: String
+    public let action: String
+}
+
+public struct LabThresholdShifts: Codable, Equatable {
+    public let advanceScreeningYears: Int?
+    public let tightenedTargets: [String]
+    public let behavioralStrictness: [String]
+}
+
+public struct LabFormSubstitution: Codable, Equatable {
+    public let replaceOrAvoid: String
+    public let useInstead: String
+    public let targetGenotypes: [String]
+    public let crossVolumeRef: String?
+}
+
+public struct LabHardContraindication: Codable, Equatable {
+    public let triggerGenotype: String
+    public let forbiddenItems: [String]
+    public let mandatoryReferral: String?
+    public let coachStopLine: String
+}
+
+public struct LabGeneticsCaveats: Codable, Equatable {
+    public let dtcBlindSpots: [String]
+    public let ancestryDiscrepancies: [String]
+    public let timingOrAssayTraps: [String]
+}
+
 public struct LabGenotype: Codable, Equatable {
     public let genotype: String
     public let meaning: String?
     public let actions: [String]?
     public let addsMarkers: [String]?
     public let urgency: LabUrgency?
+    public let riskLevel: String?
+    public let clinicalRule: String?
+
+    public init(genotype: String, meaning: String? = nil, actions: [String]? = nil, addsMarkers: [String]? = nil,
+                urgency: LabUrgency? = nil, riskLevel: String? = nil, clinicalRule: String? = nil) {
+        self.genotype = genotype
+        self.meaning = meaning
+        self.actions = actions
+        self.addsMarkers = addsMarkers
+        self.urgency = urgency
+        self.riskLevel = riskLevel
+        self.clinicalRule = clinicalRule
+    }
+
+    public var isBaseline: Bool { riskLevel == "baseline" }
 }
 
 public struct LabGene: Codable, Equatable, Identifiable {
     public let id: String
+    public let entryID: String?
     public let name: String
+    public let title: String?
+    public let symbols: [String]
+    public let legacyIDs: [String]
+    public let legacyGenotypes: [String]
     public let variant: String?
     public let bucket: String
+    public let actionCategory: LabGeneActionCategory?
+    public let coreThesis: String?
+    public let mechanismSummary: String?
     public let genotypes: [LabGenotype]?
     public let confirmWith: [String]?
+    public let phenotypicVerifiers: [LabPhenotypicVerifier]
+    public let epistaticGrid: [LabEpistaticCell]
+    public let thresholdShifts: LabThresholdShifts?
+    public let changeNothingMandate: Bool
+    public let formSubstitutions: [LabFormSubstitution]
+    public let hardContraindications: [LabHardContraindication]
+    public let whatNotToDo: [String]
+    public let caveats: LabGeneticsCaveats?
     public let source: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, entryID, name, title, symbols, legacyIDs, legacyGenotypes, variant, bucket, actionCategory
+        case coreThesis, mechanismSummary, genotypes, confirmWith, phenotypicVerifiers, epistaticGrid
+        case thresholdShifts, changeNothingMandate, formSubstitutions, hardContraindications, whatNotToDo, caveats, source
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        entryID = try c.decodeIfPresent(String.self, forKey: .entryID)
+        name = try c.decode(String.self, forKey: .name)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        symbols = try c.decodeIfPresent([String].self, forKey: .symbols) ?? []
+        legacyIDs = try c.decodeIfPresent([String].self, forKey: .legacyIDs) ?? []
+        legacyGenotypes = try c.decodeIfPresent([String].self, forKey: .legacyGenotypes) ?? []
+        variant = try c.decodeIfPresent(String.self, forKey: .variant)
+        bucket = try c.decode(String.self, forKey: .bucket)
+        actionCategory = try c.decodeIfPresent(LabGeneActionCategory.self, forKey: .actionCategory)
+        coreThesis = try c.decodeIfPresent(String.self, forKey: .coreThesis)
+        mechanismSummary = try c.decodeIfPresent(String.self, forKey: .mechanismSummary)
+        genotypes = try c.decodeIfPresent([LabGenotype].self, forKey: .genotypes)
+        confirmWith = try c.decodeIfPresent([String].self, forKey: .confirmWith)
+        phenotypicVerifiers = try c.decodeIfPresent([LabPhenotypicVerifier].self, forKey: .phenotypicVerifiers) ?? []
+        epistaticGrid = try c.decodeIfPresent([LabEpistaticCell].self, forKey: .epistaticGrid) ?? []
+        thresholdShifts = try c.decodeIfPresent(LabThresholdShifts.self, forKey: .thresholdShifts)
+        changeNothingMandate = try c.decodeIfPresent(Bool.self, forKey: .changeNothingMandate) ?? false
+        formSubstitutions = try c.decodeIfPresent([LabFormSubstitution].self, forKey: .formSubstitutions) ?? []
+        hardContraindications = try c.decodeIfPresent([LabHardContraindication].self, forKey: .hardContraindications) ?? []
+        whatNotToDo = try c.decodeIfPresent([String].self, forKey: .whatNotToDo) ?? []
+        caveats = try c.decodeIfPresent(LabGeneticsCaveats.self, forKey: .caveats)
+        source = try c.decodeIfPresent(String.self, forKey: .source)
+    }
 }
 
 public struct LabGuideItem: Codable, Equatable {
