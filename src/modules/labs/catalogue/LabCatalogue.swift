@@ -44,6 +44,9 @@ public struct LabCatalogue {
     public func markerByLessonOrID(_ key: String) -> LabMarker? {
         marker(key) ?? markers.first { $0.lessonID == key || $0.lesson == key }
     }
+    public func visibleMarkers(for sex: LabSex) -> [LabMarker] {
+        markers.filter { $0.applies(to: sex) }
+    }
     public func panel(_ id: String) -> LabPanel? { panels.first { $0.id == id } }
     public func prepStep(_ id: String) -> LabPrepStep? { prep.first { $0.id == id } }
     public func gene(_ id: String) -> LabGene? { genes.first { $0.id == id } }
@@ -59,7 +62,17 @@ public struct LabCatalogue {
     }
 }
 
-public enum LabSex: String, Codable, Equatable { case male, female, any }
+public enum LabSex: String, Codable, Equatable {
+    case male, female, any
+
+    public func allows(sex itemSex: LabSex?, tag: String? = nil, showDrugNotes: Bool = true) -> Bool {
+        if tag == "drug" && !showDrugNotes { return false }
+        if tag == "female" && self == .male { return false }
+        if tag == "male" && self == .female { return false }
+        guard let itemSex, itemSex != .any, self != .any else { return true }
+        return itemSex == self
+    }
+}
 
 public enum LabUrgency: String, Codable, Equatable, Comparable {
     case goNow, sameDay, urgent, fewDays, soon, routine
@@ -287,6 +300,26 @@ public struct LabMarker: Decodable, Equatable, Identifiable {
         if unit == defaultUnit || (isUnitlessRatio && (unit.isEmpty || unit == "ratio")) { return defaultValue }
         guard let spec = units.first(where: { $0.unit == unit }), let factor = spec.toDefault, factor != 0 else { return nil }
         return (defaultValue - (spec.toDefaultOffset ?? 0)) / factor
+    }
+
+    public func applies(to sex: LabSex) -> Bool {
+        guard !isOverview else { return false }
+        guard sex != .any else { return true }
+        let declaredSexes = strata.map(\.sex) + bands.compactMap(\.sex)
+        guard !declaredSexes.isEmpty else { return true }
+        return declaredSexes.contains { $0 == .any || $0 == sex }
+    }
+
+    public func visibleBands(for sex: LabSex) -> [LabBand] {
+        bands.filter { sex.allows(sex: $0.sex, tag: $0.tag) }
+    }
+
+    public func visibleText(_ items: [LabText], sex: LabSex, showDrugNotes: Bool) -> [LabText] {
+        items.filter { sex.allows(sex: nil, tag: $0.tag, showDrugNotes: showDrugNotes) }
+    }
+
+    public func visibleDoctorLines(sex: LabSex, showDrugNotes: Bool) -> [LabDoctorLine] {
+        doctor.filter { sex.allows(sex: $0.sex, tag: $0.tag, showDrugNotes: showDrugNotes) }
     }
 }
 

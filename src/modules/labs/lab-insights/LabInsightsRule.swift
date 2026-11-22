@@ -44,7 +44,7 @@ private struct Evaluation {
                            detail: LabInsightsRule.lines(entry.row.meaning ?? "", entry.row.actions ?? []),
                            why: entry.gene.source.map { "Vault \($0)" } ?? "Vault genetics", day: entry.enteredOn)
         }
-        items += try DrawPlanner(catalogue: catalogue, draws: draws, sex: sex).retests().compactMap { due in
+        items += try DrawPlanner(catalogue: catalogue, draws: draws, sex: sex, showDrugNotes: showDrugNotes).retests().compactMap { due in
             guard let from = due.from, let last = due.lastDate, today >= from else { return nil }
             return Insight(ruleID: "lab-retest-\(due.marker.id)", kind: .labs, severity: .tip, title: "Retest \(due.marker.name)",
                            detail: "Last tested \(last.dayMonthYear). \(due.rule?.text ?? "")", why: due.rule?.source.map { "Vault \($0)" } ?? "Vault retest timing",
@@ -110,7 +110,7 @@ private struct Evaluation {
         }
     }
 
-    private func shows(_ tag: String?) -> Bool { tag != "drug" || showDrugNotes }
+    private func shows(_ tag: String?) -> Bool { sex.allows(sex: nil, tag: tag, showDrugNotes: showDrugNotes) }
 
 }
 

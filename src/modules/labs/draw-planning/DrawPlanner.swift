@@ -35,18 +35,20 @@ public struct DrawPlanner {
     private let draws: LabDrawService
     private let sex: LabSex
     private let genetics: GeneticsService?
+    private let showDrugNotes: Bool
 
-    public init(catalogue: LabCatalogue, draws: LabDrawService, sex: LabSex, genetics: GeneticsService? = nil) {
+    public init(catalogue: LabCatalogue, draws: LabDrawService, sex: LabSex, genetics: GeneticsService? = nil, showDrugNotes: Bool = false) {
         self.catalogue = catalogue
         self.draws = draws
         self.sex = sex
         self.genetics = genetics
+        self.showDrugNotes = showDrugNotes
     }
 
     /// Every test named, panel by panel, so nothing hides inside a bundle name (uric acid on a CMP, for instance).
     public func order() throws -> [OrderItem] {
         var items: [OrderItem] = []
-        for panel in catalogue.panels where panel.tag != "female" || sex == .female {
+        for panel in catalogue.panels where sex.allows(sex: nil, tag: panel.tag, showDrugNotes: showDrugNotes) {
             let tests = resolve(panel.markers, seen: [panel.id])
             switch panel.when {
             case "first", "routine", nil:
@@ -87,7 +89,11 @@ public struct DrawPlanner {
     public func prepTimeline(drawDate: ISODate, drawHour: Int, ordered: [String]) -> [TimedPrepStep] {
         let wanted = Set(ordered)
         return catalogue.prep
-            .filter { step in step.hoursBefore != nil && (step.markers.map { !wanted.isDisjoint(with: $0) } ?? true) }
+            .filter { step in
+                step.hoursBefore != nil
+                    && sex.allows(sex: nil, tag: step.tag, showDrugNotes: showDrugNotes)
+                    && (step.markers.map { !wanted.isDisjoint(with: $0) } ?? true)
+            }
             .sorted { ($0.hoursBefore ?? 0) > ($1.hoursBefore ?? 0) }
             .map { step in
                 let hoursFromMidnight = drawHour - Int((step.hoursBefore ?? 0).rounded())
