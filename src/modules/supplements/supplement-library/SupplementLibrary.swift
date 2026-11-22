@@ -227,15 +227,71 @@ public struct SupplementOnRampRule: SetupRule {
     }
 }
 
-/// A multivitamin at 1, 2 or 3 tablets on top of the rest of the day, against daily targets and upper limits.
+public enum MultivitaminBaselineMode: String, CaseIterable, Equatable {
+    case tabletsOnly
+    case withTodaysFood
+
+    public var title: String {
+        switch self {
+        case .tabletsOnly: return "Tablets only"
+        case .withTodaysFood: return "With today's food"
+        }
+    }
+}
+
+public struct MultivitaminOption: Equatable, Identifiable {
+    public let id: Int
+    public let name: String
+    public let unit: String
+    public let perUnit: NutrientProfile
+
+    public init(id: Int, name: String, unit: String = "unit", perUnit: NutrientProfile) {
+        self.id = id
+        self.name = name
+        self.unit = unit
+        self.perUnit = perUnit
+    }
+
+    public init(food: Food) {
+        let scale = food.draft.baseQuantity > 0 ? (1.0 / food.draft.baseQuantity) : 1.0
+        self.init(id: food.id, name: food.name, unit: food.unit,
+                  perUnit: NutrientProfile(values: food.draft.nutrients.mapValues { $0 * scale }, unknown: []))
+    }
+}
+
+public struct MultivitaminStackSuggestion: Equatable {
+    public let counts: [Int: Int]
+    public let coveredTargetsCount: Int
+    public let totalTargetsCount: Int
+    public let averageCoveragePercent: Double
+    public let breachedNutrients: [Nutrient]
+    public let hasUnavoidableULBreach: Bool
+}
+
+/// Multivitamin coverage & stack optimizer across 0...3 units per product, against daily targets and upper limits.
 public enum MultivitaminWhatIf {
     public struct Row: Equatable {
         public let nutrient: Nutrient
+        public let tabletAmount: Double
+        public let foodAmount: Double
         public let amount: Double
         public let target: Double?
         public let upperLimit: Double?
         public var isFatSoluble: Bool { nutrient.isFatSoluble }
         public var isOverLimit: Bool { upperLimit.map { amount > $0 } ?? false }
+        public var coverageFraction: Double? {
+            guard let target, target > 0 else { return nil }
+            return min(amount / target, 1.0)
+        }
+
+        public init(nutrient: Nutrient, tabletAmount: Double = 0, foodAmount: Double = 0, amount: Double, target: Double?, upperLimit: Double?) {
+            self.nutrient = nutrient
+            self.tabletAmount = tabletAmount
+            self.foodAmount = foodAmount
+            self.amount = amount
+            self.target = target
+            self.upperLimit = upperLimit
+        }
     }
 
     /// Several vitamins actually present (explicit zeros don't count) and next to no protein, carbs or fat,
@@ -245,10 +301,152 @@ public enum MultivitaminWhatIf {
         return vitamins >= 4 && draft.protein + draft.carbs + draft.fat < 1
     }
 
-    public static func rows(perTablet: NutrientProfile, tablets: Int, rest: NutrientProfile) -> [Row] {
-        Nutrient.allCases.filter { perTablet[$0] != nil && ($0.group == .vitamins || $0.group == .minerals) }.map { nutrient in
-            Row(nutrient: nutrient, amount: (perTablet[nutrient] ?? 0) * Double(tablets) + (rest[nutrient] ?? 0),
-                target: nutrient.dailyTarget, upperLimit: nutrient.upperLimit)
+    public static var allVitaminAndMineralNutrients: [Nutrient] {
+        Nutrient.allCases.filter { $0.group == .vitamins || $0.group == .minerals }
+    }
+
+    public static func rows(perTablet: NutrientProfile, tablets: Int, rest: NutrientProfile = .empty) -> [Row] {
+        allVitaminAndMineralNutrients.map { nutrient in
+            let tab = (perTablet[nutrient] ?? 0) * Double(tablets)
+            let food = rest[nutrient] ?? 0
+            return Row(nutrient: nutrient, tabletAmount: tab, foodAmount: food, amount: tab + food,
+                       target: nutrient.dailyTarget, upperLimit: nutrient.upperLimit)
         }
+    }
+
+    public static func stackRows(options: [MultivitaminOption], counts: [Int: Int],
+                                 mode: MultivitaminBaselineMode = .tabletsOnly, foodRest: NutrientProfile = .empty) -> [Row] {
+        allVitaminAndMineralNutrients.map { nutrient in
+            let tab = options.reduce(0.0) { sum, option in
+                let count = max(counts[option.id] ?? 0, 0)
+                return sum + (option.perUnit[nutrient] ?? 0) * Double(count)
+            }
+            let food = mode == .withTodaysFood ? (foodRest[nutrient] ?? 0) : 0
+            return Row(nutrient: nutrient, tabletAmount: tab, foodAmount: food, amount: tab + food,
+                       target: nutrient.dailyTarget, upperLimit: nutrient.upperLimit)
+        }
+    }
+
+    public static func suggestBestStack(options: [MultivitaminOption], mode: MultivitaminBaselineMode = .tabletsOnly,
+                                        foodRest: NutrientProfile = .empty, excludeOverULPills: Bool = false,
+                                        maxUnitsPerOption: Int = 3, maxTotalUnits: Int = 4) -> MultivitaminStackSuggestion {
+        let totalTargets = allVitaminAndMineralNutrients.filter { $0.dailyTarget != nil }.count
+        guard !options.isEmpty else {
+            return MultivitaminStackSuggestion(counts: [:], coveredTargetsCount: 0, totalTargetsCount: totalTargets,
+                                               averageCoveragePercent: 0, breachedNutrients: [], hasUnavoidableULBreach: false)
+        }
+
+        struct Candidate {
+            let counts: [Int: Int]
+            let totalUnits: Int
+            let coverageSum: Double
+            let coveredCount: Int
+            let fatSolubleExcess: Double
+            let breaches: [Nutrient]
+            let fatSolubleBreaches: [Nutrient]
+        }
+
+        func evaluate(_ counts: [Int: Int], totalUnits: Int) -> Candidate {
+            let evaluated = stackRows(options: options, counts: counts, mode: mode, foodRest: foodRest)
+            var coverageSum = 0.0
+            var coveredCount = 0
+            var fatSolubleExcess = 0.0
+            var breaches: [Nutrient] = []
+            var fatSolubleBreaches: [Nutrient] = []
+            for row in evaluated {
+                if let frac = row.coverageFraction {
+                    coverageSum += frac
+                    if row.amount + 1e-6 >= (row.target ?? 0) { coveredCount += 1 }
+                }
+                if row.isFatSoluble, let target = row.target, target > 0, row.amount > target {
+                    fatSolubleExcess += (row.amount / target) - 1.0
+                }
+                if row.isOverLimit && row.tabletAmount > 0 {
+                    breaches.append(row.nutrient)
+                    if row.isFatSoluble { fatSolubleBreaches.append(row.nutrient) }
+                }
+            }
+            return Candidate(counts: counts, totalUnits: totalUnits, coverageSum: coverageSum, coveredCount: coveredCount,
+                             fatSolubleExcess: fatSolubleExcess, breaches: breaches, fatSolubleBreaches: fatSolubleBreaches)
+        }
+
+        var safeBest: Candidate?
+        var currentCounts: [Int: Int] = [:]
+
+        func isBetterSafe(_ lhs: Candidate, than rhs: Candidate) -> Bool {
+            if abs(lhs.coverageSum - rhs.coverageSum) > 1e-6 { return lhs.coverageSum > rhs.coverageSum }
+            if lhs.coveredCount != rhs.coveredCount { return lhs.coveredCount > rhs.coveredCount }
+            if lhs.totalUnits != rhs.totalUnits { return lhs.totalUnits < rhs.totalUnits }
+            return lhs.fatSolubleExcess < rhs.fatSolubleExcess
+        }
+
+        func search(_ index: Int, usedUnits: Int) {
+            if index == options.count {
+                guard usedUnits > 0 else { return }
+                let candidate = evaluate(currentCounts, totalUnits: usedUnits)
+                if candidate.breaches.isEmpty {
+                    if let existing = safeBest {
+                        if isBetterSafe(candidate, than: existing) { safeBest = candidate }
+                    } else {
+                        safeBest = candidate
+                    }
+                }
+                return
+            }
+            let option = options[index]
+            let upper = min(maxUnitsPerOption, maxTotalUnits - usedUnits)
+            for count in 0...upper {
+                if count == 0 {
+                    currentCounts.removeValue(forKey: option.id)
+                } else {
+                    currentCounts[option.id] = count
+                }
+                search(index + 1, usedUnits: usedUnits + count)
+            }
+            currentCounts.removeValue(forKey: option.id)
+        }
+
+        search(0, usedUnits: 0)
+
+        if let safeBest {
+            let avg = totalTargets > 0 ? pyRound(safeBest.coverageSum / Double(totalTargets) * 100, 1) : 0
+            return MultivitaminStackSuggestion(counts: safeBest.counts, coveredTargetsCount: safeBest.coveredCount,
+                                               totalTargetsCount: totalTargets, averageCoveragePercent: avg,
+                                               breachedNutrients: [], hasUnavoidableULBreach: false)
+        }
+
+        if excludeOverULPills {
+            let emptyEval = evaluate([:], totalUnits: 0)
+            let avg = totalTargets > 0 ? pyRound(emptyEval.coverageSum / Double(totalTargets) * 100, 1) : 0
+            return MultivitaminStackSuggestion(counts: [:], coveredTargetsCount: emptyEval.coveredCount,
+                                               totalTargetsCount: totalTargets, averageCoveragePercent: avg,
+                                               breachedNutrients: [], hasUnavoidableULBreach: false)
+        }
+
+        // Fallback when every available multivitamin breaches a water-soluble UL at 1 unit: cap at 1 unit with zero fat-soluble UL breach.
+        var fallbackBest: Candidate?
+        for option in options {
+            let candidate = evaluate([option.id: 1], totalUnits: 1)
+            guard candidate.fatSolubleBreaches.isEmpty else { continue }
+            if let existing = fallbackBest {
+                if candidate.breaches.count != existing.breaches.count {
+                    if candidate.breaches.count < existing.breaches.count { fallbackBest = candidate }
+                } else if candidate.coverageSum > existing.coverageSum {
+                    fallbackBest = candidate
+                }
+            } else {
+                fallbackBest = candidate
+            }
+        }
+
+        if let fallbackBest {
+            let avg = totalTargets > 0 ? pyRound(fallbackBest.coverageSum / Double(totalTargets) * 100, 1) : 0
+            return MultivitaminStackSuggestion(counts: fallbackBest.counts, coveredTargetsCount: fallbackBest.coveredCount,
+                                               totalTargetsCount: totalTargets, averageCoveragePercent: avg,
+                                               breachedNutrients: fallbackBest.breaches, hasUnavoidableULBreach: true)
+        }
+
+        return MultivitaminStackSuggestion(counts: [:], coveredTargetsCount: 0, totalTargetsCount: totalTargets,
+                                           averageCoveragePercent: 0, breachedNutrients: [], hasUnavoidableULBreach: false)
     }
 }

@@ -31,11 +31,13 @@ final class FoodFormModel: ObservableObject {
     let existing: Food?
     private let services: Services
 
-    init(services: Services, food: Food?, suggestedName: String = "") {
+    init(services: Services, food: Food?, suggestedName: String = "", defaultKind: FoodKind? = nil, defaultUnit: String? = nil) {
         self.services = services
         existing = food
         guard let food else {
             name = suggestedName
+            if let defaultKind { kind = defaultKind }
+            if let defaultUnit { choose(unit: defaultUnit) }
             return
         }
         let d = food.draft
@@ -178,9 +180,21 @@ struct DietFoodFormSheet: View {
     @State private var errorMessage: String?
     @State private var confirmingDelete = false
 
-    init(services: Services, food: Food?, suggestedName: String = "", onSaved: @escaping (Int) -> Void) {
-        _model = StateObject(wrappedValue: FoodFormModel(services: services, food: food, suggestedName: suggestedName))
+    init(services: Services, food: Food?, suggestedName: String = "", defaultKind: FoodKind? = nil, defaultUnit: String? = nil,
+         onSaved: @escaping (Int) -> Void) {
+        _model = StateObject(wrappedValue: FoodFormModel(services: services, food: food, suggestedName: suggestedName,
+                                                         defaultKind: defaultKind, defaultUnit: defaultUnit))
         self.onSaved = onSaved
+    }
+
+    private var supplementCoverageRows: [MultivitaminWhatIf.Row]? {
+        guard model.kind == .supplement, let draft = try? model.draft(),
+              (MultivitaminWhatIf.isMultivitamin(draft) || model.filledCount(.vitamins) + model.filledCount(.minerals) >= 2) else {
+            return nil
+        }
+        let scale = draft.baseQuantity > 0 ? (1.0 / draft.baseQuantity) : 1.0
+        let profile = NutrientProfile(values: draft.nutrients.mapValues { $0 * scale }, unknown: [])
+        return MultivitaminWhatIf.rows(perTablet: profile, tablets: 1)
     }
 
     var body: some View {
@@ -205,6 +219,9 @@ struct DietFoodFormSheet: View {
                     }
                     if let note = model.pieceNote { Text(note).font(.system(size: 12)).foregroundColor(Theme.green) }
                     labelSection
+                    if let coverageRows = supplementCoverageRows {
+                        supplementCoverageCard(coverageRows)
+                    }
                     BodyField(label: "Notes", text: $model.notes, identifier: "food-notes-field", keyboard: .default)
                     BodyField(label: "Quick add by weight: grams one \(model.unit) stands for (optional)", text: $model.estimateGrams,
                               unit: "g", identifier: "food-estimate-grams-field")
@@ -284,6 +301,37 @@ struct DietFoodFormSheet: View {
             }
             Text(model.caloriesNote).font(.system(size: 12)).foregroundColor(Theme.muted)
         }
+    }
+
+    private func supplementCoverageCard(_ rows: [MultivitaminWhatIf.Row]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Daily vitamin & mineral coverage · per 1 \(model.unit)")
+            Text("Every tracked vitamin and mineral is listed below — missing ones show 0 / target so gaps are immediately clear.")
+                .font(.system(size: 11)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
+            ForEach([NutrientGroup.vitamins, .minerals], id: \.self) { group in
+                Text(group.rawValue).font(.system(size: 12, weight: .bold)).foregroundColor(Theme.green).padding(.top, 4)
+                ForEach(rows.filter { $0.nutrient.group == group }, id: \.nutrient) { row in
+                    HStack(spacing: 6) {
+                        Text(row.nutrient.title).font(.system(size: 12)).foregroundColor(Theme.text)
+                        if row.isFatSoluble { Pill(text: "fat-soluble", tone: .gold) }
+                        if row.isOverLimit { Pill(text: "> UL", tone: .red) }
+                        Spacer()
+                        if let target = row.target {
+                            Text("\(Format.number(row.amount, maxDecimals: 1)) / \(Format.number(target, maxDecimals: 1)) \(row.nutrient.unit)")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(row.isOverLimit ? Theme.red : (row.amount >= target ? Theme.green : (row.amount == 0 ? Theme.muted : Theme.text)))
+                        } else {
+                            Text("\(Format.number(row.amount, maxDecimals: 1)) \(row.nutrient.unit)")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(row.isOverLimit ? Theme.red : (row.amount == 0 ? Theme.muted : Theme.text))
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .card()
+        .accessibilityIdentifier("food-vitamin-mineral-coverage-card")
     }
 
     private func pieceCheckCard(_ text: String) -> some View {

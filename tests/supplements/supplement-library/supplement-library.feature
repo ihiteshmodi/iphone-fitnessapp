@@ -47,3 +47,14 @@ Feature: Supplement library and checks
   Scenario: Supplements in the first plan are the starting point
     Given Glycine and Boron were both in the first plan on 10 Nov
     Then "One new supplement at a time" does not appear
+
+  Scenario: Multivitamin lists every tracked vitamin and mineral with 0 / target when absent
+    Given Becadexamine has Vitamin A 1500 mcg, Folate 1700 mcg, B3 45 mg, and no Vitamin K, Selenium, or Iron
+    When I inspect 1 capsule in Tablets-only mode
+    Then all tracked vitamins and minerals are listed, with Vitamin K showing 0 of 120 mcg, Selenium 0 of 55 mcg, and Folate flagged over its 1000 mcg upper limit
+
+  Scenario: Best-stack optimizer combines multiple multivitamins for highest target coverage without breaching upper limits
+    Given Becadexamine (Folate 1700 mcg > UL), A to Z (broad vitamins/minerals within UL), and Mineral Plus (complementary minerals within UL)
+    When I tap Suggest Best Stack in Tablets-only mode and in With-today's-food mode
+    Then the optimizer selects the combination with highest target coverage and zero upper-limit or fat-soluble breaches
+    And when Becadexamine is the only multivitamin in the library, the optimizer caps it at 1 unit and warns about its unavoidable Folate/B3 upper-limit breach

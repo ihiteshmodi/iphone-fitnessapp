@@ -130,4 +130,84 @@ final class SupplementLibraryTests: XCTestCase {
         XCTAssertEqual(Nutrient.b6.upperLimit, nil, "two limits, settled in Labs")
         XCTAssertEqual(Nutrient.b6.upperLimitNote, "100 mg (US) or 12 mg (EU)")
     }
+
+    func testMultivitaminRowsIncludeAllVitaminsAndMineralsWithZeroOutOfTargetWhenAbsent() throws {
+        let becadexamine = MultivitaminOption(
+            id: 7,
+            name: "Becadexamine",
+            unit: "capsule",
+            perUnit: NutrientProfile(values: [.vitaminA: 1500, .folate: 1700, .b3: 45, .vitaminC: 75, .zinc: 10.46], unknown: [])
+        )
+
+        let rows = MultivitaminWhatIf.stackRows(options: [becadexamine], counts: [7: 1], mode: .tabletsOnly,
+                                                foodRest: NutrientProfile(values: [.vitaminK: 90], unknown: []))
+
+        let expectedCount = Nutrient.allCases.filter { $0.group == .vitamins || $0.group == .minerals }.count
+        XCTAssertEqual(rows.count, expectedCount)
+
+        let vitK = try XCTUnwrap(rows.first { $0.nutrient == .vitaminK })
+        XCTAssertEqual(vitK.amount, 0, "Tablets-only mode ignores foodRest and shows 0 for absent nutrients")
+        XCTAssertEqual(vitK.target, 120)
+
+        let selenium = try XCTUnwrap(rows.first { $0.nutrient == .selenium })
+        XCTAssertEqual(selenium.amount, 0)
+        XCTAssertEqual(selenium.target, 55)
+
+        let folate = try XCTUnwrap(rows.first { $0.nutrient == .folate })
+        XCTAssertEqual(folate.amount, 1700)
+        XCTAssertTrue(folate.isOverLimit)
+
+        let withFoodRows = MultivitaminWhatIf.stackRows(options: [becadexamine], counts: [7: 1], mode: .withTodaysFood,
+                                                        foodRest: NutrientProfile(values: [.vitaminK: 90], unknown: []))
+        XCTAssertEqual(withFoodRows.first { $0.nutrient == .vitaminK }?.amount, 90)
+    }
+
+    func testSuggestBestStackPicksHighestSafeCoverageAndHandlesSinglePillULBreaches() {
+        let becadexamine = MultivitaminOption(
+            id: 1,
+            name: "Becadexamine",
+            perUnit: NutrientProfile(values: [.vitaminA: 1500, .folate: 1700, .b3: 45, .vitaminC: 75, .vitaminD: 10, .zinc: 10.5], unknown: [])
+        )
+        let aToZ = MultivitaminOption(
+            id: 2,
+            name: "A to Z",
+            perUnit: NutrientProfile(values: [
+                .vitaminA: 600, .vitaminC: 60, .vitaminD: 10, .vitaminE: 10, .b1: 1.2, .b2: 1.3,
+                .b3: 16, .b5: 5, .b6: 1.5, .b12: 2.4, .folate: 300, .zinc: 10, .selenium: 40, .copper: 0.9
+            ], unknown: [])
+        )
+        let supradyn = MultivitaminOption(
+            id: 3,
+            name: "Supradyn",
+            perUnit: NutrientProfile(values: [
+                .biotin: 30, .vitaminK: 60, .magnesium: 100, .iron: 10, .manganese: 2.0, .calcium: 150, .vitaminC: 50
+            ], unknown: [])
+        )
+
+        // When safe options exist, Becadexamine (which breaches Folate & B3 UL at 1 pill) is excluded and A to Z + Supradyn combine safely.
+        let best = MultivitaminWhatIf.suggestBestStack(options: [becadexamine, aToZ, supradyn], mode: .tabletsOnly)
+        XCTAssertEqual(best.counts[1] ?? 0, 0, "Over-UL pill excluded when safe combo exists")
+        XCTAssertGreaterThan(best.counts[2] ?? 0, 0)
+        XCTAssertGreaterThan(best.counts[3] ?? 0, 0)
+        XCTAssertTrue(best.breachedNutrients.isEmpty)
+        XCTAssertFalse(best.hasUnavoidableULBreach)
+
+        // With today's food already providing 38 mg Zinc (UL 40 mg), A to Z (10 mg Zinc) would breach UL in withTodaysFood mode!
+        let zincHeavyFood = NutrientProfile(values: [.zinc: 38], unknown: [])
+        let withFoodBest = MultivitaminWhatIf.suggestBestStack(options: [becadexamine, aToZ, supradyn], mode: .withTodaysFood, foodRest: zincHeavyFood)
+        XCTAssertEqual(withFoodBest.counts[2] ?? 0, 0, "A to Z avoided when today's food Zinc + 10 mg > 40 mg UL")
+        XCTAssertGreaterThan(withFoodBest.counts[3] ?? 0, 0)
+        XCTAssertTrue(withFoodBest.breachedNutrients.isEmpty)
+
+        // When Becadexamine is the ONLY multivitamin in the library, fallback caps at 1 unit (keeping fat-soluble Vit A <= 3000) and flags unavoidable breach,
+        // unless excludeOverULPills is enabled.
+        let soloFallback = MultivitaminWhatIf.suggestBestStack(options: [becadexamine], mode: .tabletsOnly, excludeOverULPills: false)
+        XCTAssertEqual(soloFallback.counts[1], 1)
+        XCTAssertTrue(soloFallback.hasUnavoidableULBreach)
+        XCTAssertTrue(soloFallback.breachedNutrients.contains(.folate))
+
+        let soloStrict = MultivitaminWhatIf.suggestBestStack(options: [becadexamine], mode: .tabletsOnly, excludeOverULPills: true)
+        XCTAssertEqual(soloStrict.counts[1] ?? 0, 0)
+        XCTAssertTrue(soloStrict.breachedNutrients.isEmpty)
+    }
 }
