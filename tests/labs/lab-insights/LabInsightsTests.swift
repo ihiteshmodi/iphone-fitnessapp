@@ -97,4 +97,63 @@ final class LabInsightsTests: XCTestCase {
         XCTAssertEqual(item.severity, .tip)
         XCTAssertFalse(try service().labs(on: date("2027-01-01")).contains { $0.title == "Retest Glucose" })
     }
+
+    func testSymptomPairedPanicMultilineageCytopeniaSpecialistsSteppedTiersAndWhatNotToDo() throws {
+        let safetyJSON = #"""
+        {
+          "markers": [
+            {"id": "triglycerides", "name": "Triglycerides", "units": [{"unit": "mg/dL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": null, "high": 100, "unit": "mg/dL"}],
+             "doctor": [{"op": ">=", "value": 500, "unit": "mg/dL", "urgency": "sameDay",
+                         "text": "Acute pancreatitis risk.", "requires": "severe abdominal pain"}],
+             "escalation": {"urgentSameDay": [], "routineSoon": [], "specialists": ["Endocrinology", "Cardiology"]},
+             "interventions": {
+               "tier1Foundations": ["Eliminate alcohol"],
+               "tier2Nutrition": ["Cut refined sugars"],
+               "tier3Supplements": [{"name": "Omega-3 EPA/DHA", "dose": "2-4 g/day", "target": "high", "notes": "Lowers VLDL"}],
+               "tier4Peptides": ["Educational peptide X"],
+               "whatNotToDo": ["Do not ignore abdominal pain radiating to the back"]
+             }},
+            {"id": "hemoglobin", "name": "Hemoglobin", "units": [{"unit": "g/dL", "default": true}],
+             "bands": [{"label": "Lab", "kind": "lab", "low": 13.5, "high": 17.5, "unit": "g/dL"},
+                       {"label": "Optimal", "kind": "optimal", "low": 15.5, "high": 17.0, "unit": "g/dL"}]},
+            {"id": "wbc", "name": "WBC", "units": [{"unit": "x10^3/uL", "default": true}],
+             "bands": [{"label": "Lab", "kind": "lab", "low": 4.0, "high": 11.0, "unit": "x10^3/uL"},
+                       {"label": "Optimal", "kind": "optimal", "low": 4.5, "high": 7.5, "unit": "x10^3/uL"}]},
+            {"id": "platelets", "name": "Platelets", "units": [{"unit": "x10^3/uL", "default": true}],
+             "bands": [{"label": "Lab", "kind": "lab", "low": 150, "high": 400, "unit": "x10^3/uL"},
+                       {"label": "Optimal", "kind": "optimal", "low": 175, "high": 300, "unit": "x10^3/uL"}]}
+          ]
+        }
+        """#
+        let cat = try LabCatalogue(data: Data(safetyJSON.utf8))
+        let localDraws = LabDrawService(db, catalogue: cat)
+        let id = try localDraws.addDraw(LabDrawDraft(date: date("2027-03-01"), time: "16:00", fastedHours: 2))
+        try localDraws.addResult(drawID: id, markerID: "triglycerides", value: 560, unit: "mg/dL")
+        try localDraws.addResult(drawID: id, markerID: "hemoglobin", value: 11.2, unit: "g/dL")
+        try localDraws.addResult(drawID: id, markerID: "wbc", value: 3.1, unit: "x10^3/uL")
+        try localDraws.addResult(drawID: id, markerID: "platelets", value: 110, unit: "x10^3/uL")
+
+        let offItems = try InsightService(db, daily: [], setup: [], labs: [LabInsightsRule(catalogue: cat, sex: .male, showDrugNotes: false)]).labs(on: today)
+
+        let symptomFix = try XCTUnwrap(offItems.first { $0.ruleID == "lab-doctor-symptom-triglycerides" })
+        XCTAssertEqual(symptomFix.severity, .fix)
+        XCTAssertTrue(symptomFix.detail.contains("severe abdominal pain"), symptomFix.detail)
+        XCTAssertTrue(symptomFix.detail.contains("Endocrinology"), symptomFix.detail)
+
+        let cytopenia = try XCTUnwrap(offItems.first { $0.ruleID == "lab-doctor-multilineage-cytopenia" })
+        XCTAssertEqual(cytopenia.severity, .fix)
+        XCTAssertTrue(cytopenia.detail.contains("Hematology"), cytopenia.detail)
+
+        let tgBand = try XCTUnwrap(offItems.first { $0.ruleID == "lab-band-triglycerides" })
+        XCTAssertTrue(tgBand.detail.contains("Eliminate alcohol"), tgBand.detail)
+        XCTAssertTrue(tgBand.detail.contains("Omega-3 EPA/DHA"), tgBand.detail)
+        XCTAssertTrue(tgBand.detail.contains("Do not ignore abdominal pain"), tgBand.detail)
+        XCTAssertTrue(tgBand.detail.contains("fasted"), tgBand.detail)
+        XCTAssertFalse(tgBand.detail.contains("Educational peptide X"), tgBand.detail)
+
+        let onItems = try InsightService(db, daily: [], setup: [], labs: [LabInsightsRule(catalogue: cat, sex: .male, showDrugNotes: true)]).labs(on: today)
+        let tgBandDrug = try XCTUnwrap(onItems.first { $0.ruleID == "lab-band-triglycerides" })
+        XCTAssertTrue(tgBandDrug.detail.contains("Educational peptide X"), tgBandDrug.detail)
+    }
 }

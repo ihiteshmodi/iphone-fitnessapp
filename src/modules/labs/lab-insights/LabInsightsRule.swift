@@ -38,11 +38,15 @@ private struct Evaluation {
         for marker in catalogue.visibleMarkers(for: sex) {
             guard let result = try draws.history(of: marker.id).first else { continue }
             let drawDraft = allDraws.first { $0.id == result.drawID }?.draft
-            items += readingItems(marker, result, preferences: prefs, draw: drawDraft)
+            let sameDraw = (try? draws.results(inDraw: result.drawID)) ?? []
+            items += readingItems(marker, result, preferences: prefs, draw: drawDraft, sameDrawResults: sameDraw)
         }
         if let newestDraw = allDraws.first {
             let sameDrawResults = try draws.results(inDraw: newestDraw.id)
             let sameDrawMap = Dictionary(uniqueKeysWithValues: sameDrawResults.map { ($0.markerID, $0) })
+            if let cytopenia = multilineageCytopeniaItem(sameDrawMap, preferences: prefs, draw: newestDraw.draft) {
+                items.append(cytopenia)
+            }
             items += patternItems(sameDrawMap, preferences: prefs, draw: newestDraw.draft)
             let ctx = try? LabNonBloodContext.load(from: db, on: newestDraw.draft.date)
             for match in try LabPatternEvaluator.evaluate(drawID: newestDraw.id, draws: draws, catalogue: catalogue, preferences: prefs, context: ctx) {
@@ -74,22 +78,44 @@ private struct Evaluation {
         return items
     }
 
-    private func readingItems(_ marker: LabMarker, _ result: LabResult, preferences: LabPreferences, draw: LabDrawDraft?) -> [Insight] {
+    private func readingItems(_ marker: LabMarker, _ result: LabResult, preferences: LabPreferences,
+                              draw: LabDrawDraft?, sameDrawResults: [LabResult]) -> [Insight] {
         let reading = LabReader.read(result: result, marker: marker, preferences: preferences, draw: draw)
         let displayVal = result.textValue ?? "\(LabInsightsRule.number(result.value)) \(result.unit)"
         let value = "\(displayVal) on \(result.date.dayMonthYear)."
+        let specialistsLine = (marker.escalation?.specialists).flatMap { $0.isEmpty ? nil : "Specialists: \($0.joined(separator: ", "))" }
         var items: [Insight] = []
+
         if let worst = reading.doctorLines.first {
+            let bullets = reading.doctorLines.map(\.text) + [specialistsLine].compactMap { $0 }
             items.append(Insight(ruleID: "lab-doctor-\(marker.id)", kind: .labs, severity: .fix, title: "\(worst.urgency.title): \(marker.name)",
-                                 detail: LabInsightsRule.lines(value, reading.doctorLines.map(\.text)),
+                                 detail: LabInsightsRule.lines(value, bullets),
                                  why: worst.source.map { "Vault \($0)" } ?? "Vault doctor line", day: result.date))
         }
+        if let worstCond = reading.conditionalDoctorLines.first {
+            let condBullets = reading.conditionalDoctorLines.map { line in
+                line.requires.map { "If you have \($0): \(line.text)" } ?? line.text
+            } + [specialistsLine].compactMap { $0 }
+            items.append(Insight(ruleID: "lab-doctor-symptom-\(marker.id)", kind: .labs, severity: .fix,
+                                 title: "Check symptoms (\(worstCond.urgency.title)): \(marker.name)",
+                                 detail: LabInsightsRule.lines(value, condBullets),
+                                 why: worstCond.source.map { "Vault \($0)" } ?? "Symptom-paired panic rule", day: result.date))
+        }
+
         switch reading.status {
         case .low, .high:
             let side = reading.status == .low ? "low" : "high"
-            let actions = marker.whatToDo.filter { ($0.when == nil || $0.when == side || $0.when == "any") && shows($0.tag) }.map(\.text)
+            let validityBullets = draw.map {
+                LabValidityGate.evaluate(result: result, marker: marker, draw: $0, sameDrawResults: sameDrawResults,
+                                         catalogue: catalogue, sex: sex)
+                    .map { "Pre-analytic check: \($0.title) — \($0.detail)" }
+            } ?? []
+            let steppedBullets = steppedActionLines(marker: marker, side: side)
+            let legacyBullets = marker.whatToDo.filter { ($0.when == nil || $0.when == side || $0.when == "any") && shows($0.tag) }.map(\.text)
+            let actionBullets = steppedBullets.isEmpty ? legacyBullets : steppedBullets
             items.append(Insight(ruleID: "lab-band-\(marker.id)", kind: .labs, severity: .improve, title: "\(marker.name) \(side)",
-                                 detail: LabInsightsRule.lines(value, actions), why: "Vault \(marker.lesson)", day: result.date))
+                                 detail: LabInsightsRule.lines(value, validityBullets + actionBullets),
+                                 why: "Vault \(marker.lesson)", day: result.date))
         case .disputed:
             items.append(Insight(ruleID: "lab-disputed-\(marker.id)", kind: .labs, severity: .tip, title: "\(marker.name) in a disputed zone",
                                  detail: "\(value.dropLast()) is inside some of the vault's optimal bands and not others (\(reading.disputes.joined(separator: ", "))). No flag.",
@@ -98,6 +124,52 @@ private struct Evaluation {
             break
         }
         return items
+    }
+
+    private func steppedActionLines(marker: LabMarker, side: String) -> [String] {
+        guard let inter = marker.interventions else { return [] }
+        var lines: [String] = []
+        lines += inter.tier1Foundations.prefix(3).map { "Foundations: \($0)" }
+        lines += inter.tier2Nutrition.prefix(3).map { "Nutrition: \($0)" }
+        let matchedSupps = inter.tier3Supplements.filter { s in
+            guard let t = s.target?.lowercased() else { return true }
+            return t == "general" || t == side
+        }
+        lines += matchedSupps.prefix(3).map { s in
+            let dose = s.dose.map { " (\($0))" } ?? ""
+            return "Supplement: \(s.name)\(dose)"
+        }
+        if showDrugNotes {
+            lines += inter.tier4Peptides.prefix(2).map { "Educational (Tier 4): \($0)" }
+        }
+        lines += inter.whatNotToDo.map { "What NOT to do: \($0)" }
+        return lines
+    }
+
+    private func multilineageCytopeniaItem(_ sameDraw: [String: LabResult], preferences: LabPreferences, draw: LabDrawDraft) -> Insight? {
+        guard !catalogue.patterns.contains(where: { $0.id == "pancytopenia" && $0.computable != false }) else { return nil }
+        let redResult = sameDraw["hemoglobin"] ?? sameDraw["rbc"]
+        guard let red = redResult, let redMarker = catalogue.marker(red.markerID),
+              let wbc = sameDraw["wbc"], let wbcMarker = catalogue.marker("wbc"),
+              let plt = sameDraw["platelets"], let pltMarker = catalogue.marker("platelets") else { return nil }
+        let isBelowLab: (LabResult, LabMarker) -> Bool = { res, m in
+            let r = LabReader.read(result: res, marker: m, preferences: preferences, draw: draw)
+            if let stdLow = r.activeStratum?.standardLow { return (res.defaultValue ?? res.value) < stdLow }
+            if let labLow = m.visibleBands(for: sex).first(where: { $0.kind == "lab" })?.low { return (res.defaultValue ?? res.value) < labLow }
+            return r.status == .low
+        }
+        guard isBelowLab(red, redMarker), isBelowLab(wbc, wbcMarker), isBelowLab(plt, pltMarker) else { return nil }
+        return Insight(
+            ruleID: "lab-doctor-multilineage-cytopenia",
+            kind: .labs,
+            severity: .fix,
+            title: "Within a few days: All three blood cell lines low",
+            detail: LabInsightsRule.lines(
+                "Concurrent low red cells/hemoglobin, WBC, and platelets on \(draw.date.dayMonthYear).",
+                ["Prompt physician evaluation within a few days (same-day ER if fever, bleeding, or severe fatigue).",
+                 "Specialists: Hematology"]),
+            why: "Global red-flag hematology threshold",
+            day: draw.date)
     }
 
     private func patternItems(_ sameDraw: [String: LabResult], preferences: LabPreferences, draw: LabDrawDraft) -> [Insight] {

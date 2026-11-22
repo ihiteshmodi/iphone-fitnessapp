@@ -24,3 +24,13 @@ Feature: The Labs tab in Room for improvement
   Scenario: Retest due
     Given my last glucose was 26 weeks ago and its routine retest is 26-52 weeks
     Then "Retest glucose" is a Tip
+
+  Scenario: Symptom-paired panic thresholds, multilineage cytopenia, specialists, stepped tiers, and what-not-to-do guardrails
+    Given Triglycerides 560 mg/dL has a symptom-conditional same-day pancreatitis line ("severe abdominal pain") and specialist "Endocrinology"
+    And Hemoglobin, WBC, and Platelets are all low in the same draw
+    And Ferritin has stepped Tiers 1-4 plus a "What not to do" guardrail
+    When LabInsightsRule evaluates my bloodwork with drug notes off
+    Then a "Check symptoms (Same day): Triglycerides" Fix item fires naming Endocrinology
+    And a multilineage cytopenia Fix item fires naming Hematology
+    And out-of-band Ferritin includes Tiers 1-3 and "What not to do", while hiding Tier 4 peptides until drug notes are switched on
+

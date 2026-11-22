@@ -52,4 +52,31 @@ final class LabsReviewTests: XCTestCase {
         XCTAssertTrue(text.contains("hs-crp"), text)
         XCTAssertTrue(text.contains("- Ferritin low"), text)
     }
+
+    func testReviewExportIncludesValidityFlagsDiscordancesAndReflexCoTests() throws {
+        let richJSON = #"""
+        {"markers": [
+          {"id": "ldl-c", "name": "LDL-C", "units": [{"unit": "mg/dL", "default": true}],
+           "bands": [{"label": "Optimal", "kind": "optimal", "low": null, "high": 100, "unit": "mg/dL"}]},
+          {"id": "apob", "name": "ApoB", "units": [{"unit": "mg/dL", "default": true}],
+           "bands": [{"label": "Optimal", "kind": "optimal", "low": 60, "high": 80, "unit": "mg/dL"}],
+           "coTests": ["lpa"],
+           "escalation": {"urgentSameDay": [], "routineSoon": [], "specialists": ["Preventive Cardiology"]}},
+          {"id": "lpa", "name": "Lp(a)", "units": [{"unit": "nmol/L", "default": true}]},
+          {"id": "total-testosterone", "name": "Total Testosterone", "units": [{"unit": "ng/dL", "default": true}],
+           "bands": [{"label": "Optimal", "kind": "optimal", "low": 600, "high": 900, "unit": "ng/dL"}]}
+        ]}
+        """#
+        catalogue = try LabCatalogue(data: Data(richJSON.utf8))
+        let draws = LabDrawService(db, catalogue: catalogue)
+        let id = try draws.addDraw(LabDrawDraft(date: date("2026-11-01"), time: "15:30", fastedHours: 3))
+        try draws.addResult(drawID: id, markerID: "ldl-c", value: 90, unit: "mg/dL")
+        try draws.addResult(drawID: id, markerID: "apob", value: 108, unit: "mg/dL")
+        try draws.addResult(drawID: id, markerID: "total-testosterone", value: 310, unit: "ng/dL")
+
+        let text = try export()
+        XCTAssertTrue(text.contains("ApoB and LDL-C disagree"), text)
+        XCTAssertTrue(text.contains("Lp(a)"), text)
+        XCTAssertTrue(text.contains("Drawn outside morning window"), text)
+    }
 }

@@ -33,10 +33,40 @@ public struct LabsReviewService {
         lines += insights.isEmpty ? ["None."] : insights.map { "- \($0.title)" }
         lines.append("")
 
-        let due = try DrawPlanner(catalogue: catalogue, draws: draws, sex: preferences.sex).retests().filter { $0.from.map { today >= $0 } ?? false }
+        let planner = DrawPlanner(catalogue: catalogue, draws: draws, sex: preferences.sex, showDrugNotes: preferences.showDrugNotes)
+        let due = try planner.retests().filter { $0.from.map { today >= $0 } ?? false }
         lines.append("# Retests due")
         lines += due.isEmpty ? ["None."] : due.map { "- \($0.marker.name)\($0.lastDate.map { ", last \($0.dayMonthYear)" } ?? "")" }
         lines.append("")
+
+        let reflexTests = (try? planner.order().first { $0.panel.id == "reflex-co-tests" }?.tests) ?? []
+        if !reflexTests.isEmpty {
+            lines.append("# Follow-up co-tests recommended")
+            lines += reflexTests.map { "- \($0.name)" }
+            lines.append("")
+        }
+
+        let allDraws = try draws.draws()
+        if let newest = allDraws.first {
+            let newestResults = try draws.results(inDraw: newest.id)
+            let ctx = try? LabNonBloodContext.load(from: db, on: newest.draft.date)
+            let patterns = try LabPatternEvaluator.evaluate(drawID: newest.id, draws: draws, catalogue: catalogue, preferences: preferences, context: ctx)
+            if !patterns.isEmpty {
+                lines.append("# Active multi-marker patterns")
+                for pat in patterns {
+                    let phenos = pat.matchedPhenotypes.map(\.name).joined(separator: ", ")
+                    lines.append("- \(pat.name)\(phenos.isEmpty ? "" : " (\(phenos))")")
+                    for guardLine in pat.interventions.whatNotToDo.prefix(2) { lines.append("  - Guardrail: \(guardLine)") }
+                }
+                lines.append("")
+            }
+            let discordances = LabPatternEvaluator.discordances(in: newestResults, catalogue: catalogue, preferences: preferences)
+            if !discordances.isEmpty {
+                lines.append("# Cross-marker discordances")
+                for d in discordances { lines.append("- \(d.title): \(d.detail)") }
+                lines.append("")
+            }
+        }
 
         let genotypes = try GeneticsService(db, catalogue: catalogue).entries()
         if !genotypes.isEmpty {
@@ -46,22 +76,25 @@ public struct LabsReviewService {
         }
 
         lines.append("# Draws (newest first)")
-        for draw in try draws.draws() {
+        for draw in allDraws {
             lines.append("")
             lines.append("## \(draw.draft.date.dayMonthYear)")
             let state = Self.state(draw.draft)
             if !state.isEmpty { lines.append(state) }
-            for result in try draws.results(inDraw: draw.id) {
+            let drawResults = try draws.results(inDraw: draw.id)
+            for result in drawResults {
                 guard let marker = catalogue.marker(result.markerID) else { continue }
-                lines.append("- " + line(result, marker, sex: preferences.sex))
+                lines.append("- " + line(result, marker, preferences: preferences, draw: draw.draft, sameDrawResults: drawResults))
             }
         }
         return lines.joined(separator: "\n") + "\n"
     }
 
-    private func line(_ result: LabResult, _ marker: LabMarker, sex: LabSex) -> String {
-        let reading = LabReader.read(value: result.value, unit: result.unit, marker: marker, sex: sex)
-        var text = "\(marker.name): \(LabInsightsRule.number(result.value)) \(result.unit)"
+    private func line(_ result: LabResult, _ marker: LabMarker, preferences: LabPreferences,
+                      draw: LabDrawDraft, sameDrawResults: [LabResult]) -> String {
+        let reading = LabReader.read(result: result, marker: marker, preferences: preferences, draw: draw)
+        let valuePart = result.textValue ?? "\(LabInsightsRule.number(result.value))\(result.unit.isEmpty ? "" : " \(result.unit)")"
+        var text = "\(marker.name): \(valuePart)"
         switch reading.status {
         case .optimal: text += ", optimal"
         case .low: text += ", low"
@@ -74,6 +107,12 @@ public struct LabsReviewService {
         }
         if result.isCalculated { text += " (calculated)" }
         if let worst = reading.doctorLines.first { text += " DOCTOR: \(worst.urgency.title)" }
+        if let condWorst = reading.conditionalDoctorLines.first { text += " CHECK SYMPTOMS: \(condWorst.urgency.title)" }
+        let validity = LabValidityGate.evaluate(result: result, marker: marker, draw: draw, sameDrawResults: sameDrawResults,
+                                                catalogue: catalogue, sex: preferences.sex)
+        if !validity.isEmpty {
+            text += " [Validity: \(validity.map(\.title).joined(separator: "; "))]"
+        }
         return text
     }
 
