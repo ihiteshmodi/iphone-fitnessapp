@@ -307,26 +307,39 @@ CREATE INDEX diet_extras_by_day ON diet_extras(day);
 -- Blood draws: date and the state the draw was taken in (the bloodwork volume's draw protocol). Flags are
 -- 1 yes / 0 no / NULL not answered. Results are typed as printed, in a unit the labs catalogue lists for the marker.
 CREATE TABLE IF NOT EXISTS lab_draws (
-    id             INTEGER PRIMARY KEY,
-    draw_date      TEXT NOT NULL CHECK (draw_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
-    draw_time      TEXT,
-    lab            TEXT,
-    fasted_hours   REAL CHECK (fasted_hours IS NULL OR fasted_hours >= 0),
-    trained_72h    INTEGER CHECK (trained_72h IS NULL OR trained_72h IN (0, 1)),
-    alcohol_5d     INTEGER CHECK (alcohol_5d IS NULL OR alcohol_5d IN (0, 1)),
-    biotin_stopped INTEGER CHECK (biotin_stopped IS NULL OR biotin_stopped IN (0, 1)),
-    iron_stopped   INTEGER CHECK (iron_stopped IS NULL OR iron_stopped IN (0, 1)),
-    ill_recently   INTEGER CHECK (ill_recently IS NULL OR ill_recently IN (0, 1)),
-    note           TEXT
+    id                        INTEGER PRIMARY KEY,
+    draw_date                 TEXT NOT NULL CHECK (draw_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    draw_time                 TEXT,
+    lab                       TEXT,
+    fasted_hours              REAL CHECK (fasted_hours IS NULL OR fasted_hours >= 0),
+    trained_72h               INTEGER CHECK (trained_72h IS NULL OR trained_72h IN (0, 1)),
+    alcohol_5d                INTEGER CHECK (alcohol_5d IS NULL OR alcohol_5d IN (0, 1)),
+    biotin_stopped            INTEGER CHECK (biotin_stopped IS NULL OR biotin_stopped IN (0, 1)),
+    iron_stopped              INTEGER CHECK (iron_stopped IS NULL OR iron_stopped IN (0, 1)),
+    ill_recently              INTEGER CHECK (ill_recently IS NULL OR ill_recently IN (0, 1)),
+    cycle_day                 INTEGER CHECK (cycle_day IS NULL OR cycle_day >= 1),
+    cycle_phase               TEXT,
+    poor_sleep                INTEGER CHECK (poor_sleep IS NULL OR poor_sleep IN (0, 1)),
+    acute_stress              INTEGER CHECK (acute_stress IS NULL OR acute_stress IN (0, 1)),
+    recent_vaccine_or_surgery INTEGER CHECK (recent_vaccine_or_surgery IS NULL OR recent_vaccine_or_surgery IN (0, 1)),
+    meds_noted                TEXT,
+    note                      TEXT
 );
 CREATE TABLE IF NOT EXISTS lab_results (
-    id        INTEGER PRIMARY KEY,
-    draw_id   INTEGER NOT NULL REFERENCES lab_draws(id) ON DELETE CASCADE,
-    marker_id TEXT NOT NULL,
-    value     REAL NOT NULL,
-    unit      TEXT NOT NULL,
-    lab_low   REAL,
-    lab_high  REAL
+    id                INTEGER PRIMARY KEY,
+    draw_id           INTEGER NOT NULL REFERENCES lab_draws(id) ON DELETE CASCADE,
+    marker_id         TEXT NOT NULL,
+    value             REAL,
+    text_value        TEXT,
+    value_operator    TEXT CHECK (value_operator IS NULL OR value_operator IN ('=', '<', '>')),
+    secondary_value   REAL,
+    custom_to_default REAL CHECK (custom_to_default IS NULL OR custom_to_default > 0),
+    specimen          TEXT,
+    assay             TEXT,
+    unit              TEXT NOT NULL,
+    lab_low           REAL,
+    lab_high          REAL,
+    CHECK (value IS NOT NULL OR text_value IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS lab_results_by_marker ON lab_results(marker_id);
 -- One genotype per gene, picked from that gene's table in the genetics volume.
@@ -352,4 +365,4 @@ INSERT INTO settings (key, value) VALUES
     ('fat_max_percent', '35'),
     ('fat_floor_g_per_kg', '0.8');
 
-PRAGMA user_version = 20;
+PRAGMA user_version = 21;

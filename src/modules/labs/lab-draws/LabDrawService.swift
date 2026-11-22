@@ -11,10 +11,18 @@ public struct LabDrawDraft: Equatable {
     public var biotinStopped: Bool?
     public var ironStopped: Bool?
     public var illRecently: Bool?
+    public var cycleDay: Int?
+    public var cyclePhase: String?
+    public var poorSleep: Bool?
+    public var acuteStress: Bool?
+    public var recentVaccineOrSurgery: Bool?
+    public var medsNoted: String?
     public var note: String?
 
     public init(date: ISODate, time: String? = nil, lab: String? = nil, fastedHours: Double? = nil, trainedHard72h: Bool? = nil,
-                alcohol5d: Bool? = nil, biotinStopped: Bool? = nil, ironStopped: Bool? = nil, illRecently: Bool? = nil, note: String? = nil) {
+                alcohol5d: Bool? = nil, biotinStopped: Bool? = nil, ironStopped: Bool? = nil, illRecently: Bool? = nil,
+                cycleDay: Int? = nil, cyclePhase: String? = nil, poorSleep: Bool? = nil, acuteStress: Bool? = nil,
+                recentVaccineOrSurgery: Bool? = nil, medsNoted: String? = nil, note: String? = nil) {
         self.date = date
         self.time = time
         self.lab = lab
@@ -24,8 +32,20 @@ public struct LabDrawDraft: Equatable {
         self.biotinStopped = biotinStopped
         self.ironStopped = ironStopped
         self.illRecently = illRecently
+        self.cycleDay = cycleDay
+        self.cyclePhase = cyclePhase
+        self.poorSleep = poorSleep
+        self.acuteStress = acuteStress
+        self.recentVaccineOrSurgery = recentVaccineOrSurgery
+        self.medsNoted = medsNoted
         self.note = note
     }
+}
+
+public enum LabValueOperator: String, Codable, Equatable {
+    case equal = "="
+    case belowLimit = "<"
+    case aboveLimit = ">"
 }
 
 public struct LabDraw: Equatable, Identifiable {
@@ -39,6 +59,12 @@ public struct LabResult: Equatable, Identifiable {
     public let date: ISODate
     public let markerID: String
     public let value: Double
+    public let textValue: String?
+    public let valueOperator: LabValueOperator?
+    public let secondaryValue: Double?
+    public let customToDefault: Double?
+    public let specimen: String?
+    public let assay: String?
     public let unit: String
     public let labLow: Double?
     public let labHigh: Double?
@@ -47,6 +73,29 @@ public struct LabResult: Equatable, Identifiable {
     public let defaultUnit: String?
     /// Worked out from the draw's other results by a vault formula, not typed or printed by the lab; it cannot be deleted.
     public var isCalculated = false
+
+    public init(id: Int, drawID: Int, date: ISODate, markerID: String, value: Double, textValue: String? = nil,
+                valueOperator: LabValueOperator? = nil, secondaryValue: Double? = nil, customToDefault: Double? = nil,
+                specimen: String? = nil, assay: String? = nil, unit: String, labLow: Double? = nil, labHigh: Double? = nil,
+                defaultValue: Double? = nil, defaultUnit: String? = nil, isCalculated: Bool = false) {
+        self.id = id
+        self.drawID = drawID
+        self.date = date
+        self.markerID = markerID
+        self.value = value
+        self.textValue = textValue
+        self.valueOperator = valueOperator
+        self.secondaryValue = secondaryValue
+        self.customToDefault = customToDefault
+        self.specimen = specimen
+        self.assay = assay
+        self.unit = unit
+        self.labLow = labLow
+        self.labHigh = labHigh
+        self.defaultValue = defaultValue
+        self.defaultUnit = defaultUnit
+        self.isCalculated = isCalculated
+    }
 }
 
 public final class LabDrawService {
@@ -61,11 +110,16 @@ public final class LabDrawService {
     @discardableResult
     public func addDraw(_ draft: LabDrawDraft) throws -> Int {
         try db.execute("""
-            INSERT INTO lab_draws (draw_date, draw_time, lab, fasted_hours, trained_72h, alcohol_5d, biotin_stopped, iron_stopped, ill_recently, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO lab_draws (
+                draw_date, draw_time, lab, fasted_hours, trained_72h, alcohol_5d, biotin_stopped, iron_stopped, ill_recently,
+                cycle_day, cycle_phase, poor_sleep, acute_stress, recent_vaccine_or_surgery, meds_noted, note
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, [.text(draft.date.string), .optional(draft.time), .optional(draft.lab), .optional(draft.fastedHours),
                   Self.flag(draft.trainedHard72h), Self.flag(draft.alcohol5d), Self.flag(draft.biotinStopped),
-                  Self.flag(draft.ironStopped), Self.flag(draft.illRecently), .optional(draft.note)])
+                  Self.flag(draft.ironStopped), Self.flag(draft.illRecently), .optional(draft.cycleDay),
+                  .optional(draft.cyclePhase), Self.flag(draft.poorSleep), Self.flag(draft.acuteStress),
+                  Self.flag(draft.recentVaccineOrSurgery), .optional(draft.medsNoted), .optional(draft.note)])
         return try db.query("SELECT last_insert_rowid() AS id")[0].int("id")
     }
 
@@ -75,7 +129,11 @@ public final class LabDrawService {
                 date: ISODate(row.text("draw_date"))!, time: row.optionalText("draw_time"), lab: row.optionalText("lab"),
                 fastedHours: row.optionalDouble("fasted_hours"), trainedHard72h: Self.bool(row, "trained_72h"),
                 alcohol5d: Self.bool(row, "alcohol_5d"), biotinStopped: Self.bool(row, "biotin_stopped"),
-                ironStopped: Self.bool(row, "iron_stopped"), illRecently: Self.bool(row, "ill_recently"), note: row.optionalText("note")))
+                ironStopped: Self.bool(row, "iron_stopped"), illRecently: Self.bool(row, "ill_recently"),
+                cycleDay: row.optionalInt("cycle_day"), cyclePhase: row.optionalText("cycle_phase"),
+                poorSleep: Self.bool(row, "poor_sleep"), acuteStress: Self.bool(row, "acute_stress"),
+                recentVaccineOrSurgery: Self.bool(row, "recent_vaccine_or_surgery"),
+                medsNoted: row.optionalText("meds_noted"), note: row.optionalText("note")))
         }
     }
 
@@ -84,14 +142,40 @@ public final class LabDrawService {
     }
 
     @discardableResult
-    public func addResult(drawID: Int, markerID: String, value: Double, unit: String, labLow: Double? = nil, labHigh: Double? = nil) throws -> Int {
+    public func addResult(drawID: Int, markerID: String, value: Double, unit: String, labLow: Double? = nil, labHigh: Double? = nil,
+                          valueOperator: LabValueOperator? = nil, secondaryValue: Double? = nil, customToDefault: Double? = nil,
+                          specimen: String? = nil, assay: String? = nil) throws -> Int {
         guard let marker = catalogue.marker(markerID) else { throw ValidationError("\(markerID) is not in the labs catalogue") }
-        guard marker.units.isEmpty || marker.units.contains(where: { $0.unit == unit }) else {
+        let isKnownUnit = marker.units.isEmpty || marker.units.contains(where: { $0.unit == unit })
+        if let customToDefault, (!customToDefault.isFinite || customToDefault <= 0) {
+            throw ValidationError("Custom conversion multiplier must be a positive number")
+        }
+        guard isKnownUnit || customToDefault != nil else {
             throw ValidationError("\(unit) is not a unit the catalogue gives for \(marker.name)")
         }
         guard value.isFinite else { throw ValidationError("The value must be a number") }
-        try db.execute("INSERT INTO lab_results (draw_id, marker_id, value, unit, lab_low, lab_high) VALUES (?, ?, ?, ?, ?, ?)",
-                       [.int(Int64(drawID)), .text(markerID), .double(value), .text(unit), .optional(labLow), .optional(labHigh)])
+        try db.execute("""
+            INSERT INTO lab_results (
+                draw_id, marker_id, value, value_operator, secondary_value, custom_to_default, specimen, assay, unit, lab_low, lab_high
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, [.int(Int64(drawID)), .text(markerID), .double(value), .optional(valueOperator?.rawValue),
+                  .optional(secondaryValue), .optional(customToDefault), .optional(specimen), .optional(assay),
+                  .text(unit), .optional(labLow), .optional(labHigh)])
+        return try db.query("SELECT last_insert_rowid() AS id")[0].int("id")
+    }
+
+    @discardableResult
+    public func addQualitativeResult(drawID: Int, markerID: String, textValue: String, unit: String = "", specimen: String? = nil) throws -> Int {
+        guard let marker = catalogue.marker(markerID) else { throw ValidationError("\(markerID) is not in the labs catalogue") }
+        let cleaned = textValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { throw ValidationError("Enter a result for \(marker.name)") }
+        let parsedNumeric = Self.parseTiterNumber(cleaned)
+        let resolvedUnit = unit.isEmpty ? (marker.defaultUnit ?? "") : unit
+        try db.execute("""
+            INSERT INTO lab_results (draw_id, marker_id, value, text_value, specimen, unit)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, [.int(Int64(drawID)), .text(markerID), .optional(parsedNumeric), .text(cleaned),
+                  .optional(specimen), .text(resolvedUnit)])
         return try db.query("SELECT last_insert_rowid() AS id")[0].int("id")
     }
 
@@ -116,12 +200,32 @@ public final class LabDrawService {
             SELECT r.*, d.draw_date FROM lab_results r JOIN lab_draws d ON d.id = r.draw_id
             WHERE \(clause) ORDER BY d.draw_date DESC, r.id DESC
             """, params).map { row in
-            let markerID = row.text("marker_id"), value = row.double("value"), unit = row.text("unit")
+            let markerID = row.text("marker_id"), unit = row.text("unit")
+            let numeric = row.optionalDouble("value")
+            let value = numeric ?? 0
+            let customFactor = row.optionalDouble("custom_to_default")
             let marker = catalogue.marker(markerID)
+            let inDefault: Double? = numeric.flatMap { raw in
+                if let customFactor { return raw * customFactor }
+                return marker?.toDefault(raw, unit: unit)
+            }
             return LabResult(id: row.int("id"), drawID: row.int("draw_id"), date: ISODate(row.text("draw_date"))!, markerID: markerID,
-                             value: value, unit: unit, labLow: row.optionalDouble("lab_low"), labHigh: row.optionalDouble("lab_high"),
-                             defaultValue: marker?.toDefault(value, unit: unit), defaultUnit: marker?.defaultUnit)
+                             value: value, textValue: row.optionalText("text_value"),
+                             valueOperator: row.optionalText("value_operator").flatMap(LabValueOperator.init(rawValue:)),
+                             secondaryValue: row.optionalDouble("secondary_value"), customToDefault: customFactor,
+                             specimen: row.optionalText("specimen"), assay: row.optionalText("assay"),
+                             unit: unit, labLow: row.optionalDouble("lab_low"), labHigh: row.optionalDouble("lab_high"),
+                             defaultValue: inDefault, defaultUnit: marker?.defaultUnit)
         }
+    }
+
+    private static func parseTiterNumber(_ text: String) -> Double? {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespaces)
+        if let colon = lower.firstIndex(of: ":"), lower[..<colon].trimmingCharacters(in: .whitespaces) == "1" {
+            let rhs = lower[lower.index(after: colon)...].trimmingCharacters(in: CharacterSet(charactersIn: " +"))
+            return Double(rhs)
+        }
+        return nil
     }
 
     private static func flag(_ value: Bool?) -> SQLValue { value.map { .int($0 ? 1 : 0) } ?? .null }

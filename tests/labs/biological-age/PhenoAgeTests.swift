@@ -45,4 +45,21 @@ final class PhenoAgeTests: XCTestCase {
         guard case .calculated(let result) = try PhenoAge.forDraw(id, draws: draws, birthDate: date("1981-05-03")) else { return XCTFail("complete") }
         XCTAssertEqual(result.phenoAge, 37.4, accuracy: 0.05)
     }
+
+    func testBelowLimitCRPSavedOnDrawFeedsPhenoAgeAsEstimate() throws {
+        let db = try Database.inMemory()
+        let draws = LabDrawService(db, catalogue: PhenoAge.inputCatalogue)
+        let id = try draws.addDraw(LabDrawDraft(date: date("2026-05-03")))
+        for (marker, value, unit) in [("albumin", 4.5, "g/dL"), ("creatinine", 0.9, "mg/dL"), ("glucose", 90.0, "mg/dL"),
+                                      ("lymphocyte-pct", 30.0, "%"), ("mcv", 90.0, "fL"), ("rdw", 13.0, "%"), ("alp", 70.0, "U/L"),
+                                      ("wbc", 6.0, "x10^3/uL")] {
+            try draws.addResult(drawID: id, markerID: marker, value: value, unit: unit)
+        }
+        try draws.addResult(drawID: id, markerID: "hs-crp", value: 0.3, unit: "mg/L", valueOperator: .belowLimit)
+
+        guard case .calculated(let result) = try PhenoAge.forDraw(id, draws: draws, birthDate: date("1981-05-03")) else {
+            return XCTFail("expected calculated PhenoAge")
+        }
+        XCTAssertTrue(result.isEstimate)
+    }
 }

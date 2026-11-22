@@ -109,4 +109,75 @@ final class LabDrawTests: XCTestCase {
         XCTAssertEqual(catalogue.marker("glucose")?.defaultUnit, "mg/dL")
         XCTAssertEqual(catalogue.panel("iron")?.markers, ["ferritin"])
     }
+
+    func testUnitScalerShowsExpectedUnitAndFlags10xUnitMismatch() throws {
+        let json = #"""
+        {"markers": [{"id": "free-t3", "name": "Free T3",
+          "units": [{"unit": "pg/mL", "default": true}, {"unit": "ng/dL", "toDefault": 10}],
+          "bands": [{"label": "Lab", "kind": "lab", "low": 2.3, "high": 4.2, "unit": "pg/mL", "sex": "any"}]}]}
+        """#
+        let marker = try XCTUnwrap(try LabCatalogue(data: Data(json.utf8)).marker("free-t3"))
+
+        let hint = try XCTUnwrap(LabUnitScaler.expectedHint(for: marker, sex: .male))
+        XCTAssertEqual(hint.defaultUnit, "pg/mL")
+        XCTAssertEqual(hint.typicalLow, 2.3)
+        XCTAssertEqual(hint.typicalHigh, 4.2)
+
+        let suggestion = try XCTUnwrap(LabUnitScaler.checkScaleMismatch(value: 0.31, unit: "pg/mL", marker: marker, sex: .male))
+        XCTAssertEqual(suggestion.suggestedUnit, "ng/dL")
+        XCTAssertEqual(suggestion.convertedDefaultValue, 3.1, accuracy: 1e-6)
+        XCTAssertNil(LabUnitScaler.checkScaleMismatch(value: 3.1, unit: "pg/mL", marker: marker, sex: .male))
+    }
+
+    func testCustomMultiplierAcceptsUnlistedLabUnitAndConvertsToDefault() throws {
+        let id = try draw("2026-12-02")
+
+        try draws.addResult(drawID: id, markerID: "ferritin", value: 0.048, unit: "mg/L", customToDefault: 1000)
+
+        let saved = try XCTUnwrap(try draws.history(of: "ferritin").first)
+        XCTAssertEqual(saved.value, 0.048, accuracy: 1e-9)
+        XCTAssertEqual(saved.unit, "mg/L")
+        XCTAssertEqual(saved.customToDefault, 1000)
+        XCTAssertEqual(saved.defaultValue ?? 0, 48, accuracy: 1e-6)
+    }
+
+    func testQualitativeDipsticksTitersBelowLimitAndPairedBloodPressureRoundTrip() throws {
+        let json = #"""
+        {"markers": [
+          {"id": "urine-nitrites", "name": "Urine nitrites", "units": [],
+           "bands": [{"label": "Negative", "kind": "optimal", "values": ["Negative"]}]},
+          {"id": "ana", "name": "ANA", "units": [{"unit": "titer ratio", "default": true}]},
+          {"id": "hs-crp", "name": "hs-CRP", "units": [{"unit": "mg/L", "default": true}]},
+          {"id": "blood-pressure", "name": "Blood pressure", "units": [{"unit": "mmHg", "default": true}]}
+        ]}
+        """#
+        let cat = try LabCatalogue(data: Data(json.utf8))
+        let svc = LabDrawService(db, catalogue: cat)
+        let id = try svc.addDraw(LabDrawDraft(date: date("2026-12-02"), poorSleep: true, acuteStress: false, recentVaccineOrSurgery: false, medsNoted: "Creatine 5g"))
+
+        try svc.addQualitativeResult(drawID: id, markerID: "urine-nitrites", textValue: "Negative", specimen: "Urine")
+        try svc.addQualitativeResult(drawID: id, markerID: "ana", textValue: "1:80", unit: "titer ratio")
+        try svc.addResult(drawID: id, markerID: "hs-crp", value: 0.3, unit: "mg/L", valueOperator: .belowLimit)
+        try svc.addResult(drawID: id, markerID: "blood-pressure", value: 126, unit: "mmHg", secondaryValue: 84, assay: "home-cuff")
+
+        let savedDraw = try XCTUnwrap(try svc.draws().first { $0.id == id })
+        XCTAssertEqual(savedDraw.draft.poorSleep, true)
+        XCTAssertEqual(savedDraw.draft.medsNoted, "Creatine 5g")
+
+        let nitrites = try XCTUnwrap(try svc.history(of: "urine-nitrites").first)
+        XCTAssertEqual(nitrites.textValue, "Negative")
+        XCTAssertEqual(nitrites.specimen, "Urine")
+
+        let ana = try XCTUnwrap(try svc.history(of: "ana").first)
+        XCTAssertEqual(ana.textValue, "1:80")
+        XCTAssertEqual(ana.value, 80)
+
+        let crp = try XCTUnwrap(try svc.history(of: "hs-crp").first)
+        XCTAssertEqual(crp.valueOperator, .belowLimit)
+
+        let bp = try XCTUnwrap(try svc.history(of: "blood-pressure").first)
+        XCTAssertEqual(bp.value, 126)
+        XCTAssertEqual(bp.secondaryValue, 84)
+        XCTAssertEqual(bp.assay, "home-cuff")
+    }
 }

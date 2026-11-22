@@ -388,6 +388,44 @@ public struct DatabaseFileService {
                 """)
             // Version 20: blood draws and their results (Blood Labs).
             try db.runScript(Self.labTables)
+            // Version 21: extended pre-analytic draw metadata, custom unit factors, <LOD operators, paired BP, and qualitative/titer results.
+            let drawColumns = Set(try db.query("PRAGMA table_info(lab_draws)").map { $0.text("name") })
+            for (col, ddl) in [
+                ("cycle_day", "INTEGER CHECK (cycle_day IS NULL OR cycle_day >= 1)"),
+                ("cycle_phase", "TEXT"),
+                ("poor_sleep", "INTEGER CHECK (poor_sleep IS NULL OR poor_sleep IN (0, 1))"),
+                ("acute_stress", "INTEGER CHECK (acute_stress IS NULL OR acute_stress IN (0, 1))"),
+                ("recent_vaccine_or_surgery", "INTEGER CHECK (recent_vaccine_or_surgery IS NULL OR recent_vaccine_or_surgery IN (0, 1))"),
+                ("meds_noted", "TEXT"),
+            ] where !drawColumns.contains(col) {
+                try db.execute("ALTER TABLE lab_draws ADD COLUMN \(col) \(ddl)")
+            }
+            let resultColumns = Set(try db.query("PRAGMA table_info(lab_results)").map { $0.text("name") })
+            if !resultColumns.contains("text_value") {
+                try db.runScript("""
+                    CREATE TABLE lab_results_v21 (
+                        id                INTEGER PRIMARY KEY,
+                        draw_id           INTEGER NOT NULL REFERENCES lab_draws(id) ON DELETE CASCADE,
+                        marker_id         TEXT NOT NULL,
+                        value             REAL,
+                        text_value        TEXT,
+                        value_operator    TEXT CHECK (value_operator IS NULL OR value_operator IN ('=', '<', '>')),
+                        secondary_value   REAL,
+                        custom_to_default REAL CHECK (custom_to_default IS NULL OR custom_to_default > 0),
+                        specimen          TEXT,
+                        assay             TEXT,
+                        unit              TEXT NOT NULL,
+                        lab_low           REAL,
+                        lab_high          REAL,
+                        CHECK (value IS NOT NULL OR text_value IS NOT NULL)
+                    );
+                    INSERT INTO lab_results_v21 (id, draw_id, marker_id, value, unit, lab_low, lab_high)
+                    SELECT id, draw_id, marker_id, value, unit, lab_low, lab_high FROM lab_results;
+                    DROP TABLE lab_results;
+                    ALTER TABLE lab_results_v21 RENAME TO lab_results;
+                    CREATE INDEX IF NOT EXISTS lab_results_by_marker ON lab_results(marker_id);
+                    """)
+            }
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

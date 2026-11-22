@@ -100,17 +100,25 @@ public enum PhenoAge {
         let drawDate = try draws.draws().first { $0.id == drawID }?.draft.date
         guard let day = results.first?.date ?? drawDate else { return .missing(PhenoAgeInput.allCases) }
         var values: [PhenoAgeInput: Double] = [:]
+        var crpBelowLimit = false
         for input in PhenoAgeInput.allCases {
-            guard let (id, unit) = input.marker,
-                  let result = results.first(where: { $0.markerID == id && ($0.defaultUnit == unit || $0.unit == unit) }) else { continue }
-            values[input] = result.unit == unit ? result.value : result.defaultValue
+            guard let (id, unit) = input.marker else { continue }
+            let acceptedUnits: Set<String> = input == .wbc ? [unit, "x 10^9/L"] : [unit]
+            guard let result = results.first(where: {
+                $0.markerID == id && (acceptedUnits.contains($0.unit) || ($0.defaultUnit.map(acceptedUnits.contains) ?? false))
+            }) else { continue }
+            values[input] = acceptedUnits.contains(result.unit) ? result.value : result.defaultValue
+            if input == .hsCRP && result.valueOperator == .belowLimit { crpBelowLimit = true }
         }
         let missing = PhenoAgeInput.allCases.filter { $0 != .age && values[$0] == nil }
         guard missing.isEmpty else { return .missing(missing) }
         let age = Double(day.days(since: birthDate)) / 365.25
+        let hsCRPVal = values[.hsCRP]!
         return .calculated(calculate(PhenoAgeInputs(ageYears: age, albuminGdL: values[.albumin]!, creatinineMgdL: values[.creatinine]!,
-                                                    glucoseMgdL: values[.glucose]!, hsCRPmgL: values[.hsCRP]!, lymphocytePercent: values[.lymphocytes]!,
-                                                    mcvFL: values[.mcv]!, rdwCVPercent: values[.rdw]!, alpUL: values[.alp]!, wbcK: values[.wbc]!)))
+                                                    glucoseMgdL: values[.glucose]!, hsCRPmgL: crpBelowLimit ? nil : hsCRPVal,
+                                                    hsCRPBelowLimit: crpBelowLimit ? hsCRPVal : nil,
+                                                    lymphocytePercent: values[.lymphocytes]!, mcvFL: values[.mcv]!,
+                                                    rdwCVPercent: values[.rdw]!, alpUL: values[.alp]!, wbcK: values[.wbc]!)))
     }
 
     /// The ten inputs with only their formula units, for tests and for a catalogue that lacks them.

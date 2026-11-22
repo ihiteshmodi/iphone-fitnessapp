@@ -27,3 +27,19 @@ Feature: Add a lab draw
     Given a draw with two results
     When I delete the draw
     Then no results remain
+
+  Scenario: Smart unit scaler shows expected unit and flags a 10x unit mismatch
+    Given Free T3 expects pg/mL (typical 2.3-4.2) and also knows ng/dL (factor 10)
+    When I check a typed value of 0.31 in pg/mL
+    Then the scaler warns of a ~10x mismatch and suggests switching the unit to ng/dL (= 3.1 pg/mL)
+
+  Scenario: An unlisted lab unit is accepted when a custom conversion multiplier is supplied
+    Given a draw on 2 Dec 2026
+    When I enter ferritin 0.048 in "mg/L" with custom multiplier 1000 to ng/mL
+    Then the result keeps 0.048 mg/L as typed and converts to 48 ng/mL in the default unit
+
+  Scenario: Qualitative dipsticks, titers, below-detection-limit values, and paired blood pressure are stored
+    Given a draw on 2 Dec 2026
+    When I enter Urine Nitrites "Negative", ANA titer "1:80", hs-CRP "< 0.3" mg/L, and Blood Pressure 126 / 84 mmHg
+    Then Urine Nitrites keeps "Negative", ANA keeps "1:80" with numeric titer 80, hs-CRP feeds PhenoAge as LOD/root-2, and Blood Pressure keeps systolic 126 and diastolic 84
+
