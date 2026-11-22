@@ -29,14 +29,35 @@ private struct Evaluation {
 
     func run(on today: ISODate, db: Database) throws -> [Insight] {
         let draws = LabDrawService(db, catalogue: catalogue)
-        var latest: [String: LabResult] = [:]
+        var prefs = try LabSettings(db).load()
+        prefs.sex = sex
+        prefs.showDrugNotes = showDrugNotes
+
+        let allDraws = try draws.draws()
         var items: [Insight] = []
-        for marker in catalogue.markers {
+        for marker in catalogue.visibleMarkers(for: sex) {
             guard let result = try draws.history(of: marker.id).first else { continue }
-            latest[marker.id] = result
-            items += readingItems(marker, result)
+            let drawDraft = allDraws.first { $0.id == result.drawID }?.draft
+            items += readingItems(marker, result, preferences: prefs, draw: drawDraft)
         }
-        items += patternItems(latest)
+        if let newestDraw = allDraws.first {
+            let sameDrawResults = try draws.results(inDraw: newestDraw.id)
+            let sameDrawMap = Dictionary(uniqueKeysWithValues: sameDrawResults.map { ($0.markerID, $0) })
+            items += patternItems(sameDrawMap, preferences: prefs, draw: newestDraw.draft)
+            let ctx = try? LabNonBloodContext.load(from: db, on: newestDraw.draft.date)
+            for match in try LabPatternEvaluator.evaluate(drawID: newestDraw.id, draws: draws, catalogue: catalogue, preferences: prefs, context: ctx) {
+                let phenoNames = match.matchedPhenotypes.map(\.name)
+                let header = phenoNames.isEmpty ? match.name : "\(match.name) (\(phenoNames.joined(separator: ", ")))"
+                let bullets = match.contextNotes + match.interventions.tier1Foundations.prefix(3)
+                items.append(Insight(ruleID: "lab-engine-\(match.id)", kind: .labs, severity: .improve, title: header,
+                                     detail: LabInsightsRule.lines("Pattern matched on \(match.drawDate.dayMonthYear).", Array(bullets)),
+                                     why: "Clinical pattern engine", day: match.drawDate))
+            }
+            for disc in LabPatternEvaluator.discordances(in: sameDrawResults, catalogue: catalogue, preferences: prefs) {
+                items.append(Insight(ruleID: "lab-\(disc.id)", kind: .labs, severity: .improve, title: disc.title,
+                                     detail: disc.detail, why: "Cross-marker discordance rule", day: newestDraw.draft.date))
+            }
+        }
         items += try GeneticsService(db, catalogue: catalogue).entries().compactMap { entry in
             guard let urgency = entry.row.urgency else { return nil }
             return Insight(ruleID: "lab-gene-\(entry.gene.id)", kind: .labs, severity: .fix,
@@ -53,9 +74,10 @@ private struct Evaluation {
         return items
     }
 
-    private func readingItems(_ marker: LabMarker, _ result: LabResult) -> [Insight] {
-        let reading = LabReader.read(value: result.value, unit: result.unit, marker: marker, sex: sex)
-        let value = "\(LabInsightsRule.number(result.value)) \(result.unit) on \(result.date.dayMonthYear)."
+    private func readingItems(_ marker: LabMarker, _ result: LabResult, preferences: LabPreferences, draw: LabDrawDraft?) -> [Insight] {
+        let reading = LabReader.read(result: result, marker: marker, preferences: preferences, draw: draw)
+        let displayVal = result.textValue ?? "\(LabInsightsRule.number(result.value)) \(result.unit)"
+        let value = "\(displayVal) on \(result.date.dayMonthYear)."
         var items: [Insight] = []
         if let worst = reading.doctorLines.first {
             items.append(Insight(ruleID: "lab-doctor-\(marker.id)", kind: .labs, severity: .fix, title: "\(worst.urgency.title): \(marker.name)",
@@ -78,11 +100,11 @@ private struct Evaluation {
         return items
     }
 
-    private func patternItems(_ latest: [String: LabResult]) -> [Insight] {
-        catalogue.patterns.filter { $0.computable != false }.compactMap { pattern in
+    private func patternItems(_ sameDraw: [String: LabResult], preferences: LabPreferences, draw: LabDrawDraft) -> [Insight] {
+        catalogue.patterns.filter { $0.computable != false && $0.engine == nil }.compactMap { pattern in
             guard let conditions = pattern.conditions, !conditions.isEmpty else { return nil }
-            let applicable = conditions.filter { $0.sex == nil || $0.sex == .any || $0.sex == sex }
-            let held = applicable.filter { holds($0, latest) }
+            let applicable = conditions.filter { sex.allows(sex: $0.sex) }
+            let held = applicable.filter { holds($0, sameDraw, preferences: preferences, draw: draw) }
             let needed: Int
             switch pattern.needed ?? .all {
             case .all: needed = applicable.count
@@ -90,23 +112,51 @@ private struct Evaluation {
             case .count(let n): needed = n
             }
             guard !applicable.isEmpty, held.count >= needed else { return nil }
-            let newest = applicable.compactMap { latest[$0.marker]?.date }.max()
+            let newest = applicable.compactMap { sameDraw[$0.marker]?.date }.max()
             let detail = ([pattern.meaning] + (pattern.whatToDo ?? []) + [pattern.repeatText]).compactMap { $0 }.joined(separator: " ")
-            return Insight(ruleID: "lab-pattern-\(pattern.id)", kind: .labs, severity: .improve, title: pattern.name, detail: detail,
+            let isUrgentDoctor = pattern.doctor != nil && (pattern.id == "pancytopenia" || pattern.id == "ketoacidosis-signal")
+            return Insight(ruleID: isUrgentDoctor ? "lab-doctor-pattern-\(pattern.id)" : "lab-pattern-\(pattern.id)",
+                           kind: .labs, severity: isUrgentDoctor ? .fix : .improve, title: pattern.name,
+                           detail: pattern.doctor.map { "\(detail) \($0)" } ?? detail,
                            why: pattern.source.map { "Vault \($0)" } ?? "Vault pattern", day: newest)
         }
     }
 
-    private func holds(_ condition: LabCondition, _ latest: [String: LabResult]) -> Bool {
-        guard let result = latest[condition.marker], let marker = catalogue.marker(condition.marker),
-              let value = marker.toDefault(result.value, unit: result.unit),
-              let unit = condition.unit, let raw = condition.value, let limit = marker.toDefault(raw, unit: unit) else { return false }
+    private func holds(_ condition: LabCondition, _ sameDraw: [String: LabResult], preferences: LabPreferences, draw: LabDrawDraft) -> Bool {
+        guard let result = sameDraw[condition.marker], let marker = catalogue.marker(condition.marker) else { return false }
+        if let raw = condition.value {
+            guard let value = result.defaultValue ?? (marker.isUnitlessRatio ? result.value : nil) else { return false }
+            let limit: Double
+            if let unit = condition.unit {
+                guard let conv = marker.toDefault(raw, unit: unit) else { return false }
+                limit = conv
+            } else {
+                limit = raw
+            }
+            switch condition.op {
+            case ">": return value > limit
+            case ">=": return value >= limit
+            case "<": return value < limit
+            case "<=": return value <= limit
+            default: return false
+            }
+        }
+        let reading = LabReader.read(result: result, marker: marker, preferences: preferences, draw: draw)
         switch condition.op {
-        case ">": return value > limit
-        case ">=": return value >= limit
-        case "<": return value < limit
-        case "<=": return value <= limit
-        default: return false
+        case "high", "positive":
+            return reading.status == .high
+        case "low", "suppressed":
+            return reading.status == .low
+        case "veryLow":
+            return reading.status == .low && (reading.tier == .criticalLow || reading.tier == .suboptimalLow)
+        case "normal", "optimal":
+            return reading.status == .optimal || reading.status == .disputed
+        case "lowNormal", "lowOrLowNormal", "lowerThird":
+            return reading.status == .low || reading.tier == .watchLow
+        case "abnormal":
+            return reading.status == .low || reading.status == .high
+        default:
+            return false
         }
     }
 

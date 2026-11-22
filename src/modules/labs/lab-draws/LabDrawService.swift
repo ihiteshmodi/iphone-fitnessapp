@@ -185,7 +185,8 @@ public final class LabDrawService {
 
     /// Newest first. A calculated marker is worked out on every draw that has its inputs.
     public func history(of markerID: String) throws -> [LabResult] {
-        guard catalogue.marker(markerID)?.formula != nil else { return try results(where: "r.marker_id = ?", [.text(markerID)]) }
+        let marker = catalogue.marker(markerID)
+        guard marker?.formula != nil || marker?.computed == true else { return try results(where: "r.marker_id = ?", [.text(markerID)]) }
         return try draws().flatMap { try results(inDraw: $0.id).filter { $0.markerID == markerID } }
     }
 

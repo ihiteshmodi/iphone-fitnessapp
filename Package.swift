@@ -62,6 +62,7 @@ let package = Package(
                 "labs/lab-settings/lab-settings.feature",
                 "labs/validity-gate/validity-gate.feature",
                 "labs/longitudinal/longitudinal.feature",
+                "labs/patterns/patterns.feature",
                 "labs/lab-reading/lab-reading.feature",
                 "labs/draw-planning/draw-planning.feature",
                 "labs/lab-insights/lab-insights.feature",
