@@ -65,7 +65,7 @@ public struct LabDashboard {
             var counts = (optimal: 0, disputed: 0, outside: 0, doctor: 0)
             for marker in markers {
                 let latest = history[marker.id]![0]
-                let reading = LabReader.read(value: latest.value, unit: latest.unit, marker: marker, sex: preferences.sex)
+                let reading = LabReader.read(result: latest, marker: marker, preferences: preferences)
                 if !reading.doctorLines.isEmpty { counts.doctor += 1 }
                 switch reading.status {
                 case .optimal: counts.optimal += 1
@@ -84,7 +84,7 @@ public struct LabDashboard {
         let heart = heartMarkers.compactMap(catalogue.marker).map { marker -> HeartItem in
             let latest = history[marker.id]?.first
             return HeartItem(marker: marker, latest: latest,
-                             reading: latest.map { LabReader.read(value: $0.value, unit: $0.unit, marker: marker, sex: preferences.sex) })
+                             reading: latest.map { LabReader.read(result: $0, marker: marker, preferences: preferences) })
         }
         let hormones = hormoneMarkers.compactMap(catalogue.marker).filter { history[$0.id] != nil }
             .map { MarkerSeries(marker: $0, points: series($0, history)) }

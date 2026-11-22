@@ -41,3 +41,18 @@ Feature: Read a result the vault's way
   Scenario: Female bands are ignored for a man
     When I read 45 ng/mL for a man
     Then the women's band is not used
+
+  Scenario: Adjacent undisputed optimal sub-bands union cleanly without false disputed flags
+    Given ALT has undisputed optimal bands "< 17 U/L (Excellent)" and "17-25 U/L (Normal-optimal)"
+    When I read 14 U/L and 21 U/L
+    Then both read as optimal rather than disputed
+
+  Scenario: Demographic stratum selector picks matching age bracket and assay
+    Given a marker with age-bracketed strata (20-29, 30-39, 40-49) and an LC-MS/MS stratum
+    When a 34-year-old man reads a result on draw day
+    Then the 30-39 stratum is selected with its optimal bounds and severity tier
+
+  Scenario: Qualitative dipsticks, titers, lab ULN multiples, paired blood pressure, and conditional doctor lines
+    When Urine Nitrites is "Negative" and "Positive", ANA is "1:80", RF is 45 with lab high 14, and Blood Pressure is 124 / 84 mmHg
+    Then Nitrites reads optimal then high, ANA reads watchHigh, RF reads high (> 3x ULN), and BP reads Stage 1 hypertension (from diastolic 84)
+
