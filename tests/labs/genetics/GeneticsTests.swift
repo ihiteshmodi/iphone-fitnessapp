@@ -186,4 +186,143 @@ final class GeneticsTests: XCTestCase {
         XCTAssertTrue(epistatic.contains { $0.geneID == "f5-f2" && $0.isUrgentSafetyStop })
         XCTAssertTrue(epistatic.contains { $0.geneID == "mthfr" })
     }
+
+    func testAllFiveActionCategoriesInLabInsightsWithDietAndContextCrossChecks() throws {
+        let catJSON = #"""
+        {
+          "markers": [
+            {"id": "homocysteine", "name": "Homocysteine", "units": [{"unit": "µmol/L", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": null, "high": 7.5, "unit": "µmol/L"}]},
+            {"id": "apob", "name": "ApoB", "units": [{"unit": "mg/dL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 60, "high": 80, "unit": "mg/dL"}],
+             "interventions": {"tier1Foundations": ["Walk daily"], "tier2Nutrition": ["Lower sat fat"], "tier3Supplements": [], "tier4Peptides": [], "whatNotToDo": []}},
+            {"id": "b12", "name": "Vitamin B12", "units": [{"unit": "pg/mL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 500, "high": 1300, "unit": "pg/mL"}]},
+            {"id": "mma", "name": "MMA", "units": [{"unit": "nmol/mL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": null, "high": 0.27, "unit": "nmol/mL"}]},
+            {"id": "hematocrit", "name": "Hematocrit", "units": [{"unit": "%", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 43, "high": 49, "unit": "%"}]}
+          ],
+          "genes": [
+            {"id": "mthfr", "name": "MTHFR", "bucket": "take", "actionCategory": "nutrient_swap",
+             "genotypes": [{"genotype": "C677T TT (Homozygous / Two Copies)", "riskLevel": "high_impact"}],
+             "formSubstitutions": [{"replaceOrAvoid": "Folic acid", "useInstead": "L-5-MTHF (methylfolate) 400–800 mcg", "targetGenotypes": ["C677T TT"], "crossVolumeRef": null}]},
+            {"id": "hfe", "name": "HFE", "bucket": "doctor", "actionCategory": "nutrient_swap",
+             "genotypes": [{"genotype": "C282Y / H63D Compound Heterozygous", "riskLevel": "moderate_modifier"}],
+             "formSubstitutions": [{"replaceOrAvoid": "Iron supplements and iron-containing multivitamins", "useInstead": "Iron-free formulas", "targetGenotypes": ["C282Y / H63D"], "crossVolumeRef": null}]},
+            {"id": "fut2", "name": "FUT2", "bucket": "read", "actionCategory": "marker_shift",
+             "genotypes": [{"genotype": "rs601338 AA (Homozygous non-secretor)", "riskLevel": "moderate_modifier"}]},
+            {"id": "lct-mcm6", "name": "LCT / MCM6", "bucket": "take", "actionCategory": "marker_shift",
+             "genotypes": [{"genotype": "CC (Adult-type hypolactasia / Lactase non-persistence)", "riskLevel": "moderate_modifier"}]},
+            {"id": "apoe", "name": "APOE", "bucket": "priority", "actionCategory": "priority_shift",
+             "genotypes": [{"genotype": "e3/e4", "riskLevel": "moderate_modifier"}],
+             "hardContraindications": [{"triggerGenotype": "e3/e4 or e4/e4", "forbiddenItems": [], "mandatoryReferral": "Physician or Certified Genetic Counselor", "coachStopLine": "Live genetic counseling required"}]},
+            {"id": "cyp1a2", "name": "CYP1A2", "bucket": "priority", "actionCategory": "priority_shift",
+             "genotypes": [{"genotype": "CC (Homozygous slow metabolizer)", "riskLevel": "high_impact"}]},
+            {"id": "vdr", "name": "VDR", "bucket": "ignore", "actionCategory": "change_nothing", "changeNothingMandate": true,
+             "genotypes": [{"genotype": "FokI FF / BsmI BB / TaqI tt (Single or Combined SNPs)", "riskLevel": "informational_only"}]},
+            {"id": "actn3-ace", "name": "ACTN3 & ACE", "bucket": "ignore", "actionCategory": "change_nothing", "changeNothingMandate": true,
+             "genotypes": [{"genotype": "ACTN3 XX (rs1815739 TT, alpha-actinin-3 null) / ACE II", "riskLevel": "informational_only"}]},
+            {"id": "gstm1-gstt1", "name": "GSTM1 & GSTT1", "bucket": "ignore", "actionCategory": "change_nothing", "changeNothingMandate": true,
+             "genotypes": [{"genotype": "GSTM1 Null (homozygous deletion)", "riskLevel": "informational_only"}]},
+            {"id": "g6pd", "name": "G6PD", "bucket": "doctor", "actionCategory": "hard_contraindication",
+             "genotypes": [{"genotype": "Hemizygous Male or Homozygous Female Pathogenic Variant (Class II/III Deficiency)", "riskLevel": "contraindicated", "urgency": "sameDay", "meaning": "G6PD deficiency"}],
+             "hardContraindications": [{"triggerGenotype": "Class II/III Deficiency", "forbiddenItems": ["High-dose IV Vitamin C", "Methylene blue", "Fava beans"], "mandatoryReferral": "Hematologist / Physician", "coachStopLine": "Immediate ED if dark urine or jaundice"}]},
+            {"id": "f5-f2", "name": "Factor V Leiden / Prothrombin", "bucket": "doctor", "actionCategory": "hard_contraindication",
+             "genotypes": [{"genotype": "Factor V Leiden Heterozygous (F5 rs6025)", "riskLevel": "high_impact", "urgency": "soon", "meaning": "Activated protein C resistance"}],
+             "hardContraindications": [{"triggerGenotype": "Factor V Leiden Heterozygous", "forbiddenItems": ["Combined oral estrogen contraceptives", "Unsupervised TRT"], "mandatoryReferral": "Hematologist / Prescribing Physician", "coachStopLine": "Hematocrit > 52% on TRT requires immediate prescriber review"}]},
+            {"id": "cyp2d6-cyp2c19", "name": "CYP2D6 & CYP2C19", "bucket": "doctor", "actionCategory": "hard_contraindication",
+             "genotypes": [{"genotype": "CYP2D6 Ultrarapid Metabolizer (*1/*1xN, *2/*2xN)", "riskLevel": "contraindicated", "urgency": "soon", "meaning": "Ultrarapid CYP2D6 pharmacogene"}],
+             "hardContraindications": [{"triggerGenotype": "CYP2D6 Ultrarapid", "forbiddenItems": ["Codeine", "Tramadol", "St. John's Wort"], "mandatoryReferral": "Prescribing Physician or Clinical Pharmacist", "coachStopLine": "Never alter prescription doses without prescriber"}]}
+          ]
+        }
+        """#
+        let fullCat = try LabCatalogue(data: Data(catJSON.utf8))
+        let genes = GeneticsService(db, catalogue: fullCat)
+        let settings = LabSettings(db)
+        let foods = FoodLibrary(db)
+        let plans = DietPlanService(db)
+        let drawSvc = LabDrawService(db, catalogue: fullCat)
+        let today = date("2027-03-10")
+
+        try settings.setSex(.male)
+        try settings.confirmContext(onTRTOrHRT: false, activeMedications: [], drinksAlcoholRegularly: false)
+
+        // 1. Save genes across all 5 categories:
+        // nutrient_swap: MTHFR + HFE; marker_shift: FUT2 + LCT; priority_shift: APOE + CYP1A2;
+        // change_nothing: VDR + ACTN3 + GSTM1; hard_contraindication: G6PD + F5 + CYP2D6
+        try genes.set("mthfr", genotype: "C677T TT (Homozygous / Two Copies)", on: date("2027-03-01"))
+        try genes.set("hfe", genotype: "C282Y / H63D Compound Heterozygous", on: date("2027-03-01"))
+        try genes.set("fut2", genotype: "rs601338 AA (Homozygous non-secretor)", on: date("2027-03-01"))
+        try genes.set("lct-mcm6", genotype: "CC (Adult-type hypolactasia / Lactase non-persistence)", on: date("2027-03-01"))
+        try genes.set("apoe", genotype: "e3/e4", on: date("2027-03-01"))
+        try genes.set("cyp1a2", genotype: "CC (Homozygous slow metabolizer)", on: date("2027-03-01"))
+        try genes.set("vdr", genotype: "FokI FF / BsmI BB / TaqI tt (Single or Combined SNPs)", on: date("2027-03-01"))
+        try genes.set("actn3-ace", genotype: "ACTN3 XX (rs1815739 TT, alpha-actinin-3 null) / ACE II", on: date("2027-03-01"))
+        try genes.set("gstm1-gstt1", genotype: "GSTM1 Null (homozygous deletion)", on: date("2027-03-01"))
+        try genes.set("g6pd", genotype: "Hemizygous Male or Homozygous Female Pathogenic Variant (Class II/III Deficiency)", on: date("2027-03-01"))
+        try genes.set("f5-f2", genotype: "Factor V Leiden Heterozygous (F5 rs6025)", on: date("2027-03-01"))
+        try genes.set("cyp2d6-cyp2c19", genotype: "CYP2D6 Ultrarapid Metabolizer (*1/*1xN, *2/*2xN)", on: date("2027-03-01"))
+
+        // Clean baseline draw (Homocysteine 6.1 optimal, ApoB 55 optimal, B12 + MMA present) -> change_nothing & clean swaps stay quiet!
+        let d1 = try drawSvc.addDraw(LabDrawDraft(date: date("2027-03-02"), time: "08:00", fastedHours: 12))
+        try drawSvc.addResult(drawID: d1, markerID: "homocysteine", value: 6.1, unit: "µmol/L")
+        try drawSvc.addResult(drawID: d1, markerID: "apob", value: 55, unit: "mg/dL")
+        try drawSvc.addResult(drawID: d1, markerID: "b12", value: 600, unit: "pg/mL")
+        try drawSvc.addResult(drawID: d1, markerID: "mma", value: 0.19, unit: "nmol/mL")
+
+        let insightSvc = InsightService(db, daily: [], setup: [], labs: [LabInsightsRule(catalogue: fullCat)])
+        let cleanAlerts = try insightSvc.labs(on: today)
+
+        // Change-nothing genes emit ZERO alerts when diet is clean
+        XCTAssertFalse(cleanAlerts.contains { $0.ruleID.contains("vdr") || $0.ruleID.contains("actn3") || $0.ruleID.contains("gstm1") })
+        // Clean MTHFR, LCT, CYP1A2 emit ZERO diet-collision alerts when no folic acid, lactose, or >200mg caffeine is logged
+        XCTAssertFalse(cleanAlerts.contains { $0.ruleID == "lab-gene-swap-mthfr" })
+        XCTAssertFalse(cleanAlerts.contains { $0.ruleID == "lab-gene-diet-lct-mcm6" })
+        XCTAssertFalse(cleanAlerts.contains { $0.ruleID == "lab-gene-diet-cyp1a2" })
+        // Mandatory hard-contraindication & APOE e4 clinical referrals DO appear even on clean diet
+        XCTAssertTrue(cleanAlerts.contains { $0.ruleID == "lab-gene-contra-g6pd" && $0.severity == .fix })
+        XCTAssertTrue(cleanAlerts.contains { $0.ruleID == "lab-gene-contra-apoe" && $0.severity == .fix })
+
+        // 2. Now add colliding foods/supplements, ApoB 72, Hematocrit 53.5%, and switch TRT + SSRI context ON!
+        let folicSupp = try foods.add(FoodDraft(name: "Synthetic Folic Acid 800mcg", kind: .supplement, unit: "cap", baseQuantity: 1, nutrients: [.folate: 800]))
+        let ironSupp = try foods.add(FoodDraft(name: "Ferrous Sulfate Iron", kind: .supplement, unit: "tab", baseQuantity: 1, nutrients: [.iron: 28]))
+        let nacSupp = try foods.add(FoodDraft(name: "NAC Glutathione Detox", kind: .supplement, unit: "cap", baseQuantity: 1))
+        let sjwHerb = try foods.add(FoodDraft(name: "St John's Wort Extract", kind: .herb, unit: "cap", baseQuantity: 1))
+        let wheyConc = try foods.add(FoodDraft(name: "Whey Concentrate Shake", kind: .food, unit: "scoop", baseQuantity: 1, protein: 24))
+        let espresso = try foods.add(FoodDraft(name: "Double Espresso", kind: .liquid, unit: "cup", baseQuantity: 1, nutrients: [.caffeine: 160]))
+
+        try plans.addItem(foodID: folicSupp, quantity: 1, meal: "Morning", from: date("2027-03-05"))
+        try plans.addItem(foodID: ironSupp, quantity: 1, meal: "Morning", from: date("2027-03-05"))
+        try plans.addItem(foodID: nacSupp, quantity: 1, meal: "Morning", from: date("2027-03-05"))
+        try plans.addItem(foodID: sjwHerb, quantity: 1, meal: "Evening", from: date("2027-03-05"))
+        try plans.addItem(foodID: wheyConc, quantity: 1, meal: "Post-Workout", from: date("2027-03-05"))
+        try plans.addItem(foodID: espresso, quantity: 2, meal: "Afternoon", from: date("2027-03-05"))
+
+        try settings.confirmContext(onTRTOrHRT: true, activeMedications: [.cpicPrescription], drinksAlcoholRegularly: false)
+
+        let d2 = try drawSvc.addDraw(LabDrawDraft(date: date("2027-03-08"), time: "08:00", fastedHours: 12))
+        try drawSvc.addResult(drawID: d2, markerID: "apob", value: 72, unit: "mg/dL")
+        try drawSvc.addResult(drawID: d2, markerID: "hematocrit", value: 53.5, unit: "%")
+        try drawSvc.addResult(drawID: d2, markerID: "b12", value: 650, unit: "pg/mL") // no MMA on newest draw -> FUT2 reminder
+
+        let activeAlerts = try insightSvc.labs(on: today)
+
+        // Nutrient swaps fire on real diet collisions
+        XCTAssertTrue(activeAlerts.contains { $0.ruleID == "lab-gene-swap-mthfr" && $0.detail.contains("L-5-MTHF") })
+        XCTAssertTrue(activeAlerts.contains { $0.ruleID == "lab-gene-swap-hfe" && $0.severity == .fix })
+        // Change-nothing guardrail fires on NAC detox stack, while VDR & ACTN3 remain silent
+        XCTAssertTrue(activeAlerts.contains { $0.ruleID == "lab-gene-guardrail-gstm1-gstt1" })
+        XCTAssertFalse(activeAlerts.contains { $0.ruleID.contains("vdr") || $0.ruleID.contains("actn3") })
+        // Marker shift & priority shift fire
+        XCTAssertTrue(activeAlerts.contains { $0.ruleID == "lab-gene-shift-fut2" })
+        XCTAssertTrue(activeAlerts.contains { $0.ruleID == "lab-gene-diet-lct-mcm6" })
+        XCTAssertTrue(activeAlerts.contains { $0.ruleID == "lab-gene-diet-cyp1a2" })
+        XCTAssertTrue(activeAlerts.contains { $0.ruleID == "lab-band-apob" && $0.title == "ApoB high" })
+        // Hard contraindications + TRT / Hematocrit / SSRI + St John's Wort fire as .fix
+        XCTAssertTrue(activeAlerts.contains { $0.ruleID == "lab-doctor-hematocrit" && $0.severity == .fix })
+        XCTAssertTrue(activeAlerts.contains { $0.ruleID == "lab-gene-contra-f5-f2" && $0.detail.contains("TRT") })
+        XCTAssertTrue(activeAlerts.contains { $0.ruleID == "lab-gene-contra-cyp2d6-cyp2c19" && $0.detail.contains("St. John") })
+    }
 }
+

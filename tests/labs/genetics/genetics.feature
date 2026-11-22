@@ -39,3 +39,29 @@ Feature: Genotypes, read the vault's way
     And Homocysteine 6.2 umol/L notes that the MTHFR variant is phenotypically silent
     And Hematocrit 53.5% on TRT raises an urgent prescriber doctor line and epistatic thrombotic match
 
+  Scenario: Nutrient-swap genes flag logged synthetic folic acid or iron supplements and stay quiet when diet is clean
+    Given the user saved MTHFR C677T TT and HFE C282Y/H63D Compound Heterozygous
+    When their active diet plan includes a Folic Acid supplement and an Iron supplement
+    Then LabInsightsRule flags swapping folic acid to L-5-MTHF and stopping supplemental iron
+    When those supplements are removed from the diet plan and homocysteine is optimal
+    Then no nutrient-swap supplement collision alerts fire
+
+  Scenario: Change-nothing genes stay silent on clean diets but flag forbidden genotype-chasing stacks
+    Given the user saved VDR FokI FF, ACTN3 XX, and GSTM1 Null
+    When their diet plan has no forbidden detox or megadose Vitamin D supplements
+    Then LabInsightsRule emits zero genotype-driven supplement or training alerts for those change-nothing genes
+    When they add an NAC detox supplement to their diet plan
+    Then LabInsightsRule flags the GSTM1 Change-Nothing Mandate guardrail against detox stacks
+
+  Scenario: Priority-shift and marker-shift genes flag caffeine, lactose, and APOE e4 ApoB or referral rules
+    Given the user saved CYP1A2 rs762551 CC slow metabolizer, LCT/MCM6 CC, and APOE e3/e4
+    When their diet plan has 300 mg daily caffeine and Whey Concentrate plus ApoB 72 mg/dL
+    Then LabInsightsRule flags the CYP1A2 200 mg morning caffeine cap, LCT lactose swap, APOE e4 ApoB high, and APOE genetic-counselor note
+
+  Scenario: Hard contraindication genes surface G6PD, Factor V + TRT, and CYP2D6/2C19 medication stop-lines and export to markdown
+    Given the user saved G6PD Class II/III Deficiency, Factor V Leiden Heterozygous on TRT, and CYP2D6 Ultrarapid on SSRIs with St John's Wort
+    When LabInsightsRule and LabsReviewService run
+    Then LabInsightsRule surfaces fix-level red-line alerts for G6PD, Factor V on TRT, and CYP2D6 Rx/St John's Wort collision
+    And the exported labs-review markdown includes Active genetic modifiers, clinical context, and genotype-adjusted draw readings
+
+

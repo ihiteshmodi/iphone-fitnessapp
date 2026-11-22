@@ -79,4 +79,49 @@ final class LabsReviewTests: XCTestCase {
         XCTAssertTrue(text.contains("Lp(a)"), text)
         XCTAssertTrue(text.contains("Drawn outside morning window"), text)
     }
+
+    func testReviewExportIncludesActiveGeneticModifiersExternalVerifiersAndGenotypeAdjustedReadings() throws {
+        let genJSON = #"""
+        {
+          "markers": [
+            {"id": "apob", "name": "ApoB", "units": [{"unit": "mg/dL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 60, "high": 80, "unit": "mg/dL"}]}
+          ],
+          "genes": [
+            {"id": "apoe", "name": "APOE", "bucket": "priority", "actionCategory": "priority_shift",
+             "genotypes": [{"genotype": "e3/e4", "riskLevel": "moderate_modifier"}],
+             "hardContraindications": [{"triggerGenotype": "e3/e4", "forbiddenItems": [], "mandatoryReferral": "Physician or Certified Genetic Counselor", "coachStopLine": "Live disclosure"}]},
+            {"id": "hla-dq2-dq8", "name": "HLA-DQ2 / HLA-DQ8", "bucket": "read", "actionCategory": "marker_shift",
+             "genotypes": [{"genotype": "HLA-DQ2.5 and/or HLA-DQ8 Positive (Heterozygous or Homozygous)", "riskLevel": "moderate_modifier"}],
+             "phenotypicVerifiers": [{"kind": "external_lab", "markerID": null, "patternID": null, "markerName": "tTG-IgA (Tissue Transglutaminase IgA) / Total IgA", "role": "mandatory_confirmer", "rule": "Order while eating gluten"}]},
+            {"id": "vdr", "name": "VDR", "bucket": "ignore", "actionCategory": "change_nothing", "changeNothingMandate": true,
+             "genotypes": [{"genotype": "FokI FF / BsmI BB / TaqI tt (Single or Combined SNPs)", "riskLevel": "informational_only"}]}
+          ]
+        }
+        """#
+        catalogue = try LabCatalogue(data: Data(genJSON.utf8))
+        let settings = LabSettings(db)
+        try settings.setSex(.male)
+        try settings.confirmContext(onTRTOrHRT: true, activeMedications: [.cpicPrescription], drinksAlcoholRegularly: false)
+
+        let genes = GeneticsService(db, catalogue: catalogue)
+        try genes.set("apoe", genotype: "e3/e4", on: date("2026-11-01"))
+        try genes.set("hla-dq2-dq8", genotype: "HLA-DQ2.5 and/or HLA-DQ8 Positive (Heterozygous or Homozygous)", on: date("2026-11-01"))
+        try genes.set("vdr", genotype: "FokI FF / BsmI BB / TaqI tt (Single or Combined SNPs)", on: date("2026-11-01"))
+
+        let draws = LabDrawService(db, catalogue: catalogue)
+        let id = try draws.addDraw(LabDrawDraft(date: date("2026-11-10"), time: "08:00", fastedHours: 12))
+        try draws.addResult(drawID: id, markerID: "apob", value: 72, unit: "mg/dL")
+
+        let insights = try InsightService(db, daily: [], setup: [], labs: [LabInsightsRule(catalogue: catalogue)]).labs(on: date("2026-11-19"))
+        let text = try export(insights: insights)
+
+        XCTAssertTrue(text.contains("TRT/HRT: yes"), text)
+        XCTAssertTrue(text.contains("# Active genetic modifiers"), text)
+        XCTAssertTrue(text.contains("APOE"), text)
+        XCTAssertTrue(text.contains("Change-nothing mandate"), text)
+        XCTAssertTrue(text.contains("tTG-IgA"), text)
+        XCTAssertTrue(text.contains("ApoB: 72 mg/dL, high"), text)
+    }
 }
+

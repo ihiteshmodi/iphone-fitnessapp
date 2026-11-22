@@ -32,6 +32,8 @@ private struct Evaluation {
         var prefs = try LabSettings(db).load()
         prefs.sex = sex
         prefs.showDrugNotes = showDrugNotes
+        let geneticsSvc = GeneticsService(db, catalogue: catalogue)
+        let genotypes = try geneticsSvc.entries()
 
         let allDraws = try draws.draws()
         var items: [Insight] = []
@@ -39,10 +41,12 @@ private struct Evaluation {
             guard let result = try draws.history(of: marker.id).first else { continue }
             let drawDraft = allDraws.first { $0.id == result.drawID }?.draft
             let sameDraw = (try? draws.results(inDraw: result.drawID)) ?? []
-            items += readingItems(marker, result, preferences: prefs, draw: drawDraft, sameDrawResults: sameDraw)
+            items += readingItems(marker, result, preferences: prefs, draw: drawDraft, sameDrawResults: sameDraw, genotypes: genotypes)
         }
+        var newestResults: [LabResult] = []
         if let newestDraw = allDraws.first {
             let sameDrawResults = try draws.results(inDraw: newestDraw.id)
+            newestResults = sameDrawResults
             let sameDrawMap = Dictionary(uniqueKeysWithValues: sameDrawResults.map { ($0.markerID, $0) })
             if let cytopenia = multilineageCytopeniaItem(sameDrawMap, preferences: prefs, draw: newestDraw.draft) {
                 items.append(cytopenia)
@@ -62,14 +66,17 @@ private struct Evaluation {
                                      detail: disc.detail, why: "Cross-marker discordance rule", day: newestDraw.draft.date))
             }
         }
-        items += try GeneticsService(db, catalogue: catalogue).entries().compactMap { entry in
+        items += genotypes.compactMap { entry in
             guard let urgency = entry.row.urgency else { return nil }
             return Insight(ruleID: "lab-gene-\(entry.gene.id)", kind: .labs, severity: .fix,
                            title: "\(urgency.title): \(entry.gene.name) \(entry.row.genotype)",
                            detail: LabInsightsRule.lines(entry.row.meaning ?? "", entry.row.actions ?? []),
                            why: entry.gene.source.map { "Vault \($0)" } ?? "Vault genetics", day: entry.enteredOn)
         }
-        items += try DrawPlanner(catalogue: catalogue, draws: draws, sex: sex, showDrugNotes: showDrugNotes).retests().compactMap { due in
+        items += GeneticsModifierEvaluator.evaluateInsights(
+            on: today, db: db, genotypes: genotypes, preferences: prefs,
+            latestResults: newestResults, latestDraw: allDraws.first?.draft)
+        items += try DrawPlanner(catalogue: catalogue, draws: draws, sex: sex, genetics: geneticsSvc, showDrugNotes: showDrugNotes).retests().compactMap { due in
             guard let from = due.from, let last = due.lastDate, today >= from else { return nil }
             return Insight(ruleID: "lab-retest-\(due.marker.id)", kind: .labs, severity: .tip, title: "Retest \(due.marker.name)",
                            detail: "Last tested \(last.dayMonthYear). \(due.rule?.text ?? "")", why: due.rule?.source.map { "Vault \($0)" } ?? "Vault retest timing",
@@ -79,8 +86,8 @@ private struct Evaluation {
     }
 
     private func readingItems(_ marker: LabMarker, _ result: LabResult, preferences: LabPreferences,
-                              draw: LabDrawDraft?, sameDrawResults: [LabResult]) -> [Insight] {
-        let reading = LabReader.read(result: result, marker: marker, preferences: preferences, draw: draw)
+                              draw: LabDrawDraft?, sameDrawResults: [LabResult], genotypes: [GenotypeEntry]) -> [Insight] {
+        let reading = LabReader.read(result: result, marker: marker, preferences: preferences, draw: draw, genotypes: genotypes)
         let displayVal = result.textValue ?? "\(LabInsightsRule.number(result.value)) \(result.unit)"
         let value = "\(displayVal) on \(result.date.dayMonthYear)."
         let specialistsLine = (marker.escalation?.specialists).flatMap { $0.isEmpty ? nil : "Specialists: \($0.joined(separator: ", "))" }
@@ -110,11 +117,12 @@ private struct Evaluation {
                                          catalogue: catalogue, sex: sex)
                     .map { "Pre-analytic check: \($0.title) — \($0.detail)" }
             } ?? []
+            let geneticBullets = reading.geneticNotes.map { "Genetic modifier: \($0)" }
             let steppedBullets = steppedActionLines(marker: marker, side: side)
             let legacyBullets = marker.whatToDo.filter { ($0.when == nil || $0.when == side || $0.when == "any") && shows($0.tag) }.map(\.text)
             let actionBullets = steppedBullets.isEmpty ? legacyBullets : steppedBullets
             items.append(Insight(ruleID: "lab-band-\(marker.id)", kind: .labs, severity: .improve, title: "\(marker.name) \(side)",
-                                 detail: LabInsightsRule.lines(value, validityBullets + actionBullets),
+                                 detail: LabInsightsRule.lines(value, geneticBullets + validityBullets + actionBullets),
                                  why: "Vault \(marker.lesson)", day: result.date))
         case .disputed:
             items.append(Insight(ruleID: "lab-disputed-\(marker.id)", kind: .labs, severity: .tip, title: "\(marker.name) in a disputed zone",

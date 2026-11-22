@@ -106,4 +106,45 @@ final class RealCatalogueTests: XCTestCase {
         let vdr = try XCTUnwrap(catalogue.gene("vdr"))
         XCTAssertTrue(vdr.changeNothingMandate)
     }
+
+    func testRealCompiledGeneticsEndToEndAcrossAllFiveActionCategories() throws {
+        let catalogue = try realCatalogue()
+        let db = try Database.inMemory()
+        let settings = LabSettings(db)
+        try settings.setSex(.male)
+        try settings.confirmContext(onTRTOrHRT: true, activeMedications: [.cpicPrescription], drinksAlcoholRegularly: false)
+
+        let genes = GeneticsService(db, catalogue: catalogue)
+        // Pick real compiled genotypes across all 5 categories + legacy alias
+        try genes.set("mthfr", genotype: try XCTUnwrap(catalogue.gene("mthfr")?.genotypes?.last?.genotype), on: date("2027-03-01"))
+        try genes.set("hfe", genotype: try XCTUnwrap(catalogue.gene("hfe")?.genotypes?.last?.genotype), on: date("2027-03-01"))
+        try genes.set("fut2", genotype: try XCTUnwrap(catalogue.gene("fut2")?.genotypes?.last?.genotype), on: date("2027-03-01"))
+        try genes.set("hla-dq2-dq8", genotype: try XCTUnwrap(catalogue.gene("hla-dq2-dq8")?.genotypes?.last?.genotype), on: date("2027-03-01"))
+        try genes.set("apoe", genotype: "e3/e4", on: date("2027-03-01"))
+        try genes.set("vdr", genotype: try XCTUnwrap(catalogue.gene("vdr")?.genotypes?.last?.genotype), on: date("2027-03-01"))
+        try genes.set("g6pd", genotype: try XCTUnwrap(catalogue.gene("g6pd")?.genotypes?.last?.genotype), on: date("2027-03-01"))
+        try genes.set("f5", genotype: try XCTUnwrap(catalogue.gene("f5")?.genotypes?.first { !$0.isBaseline }?.genotype), on: date("2027-03-01"))
+
+        let draws = LabDrawService(db, catalogue: catalogue)
+        let order = try DrawPlanner(catalogue: catalogue, draws: draws, sex: .male, genetics: genes).order()
+        let genPanel = try XCTUnwrap(order.first { $0.panel.id == "from-genetics" })
+        XCTAssertTrue(genPanel.tests.contains { $0.name.contains("tTG-IgA") && $0.markerID == nil })
+        XCTAssertFalse(genPanel.tests.contains { $0.markerID == "tg-antibodies" })
+        XCTAssertTrue(genPanel.tests.contains { $0.markerID == "mma" })
+
+        let drawID = try draws.addDraw(LabDrawDraft(date: date("2027-03-05"), time: "08:00", fastedHours: 12))
+        try draws.addResult(drawID: drawID, markerID: "apob", value: 72, unit: "mg/dL")
+        try draws.addResult(drawID: drawID, markerID: "hematocrit", value: 53.5, unit: "%")
+        try draws.addResult(drawID: drawID, markerID: "b12", value: 640, unit: "pg/mL")
+
+        let insights = try InsightService(db, daily: [], setup: [], labs: [LabInsightsRule(catalogue: catalogue)]).labs(on: date("2027-03-10"))
+        XCTAssertTrue(insights.contains { $0.ruleID == "lab-band-apob" && $0.title == "ApoB high" })
+        XCTAssertTrue(insights.contains { $0.ruleID == "lab-doctor-hematocrit" && $0.severity == .fix })
+        XCTAssertTrue(insights.contains { $0.ruleID == "lab-gene-contra-g6pd" && $0.severity == .fix })
+        XCTAssertFalse(insights.contains { $0.ruleID.contains("vdr") })
+
+        let md = try LabsReviewService(db, catalogue: catalogue).markdown(on: date("2027-03-10"), insights: insights)
+        XCTAssertTrue(md.contains("# Active genetic modifiers"))
+        XCTAssertTrue(md.contains("tTG-IgA"))
+    }
 }
