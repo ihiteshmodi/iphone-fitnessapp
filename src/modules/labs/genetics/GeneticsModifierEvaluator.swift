@@ -95,8 +95,31 @@ public enum GeneticsModifierEvaluator {
         let active = Dictionary(uniqueKeysWithValues: genotypes.map { ($0.gene.id, $0) })
         var matches: [LabGeneticEpistaticMatch] = []
 
-        // 1. Methylation & FUT2 / MTR-MTRR / MTHFR 2x2 (Homocysteine x MMA)
-        let methCarrier = [active["fut2"], active["mthfr"], active["mtr-mtrr"]].compactMap { $0 }.first { !$0.row.isBaseline }
+        // 1a. FUT2 2x2 (Serum B12 x Intracellular MMA / Homocysteine)
+        if let fut2 = active["fut2"], !fut2.row.isBaseline, let b12 = byMarker["b12"] {
+            let mma = byMarker["mma"]
+            let hcy = byMarker["homocysteine"]
+            if (mma ?? 0) > 0.27 || (hcy ?? 0) >= 10.0 {
+                matches.append(LabGeneticEpistaticMatch(
+                    id: "epistatic-fut2-masked-b12-deficiency",
+                    geneID: "fut2", geneName: fut2.gene.name,
+                    condition: "FUT2 (\(fut2.row.genotype)) + Serum B12 \(LabInsightsRule.number(b12)) pg/mL with elevated MMA/Homocysteine",
+                    interpretation: "Masked intracellular B12 deficiency despite normal/elevated serum B12.",
+                    action: "Ignore reassuring serum B12; replete methylcobalamin or hydroxocobalamin and recheck MMA + Homocysteine in 8–12 weeks.",
+                    isUrgentSafetyStop: false))
+            } else if b12 < 400, let mma, mma <= 0.27, (hcy == nil || hcy! < 8.0) {
+                matches.append(LabGeneticEpistaticMatch(
+                    id: "epistatic-fut2-benign-low-b12",
+                    geneID: "fut2", geneName: fut2.gene.name,
+                    condition: "FUT2 (\(fut2.row.genotype)) + low Serum B12 (\(LabInsightsRule.number(b12))) with normal MMA & Homocysteine",
+                    interpretation: "Lower haptocorrin-bound serum B12 transport pool while holotranscobalamin/tissue B12 remains sufficient.",
+                    action: "Functional markers outrank serum B12; avoid unnecessary high-dose B12 injections.",
+                    isUrgentSafetyStop: false))
+            }
+        }
+
+        // 1b. Methylation 2x2 for MTHFR / MTR-MTRR (Homocysteine x MMA)
+        let methCarrier = [active["mthfr"], active["mtr-mtrr"]].compactMap { $0 }.first { !$0.row.isBaseline }
         if let carrier = methCarrier, let hcy = byMarker["homocysteine"] {
             let mma = byMarker["mma"]
             if hcy >= 10.0, let mma, mma > 0.27 {
@@ -104,7 +127,7 @@ public enum GeneticsModifierEvaluator {
                     id: "epistatic-\(carrier.gene.id)-b12-bottleneck",
                     geneID: carrier.gene.id, geneName: carrier.gene.name,
                     condition: "High Homocysteine (\(LabInsightsRule.number(hcy))) + High MMA (\(LabInsightsRule.number(mma)))",
-                    interpretation: "Functional intracellular B12 deficiency is the rate-limiting bottleneck (outranking serum B12 and MTHFR).",
+                    interpretation: "Functional intracellular B12 deficiency is the rate-limiting bottleneck (outranking MTHFR).",
                     action: "Replete methylcobalamin or hydroxocobalamin (500–1,000 mcg/day) and recheck Homocysteine + MMA in 8–12 weeks.",
                     isUrgentSafetyStop: false))
             } else if hcy >= 10.0, (mma == nil || mma! <= 0.27) {
