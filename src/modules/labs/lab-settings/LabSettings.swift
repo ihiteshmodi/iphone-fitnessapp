@@ -15,6 +15,26 @@ public enum LabMedicationClass: String, Codable, CaseIterable, Equatable, Hashab
     case thyroidHormone = "thyroid_rx"
     case cpicPrescription = "cpic_rx"
     case corticosteroid
+
+    public var title: String {
+        switch self {
+        case .glp1: return "GLP-1 medication"
+        case .metforminOrAcidBlocker: return "Metformin or acid blocker"
+        case .thyroidHormone: return "Thyroid hormone"
+        case .cpicPrescription: return "CYP2D6 / CYP2C19 prescription"
+        case .corticosteroid: return "Systemic corticosteroid"
+        }
+    }
+
+    public var subtitle: String {
+        switch self {
+        case .glp1: return "Semaglutide, tirzepatide"
+        case .metforminOrAcidBlocker: return "Metformin, PPI or H2 blocker (affects B12 & ALDH2 flushing)"
+        case .thyroidHormone: return "Levothyroxine, liothyronine"
+        case .cpicPrescription: return "SSRIs, TCAs, clopidogrel, codeine, tramadol, tamoxifen"
+        case .corticosteroid: return "Prednisone, dexamethasone"
+        }
+    }
 }
 
 public struct LabPreferences: Equatable {

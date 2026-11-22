@@ -64,4 +64,12 @@ Feature: Genotypes, read the vault's way
     Then LabInsightsRule surfaces fix-level red-line alerts for G6PD, Factor V on TRT, and CYP2D6 Rx/St John's Wort collision
     And the exported labs-review markdown includes Active genetic modifiers, clinical context, and genotype-adjusted draw readings
 
+  Scenario: GeneticsPresenter builds 5 clinical category groups, TRT/Rx context summary, and rich GeneDetailViewModel sections
+    Given a catalogue with genes across all 5 action categories and unconfirmed clinical context
+    When GeneticsPresenter builds the screen view model
+    Then needsContextPrompt is true and the 5 category sections appear in clinical priority order
+    When the user confirms TRT on and CPIC medication active and picks Factor V Leiden Heterozygous and HLA-DQ2.5 Positive
+    Then needsContextPrompt is false, contextSummary shows TRT/HRT On and CYP2D6/CYP2C19 medication, and GeneDetailViewModel exposes external verifiers, form swaps, and safety stop-lines
+
+
 
