@@ -61,15 +61,16 @@ private struct BodyScreen: View {
                     .font(.system(size: 14))
 
                     if !model.isShowingPastDay {
+                        goalModeCard
                         RefeedsCard(today: model.today, maintenance: model.target?.maintenanceCalories)
                     }
                     weeksSection
                     if model.weights.isEmpty { emptyWeightCard } else { weightCard }
                     balanceCard
+                    if !model.isShowingPastDay { LabsEntryCard() }
                     macrosCard
                     if !model.weights.isEmpty { recentCard }
                     recentCaloriesCard
-                    if !model.isShowingPastDay { LabsEntryCard() }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -139,6 +140,33 @@ private struct BodyScreen: View {
         .card(highlighted: true)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("body-on-break")
+    }
+
+    private var goalModeCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Current goal mode")
+            HStack(spacing: 8) {
+                ForEach(GoalMode.allCases, id: \.rawValue) { mode in
+                    let selected = model.goalMode == mode
+                    Button(mode.title) {
+                        model.setGoalMode(mode)
+                        session.didChange()
+                    }
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(selected ? Theme.onGreen : Theme.text)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(selected ? Theme.green : Theme.card2)
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.line))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .accessibilityIdentifier("goal-mode-\(mode.rawValue)")
+                }
+            }
+            Text("Diet breaks, refeeds, and cut-speed checks only run when Cut is selected.")
+                .font(.system(size: 11)).foregroundColor(Theme.muted)
+        }
+        .card()
+        .accessibilityIdentifier("goal-mode-card")
     }
 
     @ViewBuilder

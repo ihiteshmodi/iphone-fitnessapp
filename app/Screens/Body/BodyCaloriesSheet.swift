@@ -9,13 +9,16 @@ struct BodyCaloriesSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var calories = ""
     @State private var multiplier = "1"
+    @State private var chosenMode: GoalMode = .maintain
     @State private var protein = ""
     @State private var fat = ""
     @State private var startDate = Date()
     @State private var errorMessage: String?
     @State private var prepared = false
 
-    private static let presets: [(name: String, value: Double)] = [("Cut", 0.85), ("Maintain", 1.0), ("Bulk", 1.1)]
+    private static let presets: [(name: String, value: Double, mode: GoalMode)] = [
+        ("Cut", 0.85, .cut), ("Maintain", 1.0, .maintain), ("Bulk", 1.1, .bulk)
+    ]
 
     var body: some View {
         NavigationStack {
@@ -50,6 +53,7 @@ struct BodyCaloriesSheet: View {
             prepared = true
             calories = model.initialCaloriesText
             multiplier = model.initialMultiplierText
+            chosenMode = model.goalMode
             protein = model.initialProteinText
             fat = model.initialFatText
             startDate = BodyDates.date(from: model.today)
@@ -74,8 +78,11 @@ struct BodyCaloriesSheet: View {
             SectionLabel("Goal multiplier")
             HStack(spacing: 6) {
                 ForEach(Self.presets, id: \.name) { preset in
-                    let selected = Format.decimal(multiplier) == preset.value
-                    Button("\(preset.name) \(Format.fixed(preset.value))") { multiplier = Format.number(preset.value) }
+                    let selected = chosenMode == preset.mode
+                    Button("\(preset.name) \(Format.fixed(preset.value))") {
+                        multiplier = Format.number(preset.value)
+                        chosenMode = preset.mode
+                    }
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(selected ? Theme.onGreen : Theme.text)
                         .frame(maxWidth: .infinity)
@@ -107,7 +114,7 @@ struct BodyCaloriesSheet: View {
     private func save() {
         do {
             try model.saveCalorieSettings(caloriesText: calories, multiplierText: multiplier, proteinText: protein, fatText: fat,
-                                          from: BodyDates.day(from: startDate))
+                                          goalMode: chosenMode, from: BodyDates.day(from: startDate))
             onSaved()
             dismiss()
         } catch {

@@ -27,3 +27,12 @@ Feature: Refeeds and diet breaks while cutting
   Scenario: The scale jump after a refeed is ignored
     Given I marked 2026-11-17 as Refeed done
     Then for 3 days after it the cut-rate check says nothing
+
+  Scenario: Deliberate Goal Mode gates diet breaks, refeeds, and cutting rate checks
+    Given Goal Mode is explicitly set to Maintain while losing weight for 8 weeks
+    Then there is no active cut, no refeed day, no Diet break alert, and no Cutting-rate alert
+    When I explicitly switch Goal Mode to Cut starting 2026-10-01
+    Then refeed days, Diet break after 6 weeks, and Cutting-rate checks activate
+    When I switch Goal Mode back to Maintain
+    Then all cutting rules turn off immediately
+

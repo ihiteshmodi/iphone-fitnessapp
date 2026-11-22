@@ -39,6 +39,7 @@ final class BodyViewModel: ObservableObject {
     @Published private(set) var currentBreak: BreakPeriod?
     @Published private(set) var effective: EffectiveCalories?
     @Published private(set) var calorieBasis = CalorieBasis.total
+    @Published private(set) var goalMode = GoalMode.maintain
     /// Shown while on a break and while recalibrating after one, so the pre-break picture is never lost.
     @Published private(set) var beforeBreak: (period: BreakPeriod, summary: BeforeBreak)?
 
@@ -94,7 +95,14 @@ final class BodyViewModel: ObservableObject {
         averageEaten = advice?.target.caloriesEaten ?? (try? services.calories.averageCalories(endingOn: shownDay.adding(days: -1), days: 7)) ?? nil
         let foodEnd = (advice?.averages.latestWeighIn ?? shownDay).adding(days: -1)
         effective = try? services.calories.effectiveCalories(endingOn: foodEnd, days: 7)
-        calorieBasis = (try? services.settings.load().calorieBasis) ?? .total
+        let appSettings = try? services.settings.load()
+        calorieBasis = appSettings?.calorieBasis ?? .total
+        goalMode = appSettings?.explicitGoalMode ?? (currentDefault.map { $0.multiplier < 1 ? .cut : ($0.multiplier > 1 ? .bulk : .maintain) } ?? .maintain)
+    }
+
+    func setGoalMode(_ mode: GoalMode) {
+        try? services.settings.setGoalMode(mode, since: today)
+        load()
     }
 
     // MARK: Effective calories
@@ -207,8 +215,7 @@ final class BodyViewModel: ObservableObject {
 
     /// Says whether what the weight did matches the mode chosen with the multiplier.
     var plannedModeText: String? {
-        guard let target else { return nil }
-        return "Planned: \(target.plannedMode.rawValue)"
+        "Mode: \(goalMode.title)"
     }
 
     // MARK: Weeks, weight chart
@@ -261,7 +268,8 @@ final class BodyViewModel: ObservableObject {
     }
 
     /// Rules are saved first so a rejected rule never leaves a half-applied default.
-    func saveCalorieSettings(caloriesText: String, multiplierText: String, proteinText: String, fatText: String, from start: ISODate) throws {
+    func saveCalorieSettings(caloriesText: String, multiplierText: String, proteinText: String, fatText: String,
+                             goalMode chosenMode: GoalMode? = nil, from start: ISODate) throws {
         guard let calories = Format.decimal(caloriesText) else { throw ValidationError("Enter the calories per day as a number") }
         guard let multiplier = Format.decimal(multiplierText) else { throw ValidationError("Enter the goal multiplier as a number") }
         guard let protein = Format.decimal(proteinText) else { throw ValidationError("Enter protein g per lb as a number") }
@@ -270,6 +278,9 @@ final class BodyViewModel: ObservableObject {
         if protein != rules.proteinGramsPerLb { try services.nutrition.setProteinGramsPerLb(protein) }
         if fat != rules.fatPercent { try services.nutrition.setFatPercent(fat) }
         try services.calories.setDefault(calories: calories, multiplier: multiplier, from: start)
+        if let chosenMode {
+            try services.settings.setGoalMode(chosenMode, since: start)
+        }
     }
 
     // MARK: Single days

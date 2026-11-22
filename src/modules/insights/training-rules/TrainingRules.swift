@@ -141,14 +141,17 @@ struct CutBulkRateRule: SetupRule {
         guard let advice = try? CalorieService(db).advice(asOf: day) else { return [] }
         let change = (advice.averages.currentAverageKg - advice.averages.pastAverageKg) / advice.averages.pastAverageKg * 100
         let multiplier = advice.target.multiplier
-        if multiplier < 1 {
+        let explicitMode = try SettingsRepository(db).load().explicitGoalMode
+        let isCutting = explicitMode.map { $0 == .cut } ?? (multiplier < 1)
+        let isBulking = explicitMode.map { $0 == .bulk } ?? (multiplier > 1)
+        if isCutting {
             let loss = -change
             guard loss > 1 || loss < 0.5 else { return [] }
             return [Insight(ruleID: id, kind: .setup, severity: .tip, title: loss > 1 ? "Cutting fast" : "Cutting slowly",
                             detail: "Losing \(String(format: "%.1f", loss))% of body weight a week; aim for 0.5-1% (leaner people near 0.5%).",
                             why: "Vault: a cut of 0.5-1% of body weight a week, deficit about 300-700 kcal, keeps muscle.")]
         }
-        if multiplier > 1, !(1.05...1.10).contains(multiplier) {
+        if isBulking, multiplier > 1, !(1.05...1.10).contains(multiplier) {
             return [Insight(ruleID: id, kind: .setup, severity: .tip, title: "Surplus size",
                             detail: "The target is \(String(format: "%.0f", (multiplier - 1) * 100))% over maintenance; a lean bulk is 5-10% (about 200-400 kcal).",
                             why: "Vault: a surplus of 5-10% builds muscle; about 15% mostly adds fat.")]

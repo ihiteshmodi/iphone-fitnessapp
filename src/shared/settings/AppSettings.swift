@@ -5,6 +5,20 @@ public enum DayLabelMode: String, Equatable {
     case weekday
 }
 
+public enum GoalMode: String, CaseIterable, Equatable {
+    case maintain
+    case cut
+    case bulk
+
+    public var title: String {
+        switch self {
+        case .maintain: return "Maintain"
+        case .cut: return "Cut"
+        case .bulk: return "Bulk"
+        }
+    }
+}
+
 public struct DeloadSettings: Equatable {
     public var enabled: Bool
     public var weightMultiplier: Double
@@ -30,6 +44,11 @@ public struct AppSettings: Equatable {
     public var measurementTolerancePercent: Double
     /// Whether targets, maintenance and surplus/deficit are shown in total or effective calories.
     public var calorieBasis: CalorieBasis = .total
+    /// Explicit deliberate phase chosen by the owner; nil only on legacy test fixtures before a mode is saved.
+    public var explicitGoalMode: GoalMode? = nil
+    public var goalModeSince: ISODate? = nil
+
+    public var goalMode: GoalMode { explicitGoalMode ?? .maintain }
 }
 
 public enum CalorieBasis: String, Equatable {
@@ -60,8 +79,15 @@ public final class SettingsRepository {
             proteinGramsPerLb: Double(values["protein_g_per_lb"] ?? "") ?? 1.2,
             fatPercent: Double(values["fat_percent_of_calories"] ?? "") ?? 25,
             measurementTolerancePercent: Double(values["measurement_tolerance_percent"] ?? "") ?? 3,
-            calorieBasis: CalorieBasis(rawValue: values["calorie_basis"] ?? "") ?? .total
+            calorieBasis: CalorieBasis(rawValue: values["calorie_basis"] ?? "") ?? .total,
+            explicitGoalMode: values["goal_mode"].flatMap(GoalMode.init(rawValue:)),
+            goalModeSince: values["goal_mode_since"].flatMap(ISODate.init)
         )
+    }
+
+    public func setGoalMode(_ mode: GoalMode, since: ISODate) throws {
+        try save("goal_mode", mode.rawValue)
+        try save("goal_mode_since", since.string)
     }
 
     public func setMeasurementTolerancePercent(_ value: Double) throws {

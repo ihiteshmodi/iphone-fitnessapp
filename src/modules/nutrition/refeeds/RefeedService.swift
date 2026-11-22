@@ -66,8 +66,17 @@ public final class RefeedService {
         try db.query("SELECT MAX(day) AS d FROM refeed_days WHERE mark = 'refeed' AND day <= ?", [.text(day.string)]).first?.optionalText("d").flatMap(ISODate.init)
     }
 
-    /// The first day of the current run of cutting defaults, or nil when not cutting on that day.
+    /// The first day of the current deliberate cut, or nil when not cutting on that day.
+    /// An explicit GoalMode (.maintain / .bulk / .cut) always wins over calorie_defaults.multiplier.
     public static func cutStart(on day: ISODate, db: Database) throws -> ISODate? {
+        let appSettings = try SettingsRepository(db).load()
+        if let explicit = appSettings.explicitGoalMode {
+            guard explicit == .cut else { return nil }
+            if let since = appSettings.goalModeSince {
+                return since <= day ? since : nil
+            }
+            return day
+        }
         let defaults = try CalorieService(db).defaults().filter { $0.effectiveFrom <= day }
         guard let current = defaults.first, current.multiplier < 1 else { return nil }
         var start = current.effectiveFrom

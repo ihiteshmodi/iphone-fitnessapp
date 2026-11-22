@@ -58,4 +58,34 @@ final class RefeedTests: XCTestCase {
         XCTAssertEqual(try CutBulkRateRule().evaluate(on: today, db: db), [])
         XCTAssertFalse(try CutBulkRateRule().evaluate(on: date("2026-11-21"), db: db).isEmpty)
     }
+
+    func testDeliberateGoalModeGatesDietBreaksRefeedsAndCutRateEvenWhenWeightDrops() throws {
+        let settings = SettingsRepository(db)
+        let today = date("2026-11-26") // 8 weeks after 2026-10-01
+        try refeeds.setWeekdays([4]) // Thursday (2026-11-26 is Thursday)
+        for offset in 0..<7 { try db.addBodyWeight(on: today.adding(days: -offset).string, kg: 64.5) }
+        for offset in 7..<14 { try db.addBodyWeight(on: today.adding(days: -offset).string, kg: 66.0) }
+
+        // Explicitly in Maintain mode -> even with multiplier 0.85 and 8 weeks + rapid weight loss, NOT cutting!
+        try settings.setGoalMode(.maintain, since: date("2026-10-01"))
+        XCTAssertNil(try RefeedService.cutStart(on: today, db: db))
+        XCTAssertFalse(try refeeds.isRefeedDay(today))
+        XCTAssertTrue(try DietBreakRule().evaluate(on: today, db: db).isEmpty)
+        XCTAssertTrue(try CutBulkRateRule().evaluate(on: today, db: db).isEmpty)
+
+        // Deliberately switch to Cut starting 2026-10-01 (even if calorie_defaults multiplier is 1.0!)
+        try CalorieService(db).setDefault(calories: 2800, multiplier: 1.0, from: date("2026-10-01"))
+        try settings.setGoalMode(.cut, since: date("2026-10-01"))
+        XCTAssertEqual(try RefeedService.cutStart(on: today, db: db), date("2026-10-01"))
+        XCTAssertTrue(try refeeds.isRefeedDay(today))
+        XCTAssertFalse(try DietBreakRule().evaluate(on: today, db: db).isEmpty)
+        XCTAssertEqual(try CutBulkRateRule().evaluate(on: today, db: db).first?.title, "Cutting fast")
+
+        // Switch back to Maintain -> immediately clears
+        try settings.setGoalMode(.maintain, since: today)
+        XCTAssertNil(try RefeedService.cutStart(on: today, db: db))
+        XCTAssertTrue(try DietBreakRule().evaluate(on: today, db: db).isEmpty)
+        XCTAssertTrue(try CutBulkRateRule().evaluate(on: today, db: db).isEmpty)
+    }
 }
+
