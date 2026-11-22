@@ -95,4 +95,57 @@ final class DrawPlanningTests: XCTestCase {
         XCTAssertNil(uric.lastDate)
         XCTAssertEqual(uric.note, "Baseline: not tested yet")
     }
+
+    func testPerMarkerDrawNotesReflexCoTestsUpgradesAndSexFilteredChecklist() throws {
+        let richJSON = #"""
+        {
+          "markers": [
+            {"id": "free-t3", "name": "Free T3", "units": [{"unit": "pg/mL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 3.2, "high": 4.2, "unit": "pg/mL"}],
+             "coTests": ["reverse-t3", "ferritin"]},
+            {"id": "reverse-t3", "name": "Reverse T3", "units": [{"unit": "ng/dL", "default": true}]},
+            {"id": "ferritin", "name": "Ferritin", "units": [{"unit": "ng/mL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 80, "high": 150, "unit": "ng/mL"}]},
+            {"id": "cortisol", "name": "Cortisol", "units": [{"unit": "ug/dL", "default": true}]},
+            {"id": "amh", "name": "AMH", "units": [{"unit": "ng/mL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 1.5, "high": 4.0, "unit": "ng/mL", "sex": "female"}]}
+          ],
+          "panels": [
+            {"id": "baseline-male", "name": "Male hormone baseline", "markers": ["free-t3"], "when": "first", "tag": "male",
+             "drawNotes": {"free-t3": "Draw 7-10 AM fasted"}},
+            {"id": "baseline-upgrades", "name": "Upgrades", "markers": ["cortisol", "amh"], "when": "upgrade",
+             "drawNotes": {"cortisol": "Order when stressed", "amh": "Order for ovarian reserve"}}
+          ],
+          "globalProtocols": {
+            "fastingExemptMarkers": [],
+            "checklist": {
+              "nightBefore": ["Zero alcohol"],
+              "morningOf": ["Water only"],
+              "postDraw": ["Eat snack"],
+              "loggingProtocol": ["Collection time", "Menstrual cycle day (for premenopausal females)"]
+            },
+            "emergencySymptoms": []
+          }
+        }
+        """#
+        let cat = try LabCatalogue(data: Data(richJSON.utf8))
+        let localDB = try Database.inMemory()
+        let svc = LabDrawService(localDB, catalogue: cat)
+        let drawID = try svc.addDraw(LabDrawDraft(date: date("2026-10-01")))
+        try svc.addResult(drawID: drawID, markerID: "free-t3", value: 2.4, unit: "pg/mL")
+        try svc.addResult(drawID: drawID, markerID: "ferritin", value: 110, unit: "ng/mL")
+
+        let malePlan = DrawPlanner(catalogue: cat, draws: svc, sex: .male)
+        let ordered = try malePlan.order()
+
+        let baseline = try XCTUnwrap(ordered.first { $0.panel.id == "baseline-male" })
+        XCTAssertEqual(baseline.tests.first?.drawNote, "Draw 7-10 AM fasted")
+
+        let reflex = try XCTUnwrap(ordered.first { $0.panel.id == "reflex-co-tests" })
+        XCTAssertEqual(reflex.tests.map(\.markerID), ["reverse-t3"])
+        XCTAssertTrue(reflex.reason?.contains("Free T3") ?? false)
+
+        XCTAssertEqual(malePlan.upgrades().map(\.markerID), ["cortisol"])
+        XCTAssertEqual(malePlan.checklist()?.loggingProtocol, ["Collection time"])
+    }
 }

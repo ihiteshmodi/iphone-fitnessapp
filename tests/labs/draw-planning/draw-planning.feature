@@ -23,3 +23,11 @@ Feature: Plan a draw and know when to retest
     Then ferritin is due between 27 Oct and 24 Nov 2026
     And an optimal glucose with a routine rule of 26-52 weeks is due from 2 Mar 2027
     And a first-panel marker never tested shows as "baseline: not tested yet"
+
+  Scenario: Per-marker draw notes, reflex co-tests for untested companions, Tier 2/3 upgrades, and male-only checklist
+    Given Free T3 has co-tests "reverse-t3" and "ferritin", and my last draw had low Free T3 with optimal Ferritin and no Reverse T3
+    When I plan my next draw as a Male
+    Then each baseline test carries its draw note
+    And a "Follow-up co-tests" item adds "Reverse T3" (skipping Ferritin because it was already in that draw)
+    And Tier 2/3 upgrades exclude female-only markers like AMH, and the draw-day checklist omits female menstrual bullets for a Male
+

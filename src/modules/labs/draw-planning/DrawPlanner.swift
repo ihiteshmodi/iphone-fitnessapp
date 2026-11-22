@@ -4,6 +4,13 @@ import Foundation
 public struct OrderTest: Equatable {
     public let name: String
     public let markerID: String?
+    public let drawNote: String?
+
+    public init(name: String, markerID: String?, drawNote: String? = nil) {
+        self.name = name
+        self.markerID = markerID
+        self.drawNote = drawNote
+    }
 }
 
 public struct OrderItem: Equatable {
@@ -49,7 +56,7 @@ public struct DrawPlanner {
     public func order() throws -> [OrderItem] {
         var items: [OrderItem] = []
         for panel in catalogue.panels where sex.allows(sex: nil, tag: panel.tag, showDrugNotes: showDrugNotes) {
-            let tests = resolve(panel.markers, seen: [panel.id])
+            let tests = resolve(panel.markers, notes: panel.drawNotes, seen: [panel.id])
             switch panel.when {
             case "first", "routine", nil:
                 if panel.when == "routine", items.contains(where: { $0.panel.when == "first" && Set($0.panel.markers) == Set(panel.markers) }) { continue }
@@ -61,26 +68,77 @@ public struct DrawPlanner {
                 continue
             }
         }
+        if let reflex = try reflexCoTestsItem() { items.append(reflex) }
         if let genetics, let fromGenes = try genetics.orderItem() { items.append(fromGenes) }
         return items
     }
 
+    /// Optional Tier 2/3 conditional upgrade tests filtered strictly to the active sex.
+    public func upgrades() -> [OrderTest] {
+        var out: [OrderTest] = []
+        for panel in catalogue.panels where panel.when == "upgrade" && sex.allows(sex: nil, tag: panel.tag, showDrugNotes: showDrugNotes) {
+            for test in resolve(panel.markers, notes: panel.drawNotes, seen: [panel.id]) {
+                if let mid = test.markerID, let marker = catalogue.marker(mid), !marker.applies(to: sex) { continue }
+                if sex == .male, let note = test.drawNote?.lowercased(), note.contains("menstrual") || note.contains("ovarian") { continue }
+                if !out.contains(where: { ($0.markerID ?? $0.name) == (test.markerID ?? test.name) }) { out.append(test) }
+            }
+        }
+        return out
+    }
+
+    /// The global draw-day checklist, stripping opposite-sex lines so Male sees only Male/All-Adult guidance.
+    public func checklist() -> LabDrawChecklist? {
+        guard let raw = catalogue.globalProtocols?.checklist else { return nil }
+        let keep = { (line: String) -> Bool in
+            guard sex == .male else { return true }
+            let low = line.lowercased()
+            return !low.contains("menstrual") && !low.contains("premenopausal") && !low.contains("for females")
+        }
+        return LabDrawChecklist(nightBefore: raw.nightBefore.filter(keep),
+                                morningOf: raw.morningOf.filter(keep),
+                                postDraw: raw.postDraw.filter(keep),
+                                loggingProtocol: raw.loggingProtocol.filter(keep))
+    }
+
+    private func reflexCoTestsItem() throws -> OrderItem? {
+        var added: [OrderTest] = []
+        var triggers: [String] = []
+        for marker in catalogue.visibleMarkers(for: sex) where !marker.coTests.isEmpty {
+            guard try isOff(marker.id), let latest = try draws.history(of: marker.id).first else { continue }
+            let inSameDraw = Set(try draws.results(inDraw: latest.drawID).map(\.markerID))
+            var triggeredAny = false
+            for coID in marker.coTests where !inSameDraw.contains(coID) {
+                guard let coMarker = catalogue.marker(coID), coMarker.applies(to: sex), !coMarker.computed || coMarker.formula == nil else { continue }
+                if !added.contains(where: { $0.markerID == coMarker.id }) {
+                    added.append(OrderTest(name: coMarker.name, markerID: coMarker.id))
+                }
+                triggeredAny = true
+            }
+            if triggeredAny { triggers.append(marker.name) }
+        }
+        guard !added.isEmpty else { return nil }
+        let reason = "\(triggers.joined(separator: ", ")) outside optimal: add untested companion co-tests"
+        let panel = LabPanel(id: "reflex-co-tests", name: "Follow-up co-tests", markers: added.compactMap(\.markerID),
+                             when: "conditional", trigger: reason)
+        return OrderItem(panel: panel, tests: added, reason: reason)
+    }
+
     /// A panel name expands into its tests; an alias finds its marker; anything else is still named.
-    private func resolve(_ ids: [String], seen: Set<String>) -> [OrderTest] {
+    private func resolve(_ ids: [String], notes: [String: String]? = nil, seen: Set<String>) -> [OrderTest] {
         var tests: [OrderTest] = []
         for id in ids {
             let found: [OrderTest]
             if let marker = catalogue.marker(id) {
-                found = [OrderTest(name: marker.name, markerID: marker.id)]
+                found = [OrderTest(name: marker.name, markerID: marker.id, drawNote: notes?[marker.id] ?? notes?[id])]
             } else if let panel = catalogue.panel(id), !seen.contains(id) {
-                found = resolve(panel.markers, seen: seen.union([id]))
+                found = resolve(panel.markers, notes: panel.drawNotes ?? notes, seen: seen.union([id]))
             } else if let marker = catalogue.markers.first(where: { ([$0.name] + $0.aliases).contains { $0.caseInsensitiveCompare(id) == .orderedSame } }) {
-                found = [OrderTest(name: marker.name, markerID: marker.id)]
+                found = [OrderTest(name: marker.name, markerID: marker.id, drawNote: notes?[marker.id] ?? notes?[id])]
             } else {
                 let words = id.replacingOccurrences(of: "-", with: " ")
-                found = [OrderTest(name: words.prefix(1).uppercased() + words.dropFirst(), markerID: nil)]
+                found = [OrderTest(name: words.prefix(1).uppercased() + words.dropFirst(), markerID: nil, drawNote: notes?[id])]
             }
-            for test in found where !tests.contains(test) { tests.append(test) }
+            for test in found where !tests.contains(where: { ($0.markerID ?? $0.name) == (test.markerID ?? test.name) }) { tests.append(test) }
         }
         return tests
     }
