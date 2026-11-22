@@ -6,7 +6,14 @@ struct PendingResult: Identifiable {
     let id = UUID()
     let marker: LabMarker
     var value = ""
+    var secondaryValue = ""
+    var textValue = ""
+    var isBelowLimit = false
     var unit: String
+    var useCustomUnit = false
+    var customUnit = ""
+    var customMultiplier = ""
+    var assay = ""
     var labLow = ""
     var labHigh = ""
 
@@ -14,6 +21,10 @@ struct PendingResult: Identifiable {
         self.marker = marker
         unit = marker.defaultUnit ?? ""
     }
+
+    var isBloodPressure: Bool { marker.id == "blood-pressure" }
+    var isQualitative: Bool { marker.units.isEmpty && marker.bands.contains { ($0.values?.isEmpty == false) } }
+    var isTiter: Bool { marker.defaultUnit?.lowercased().contains("titer") == true }
 
     static func number(_ text: String) -> Double? { Double(text.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)) }
 }
@@ -27,6 +38,7 @@ private enum Answer: String, CaseIterable {
 struct AddDrawSheet: View {
     let catalogue: LabCatalogue
     let draws: LabDrawService
+    let sex: LabSex
     let today: ISODate
     @Environment(\.dismiss) private var dismiss
     @State private var date = Date()
@@ -38,6 +50,11 @@ struct AddDrawSheet: View {
     @State private var biotin = Answer.unknown
     @State private var iron = Answer.unknown
     @State private var ill = Answer.unknown
+    @State private var poorSleep = Answer.unknown
+    @State private var acuteStress = Answer.unknown
+    @State private var recentVaccine = Answer.unknown
+    @State private var cycleDay = ""
+    @State private var medsNoted = ""
     @State private var note = ""
     @State private var results: [PendingResult] = []
     @State private var pickingMarker = false
@@ -58,10 +75,18 @@ struct AddDrawSheet: View {
                     answer("Biotin stopped beforehand", $biotin)
                     answer("Iron stopped beforehand", $iron)
                     answer("Ill recently", $ill)
+                    answer("Poor sleep night before", $poorSleep)
+                    answer("Acute stress before draw", $acuteStress)
+                    answer("Recent vaccine / surgery", $recentVaccine)
+                    if sex == .female {
+                        TextField("Menstrual cycle day (optional)", text: $cycleDay).keyboardType(.numberPad)
+                            .accessibilityIdentifier("labs-cycle-day")
+                    }
+                    TextField("Medications / supplements taken", text: $medsNoted)
                     TextField("Note", text: $note)
                 }
                 Section("Results") {
-                    ForEach($results) { $row in ResultFields(row: $row) }
+                    ForEach($results) { $row in ResultFields(row: $row, sex: sex) }
                         .onDelete { results.remove(atOffsets: $0) }
                     Button("+ Add a result") { pickingMarker = true }
                         .accessibilityIdentifier("labs-add-result")
@@ -74,7 +99,7 @@ struct AddDrawSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Save", action: save).accessibilityIdentifier("labs-save-draw") }
             }
             .sheet(isPresented: $pickingMarker) {
-                MarkerPicker(catalogue: catalogue) { results.append(PendingResult(marker: $0)) }
+                MarkerPicker(catalogue: catalogue, sex: sex) { results.append(PendingResult(marker: $0)) }
             }
             .errorAlert($errorMessage)
             .onAppear { date = BodyDates.date(from: today) }
@@ -89,9 +114,13 @@ struct AddDrawSheet: View {
 
     private func save() {
         let blank = { (text: String) -> String? in text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text.trimmingCharacters(in: .whitespaces) }
-        let draft = LabDrawDraft(date: BodyDates.day(from: date), time: blank(time), lab: blank(lab), fastedHours: PendingResult.number(fastedHours),
-                                 trainedHard72h: trained.value, alcohol5d: alcohol.value, biotinStopped: biotin.value,
-                                 ironStopped: iron.value, illRecently: ill.value, note: blank(note))
+        let parsedCycle = sex == .female ? Int(cycleDay.trimmingCharacters(in: .whitespaces)) : nil
+        let draft = LabDrawDraft(date: BodyDates.day(from: date), time: blank(time), lab: blank(lab),
+                                 fastedHours: PendingResult.number(fastedHours), trainedHard72h: trained.value,
+                                 alcohol5d: alcohol.value, biotinStopped: biotin.value, ironStopped: iron.value,
+                                 illRecently: ill.value, cycleDay: parsedCycle, poorSleep: poorSleep.value,
+                                 acuteStress: acuteStress.value, recentVaccineOrSurgery: recentVaccine.value,
+                                 medsNoted: blank(medsNoted), note: blank(note))
         do {
             try ResultFields.validate(results)
             let drawID = try draws.addDraw(draft)
@@ -105,14 +134,93 @@ struct AddDrawSheet: View {
 
 struct ResultFields: View {
     @Binding var row: PendingResult
+    let sex: LabSex
     @State private var showRange = false
+    @State private var showAssay = false
+
+    private var scaleSuggestion: LabScaleSuggestion? {
+        guard !row.useCustomUnit, !row.isQualitative, !row.isTiter, let num = PendingResult.number(row.value) else { return nil }
+        return LabUnitScaler.checkScaleMismatch(value: num, unit: row.unit, marker: row.marker, sex: sex)
+    }
+
+    private var qualitativeOptions: [String] {
+        let fromBands = row.marker.visibleBands(for: sex).flatMap { $0.values ?? [] }
+        return fromBands.isEmpty ? ["Negative", "Trace", "1+", "2+", "3+"] : Array(Set(fromBands)).sorted()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(row.marker.name).font(.system(size: 14, weight: .semibold))
+            if let hint = LabUnitScaler.expectedHint(for: row.marker, sex: sex) {
+                Text(hint.summary).font(.system(size: 11)).foregroundColor(Theme.muted)
+            }
+            if row.isQualitative || row.isTiter {
+                qualitativeEditor
+            } else if row.isBloodPressure {
+                HStack {
+                    TextField("Systolic", text: $row.value).keyboardType(.decimalPad).accessibilityIdentifier("labs-result-value")
+                    Text("/").foregroundColor(Theme.muted)
+                    TextField("Diastolic", text: $row.secondaryValue).keyboardType(.decimalPad).accessibilityIdentifier("labs-bp-diastolic")
+                    Text("mmHg").foregroundColor(Theme.muted)
+                }
+            } else {
+                numericEditor
+            }
+            if let suggestion = scaleSuggestion {
+                scaleWarningCard(suggestion)
+            }
+            if !row.isQualitative {
+                extraOptionsRow
+            }
+            if row.marker.needsLabRange || showRange {
+                if row.marker.needsLabRange {
+                    Text("The vault reads this against your lab's own range.").font(.system(size: 11)).foregroundColor(Theme.muted)
+                }
+                HStack {
+                    TextField("Lab low", text: $row.labLow).keyboardType(.decimalPad)
+                    TextField("Lab high", text: $row.labHigh).keyboardType(.decimalPad)
+                }
+            }
+        }
+    }
+
+    private var qualitativeEditor: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TextField(row.isTiter ? "Result (e.g. Negative or 1:80)" : "Result (e.g. Negative, Trace, 1+)", text: $row.textValue)
+                .accessibilityIdentifier("labs-result-value")
+            if !row.isTiter {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(qualitativeOptions, id: \.self) { opt in
+                            Button(opt) { row.textValue = opt }
+                                .font(.system(size: 11, weight: .semibold))
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(row.textValue == opt ? Theme.green.opacity(0.2) : Theme.card2)
+                                .foregroundColor(row.textValue == opt ? Theme.green : Theme.muted)
+                                .clipShape(Capsule())
+                                .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var numericEditor: some View {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
+                Button(row.isBelowLimit ? "< LOD" : "=") { row.isBelowLimit.toggle() }
+                    .font(.system(size: 11, weight: .bold))
+                    .padding(.horizontal, 7).padding(.vertical, 4)
+                    .background(row.isBelowLimit ? Theme.amber.opacity(0.2) : Theme.card2)
+                    .foregroundColor(row.isBelowLimit ? Theme.amber : Theme.muted)
+                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("labs-below-limit-toggle")
                 TextField("Value", text: $row.value).keyboardType(.decimalPad).accessibilityIdentifier("labs-result-value")
-                if row.marker.units.count > 1 {
+                if row.useCustomUnit {
+                    TextField("Unit", text: $row.customUnit).frame(width: 80).accessibilityIdentifier("labs-custom-unit")
+                } else if row.marker.units.count > 1 {
                     Picker("Unit", selection: $row.unit) {
                         ForEach(row.marker.units, id: \.unit) { Text($0.unit).tag($0.unit) }
                     }
@@ -123,47 +231,138 @@ struct ResultFields: View {
                     Text(row.unit).foregroundColor(Theme.muted)
                 }
             }
-            if row.marker.needsLabRange || showRange {
-                if row.marker.needsLabRange {
-                    Text("The vault reads this against your lab's own range.").font(.system(size: 11)).foregroundColor(Theme.muted)
+            if row.useCustomUnit {
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("Multiplier to \(row.marker.defaultUnit ?? "default") (e.g. 10 or 0.1)", text: $row.customMultiplier)
+                        .keyboardType(.decimalPad)
+                        .font(.system(size: 12))
+                        .accessibilityIdentifier("labs-custom-multiplier")
+                    HStack(spacing: 6) {
+                        ForEach([("×10", "10"), ("×100", "100"), ("×1000", "1000"), ("÷10", "0.1"), ("÷100", "0.01"), ("÷1000", "0.001")], id: \.0) { label, val in
+                            Button(label) { row.customMultiplier = val }
+                                .font(.system(size: 10, weight: .semibold))
+                                .padding(.horizontal, 6).padding(.vertical, 3)
+                                .background(Theme.card2).foregroundColor(Theme.green).clipShape(Capsule())
+                                .buttonStyle(.plain)
+                        }
+                    }
                 }
-                HStack {
-                    TextField("Lab low", text: $row.labLow).keyboardType(.decimalPad)
-                    TextField("Lab high", text: $row.labHigh).keyboardType(.decimalPad)
+            }
+        }
+    }
+
+    private func scaleWarningCard(_ suggestion: LabScaleSuggestion) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(suggestion.message).font(.system(size: 11)).foregroundColor(Theme.amber)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                if let targetUnit = suggestion.suggestedUnit {
+                    Button("Switch unit to \(targetUnit)") { row.unit = targetUnit }
+                        .font(.system(size: 11, weight: .bold)).foregroundColor(Theme.green)
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("labs-switch-suggested-unit")
                 }
-            } else {
-                Button("Add the lab's range") { showRange = true }.font(.system(size: 12))
+                Button("Custom unit scale") {
+                    row.useCustomUnit = true
+                    row.customUnit = row.unit
+                    row.customMultiplier = Format.number(suggestion.suggestedFactor, maxDecimals: 4)
+                }
+                .font(.system(size: 11)).foregroundColor(Theme.muted)
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(8)
+        .background(Theme.amber.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var extraOptionsRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                if !row.marker.needsLabRange && !showRange {
+                    Button("Add lab's range") { showRange = true }.font(.system(size: 11)).buttonStyle(.plain)
+                }
+                Button(row.useCustomUnit ? "Use listed unit" : "Other lab unit") {
+                    row.useCustomUnit.toggle()
+                }
+                .font(.system(size: 11)).foregroundColor(Theme.muted).buttonStyle(.plain)
+                .accessibilityIdentifier("labs-other-unit-toggle")
+                if !row.marker.specimens.isEmpty {
+                    Button(showAssay ? "Hide assay" : "Assay method") { showAssay.toggle() }
+                        .font(.system(size: 11)).foregroundColor(Theme.muted).buttonStyle(.plain)
+                }
+            }
+            if showAssay {
+                Picker("Assay", selection: $row.assay) {
+                    Text("Unspecified").tag("")
+                    Text("LC-MS/MS").tag("lc-ms-ms")
+                    Text("Equilibrium dialysis").tag("equilibrium-dialysis")
+                    Text("Standard immunoassay").tag("immunoassay")
+                }
+                .font(.system(size: 12))
             }
         }
     }
 
     static func validate(_ rows: [PendingResult]) throws {
-        for row in rows where PendingResult.number(row.value) == nil {
-            throw ValidationError("Type a number for \(row.marker.name), or swipe the row away")
+        for row in rows {
+            if row.isQualitative || row.isTiter {
+                if row.textValue.trimmingCharacters(in: .whitespaces).isEmpty {
+                    throw ValidationError("Enter a result for \(row.marker.name), or swipe the row away")
+                }
+                continue
+            }
+            guard PendingResult.number(row.value) != nil else {
+                throw ValidationError("Type a number for \(row.marker.name), or swipe the row away")
+            }
+            if row.isBloodPressure, !row.secondaryValue.trimmingCharacters(in: .whitespaces).isEmpty,
+               PendingResult.number(row.secondaryValue) == nil {
+                throw ValidationError("Type a number for diastolic blood pressure")
+            }
+            if row.useCustomUnit {
+                guard !row.customUnit.trimmingCharacters(in: .whitespaces).isEmpty,
+                      let mult = PendingResult.number(row.customMultiplier), mult > 0 else {
+                    throw ValidationError("Enter both the custom unit name and a positive multiplier for \(row.marker.name)")
+                }
+            }
         }
     }
 
     static func save(_ rows: [PendingResult], drawID: Int, draws: LabDrawService) throws {
         for row in rows {
+            if row.isQualitative || row.isTiter {
+                let text = row.textValue.trimmingCharacters(in: .whitespaces)
+                guard !text.isEmpty else { continue }
+                _ = try draws.addQualitativeResult(drawID: drawID, markerID: row.marker.id, textValue: text, unit: row.unit)
+                continue
+            }
             guard let value = PendingResult.number(row.value) else { continue }
-            _ = try draws.addResult(drawID: drawID, markerID: row.marker.id, value: value, unit: row.unit,
-                                    labLow: PendingResult.number(row.labLow), labHigh: PendingResult.number(row.labHigh))
+            let chosenUnit = row.useCustomUnit ? row.customUnit.trimmingCharacters(in: .whitespaces) : row.unit
+            let customMult = row.useCustomUnit ? PendingResult.number(row.customMultiplier) : nil
+            let op: LabValueOperator? = row.isBelowLimit ? .belowLimit : nil
+            let secVal = row.isBloodPressure ? PendingResult.number(row.secondaryValue) : nil
+            let assayVal = row.assay.isEmpty ? nil : row.assay
+            _ = try draws.addResult(drawID: drawID, markerID: row.marker.id, value: value, unit: chosenUnit,
+                                    labLow: PendingResult.number(row.labLow), labHigh: PendingResult.number(row.labHigh),
+                                    valueOperator: op, secondaryValue: secVal, customToDefault: customMult, assay: assayVal)
         }
     }
 }
 
 struct MarkerPicker: View {
-    /// Measured markers, plus formula ones a lab may print itself (globulin, A/G); the rest are only ever worked out.
-    static func typeable(_ marker: LabMarker) -> Bool { !marker.computed || marker.formula != nil }
+    /// Measured markers, plus formula ones a lab may print itself (globulin, A/G); overviews and pure derived markers are excluded.
+    static func typeable(_ marker: LabMarker) -> Bool { !marker.isOverview && (!marker.computed || marker.formula != nil) }
 
     let catalogue: LabCatalogue
+    let sex: LabSex
     let picked: (LabMarker) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
 
     var body: some View {
+        let pool = search.isEmpty ? catalogue.visibleMarkers(for: sex) : catalogue.search(search).filter { $0.applies(to: sex) }
         NavigationStack {
-            List((search.isEmpty ? catalogue.markers : catalogue.search(search)).filter(Self.typeable)) { marker in
+            List(pool.filter(Self.typeable)) { marker in
                 Button {
                     picked(marker)
                     dismiss()
@@ -204,6 +403,11 @@ struct DrawDetailView: View {
                 prep("Biotin stopped", draw.draft.biotinStopped)
                 prep("Iron stopped", draw.draft.ironStopped)
                 prep("Ill recently", draw.draft.illRecently)
+                prep("Poor sleep", draw.draft.poorSleep)
+                prep("Acute stress", draw.draft.acuteStress)
+                prep("Recent vaccine / surgery", draw.draft.recentVaccineOrSurgery)
+                if model.sex == .female, let cd = draw.draft.cycleDay { row("Cycle day", "Day \(cd)") }
+                if let meds = draw.draft.medsNoted { row("Medications", meds) }
                 if let note = draw.draft.note { Text(note).font(.system(size: 13)) }
             }
             Section("Results") {
@@ -214,7 +418,7 @@ struct DrawDetailView: View {
             }
             if !pending.isEmpty {
                 Section("New results") {
-                    ForEach($pending) { $row in ResultFields(row: $row) }
+                    ForEach($pending) { $row in ResultFields(row: $row, sex: model.sex) }
                         .onDelete { pending.remove(atOffsets: $0) }
                     Button("Save new results", action: savePending).accessibilityIdentifier("labs-save-results")
                 }
@@ -229,7 +433,7 @@ struct DrawDetailView: View {
         .navigationTitle(Format.longDate(draw.draft.date))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: reload)
-        .sheet(isPresented: $pickingMarker) { MarkerPicker(catalogue: model.catalogue) { pending.append(PendingResult(marker: $0)) } }
+        .sheet(isPresented: $pickingMarker) { MarkerPicker(catalogue: model.catalogue, sex: model.sex) { pending.append(PendingResult(marker: $0)) } }
         .confirmationDialog("Delete this draw and all its results?", isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 perform { try model.draw.deleteDraw(draw.id) }
@@ -251,6 +455,10 @@ struct DrawDetailView: View {
     @ViewBuilder
     private func resultRow(_ result: LabResult) -> some View {
         if let marker = model.catalogue.marker(result.markerID) {
+            let prefs = model.preferences ?? LabPreferences(sex: model.sex)
+            let reading = LabReader.read(result: result, marker: marker, preferences: prefs, draw: draw.draft)
+            let warnings = LabValidityGate.evaluate(result: result, marker: marker, draw: draw.draft,
+                                                    sameDrawResults: results, catalogue: model.catalogue, sex: model.sex)
             NavigationLink { MarkerDetailView(model: model, marker: marker) } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
@@ -260,13 +468,23 @@ struct DrawDetailView: View {
                             Text("Lab range \(result.labLow.map { Format.number($0) } ?? "…")–\(result.labHigh.map { Format.number($0) } ?? "…")")
                                 .font(.system(size: 11)).foregroundColor(Theme.muted)
                         }
+                        if let firstWarn = warnings.first {
+                            Text(firstWarn.title).font(.system(size: 11)).foregroundColor(Theme.amber)
+                        }
                     }
                     Spacer()
-                    Text("\(Format.number(result.value)) \(result.unit)").foregroundColor(Theme.muted)
-                    LabStatusPill(status: LabReader.read(value: result.value, unit: result.unit, marker: marker, sex: model.sex).status)
+                    Text(formattedResultText(result)).foregroundColor(Theme.muted)
+                    LabStatusPill(status: reading.status)
                 }
             }
         }
+    }
+
+    private func formattedResultText(_ result: LabResult) -> String {
+        if let text = result.textValue { return text }
+        if let sec = result.secondaryValue { return "\(Format.number(result.value))/\(Format.number(sec)) \(result.unit)" }
+        let prefix = result.valueOperator == .belowLimit ? "< " : ""
+        return "\(prefix)\(Format.number(result.value)) \(result.unit)"
     }
 
     private func reload() {

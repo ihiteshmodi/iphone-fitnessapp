@@ -7,14 +7,20 @@ struct PlanDrawView: View {
     let draws: LabDrawService
     let sex: LabSex
     let genetics: GeneticsService?
+    var showDrugNotes = false
     let today: ISODate
     @State private var drawDate = Date()
     @State private var drawHour = 8
     @State private var order: [OrderItem] = []
+    @State private var upgrades: [OrderTest] = []
+    @State private var checklist: LabDrawChecklist?
+    @State private var checkedSteps: Set<String> = []
     @State private var retests: [RetestDue] = []
     @State private var errorMessage: String?
 
-    private var planner: DrawPlanner { DrawPlanner(catalogue: catalogue, draws: draws, sex: sex, genetics: genetics) }
+    private var planner: DrawPlanner {
+        DrawPlanner(catalogue: catalogue, draws: draws, sex: sex, genetics: genetics, showDrugNotes: showDrugNotes)
+    }
 
     private var timeline: [(date: ISODate, steps: [TimedPrepStep])] {
         let ordered = order.flatMap { $0.tests.compactMap(\.markerID) }
@@ -37,6 +43,8 @@ struct PlanDrawView: View {
                 }
                 .card()
                 orderCard
+                if !upgrades.isEmpty { upgradesCard }
+                if let checklist { checklistCard(checklist) }
                 if !timeline.isEmpty { timelineCard }
                 triggeredCard
                 retestCard
@@ -100,7 +108,8 @@ struct PlanDrawView: View {
     }
 
     private func panelRow(_ item: OrderItem) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        let notedTests = item.tests.filter { ($0.drawNote?.isEmpty == false) }
+        return VStack(alignment: .leading, spacing: 4) {
             Text(item.panel.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
             if let reason = item.reason { Text("Added because: \(reason)").font(.system(size: 11)).foregroundColor(Theme.amber) }
             Text(item.tests.map(\.name).joined(separator: " · ")).font(.system(size: 13, weight: .regular)).foregroundColor(Theme.text)
@@ -109,8 +118,81 @@ struct PlanDrawView: View {
                 Text("Ask for: \(askFor)").font(.system(size: 12, weight: .regular)).foregroundColor(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if !notedTests.isEmpty {
+                DisclosureGroup("Draw & assay notes (\(notedTests.count))") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(notedTests, id: \.name) { test in
+                            Text("• \(test.name): \(test.drawNote ?? "")")
+                                .font(.system(size: 11)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                .font(.system(size: 12, weight: .semibold)).tint(Theme.green)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var upgradesCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Optional Tier 2 & 3 upgrades (\(upgrades.count))")
+            DisclosureGroup("Show symptom & context add-ons") {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(upgrades, id: \.name) { item in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                            if let note = item.drawNote {
+                                Text(note).font(.system(size: 12)).foregroundColor(Theme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .font(.system(size: 13, weight: .semibold)).tint(Theme.green)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    private func checklistCard(_ cl: LabDrawChecklist) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Draw-day checklist")
+            checklistGroup("Night before", cl.nightBefore)
+            checklistGroup("Morning of draw", cl.morningOf)
+            checklistGroup("Right after draw", cl.postDraw)
+            checklistGroup("What to record", cl.loggingProtocol)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    @ViewBuilder
+    private func checklistGroup(_ title: String, _ items: [String]) -> some View {
+        if !items.isEmpty {
+            DisclosureGroup(title) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(items, id: \.self) { line in
+                        let ticked = checkedSteps.contains(line)
+                        Button {
+                            if ticked { checkedSteps.remove(line) } else { checkedSteps.insert(line) }
+                        } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: ticked ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(ticked ? Theme.green : Theme.muted)
+                                Text(line).font(.system(size: 12)).foregroundColor(Theme.text)
+                                    .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .font(.system(size: 13, weight: .semibold)).tint(Theme.green)
+        }
     }
 
     private var timelineCard: some View {
@@ -160,6 +242,8 @@ struct PlanDrawView: View {
     private func load() {
         do {
             order = try planner.order()
+            upgrades = planner.upgrades()
+            checklist = planner.checklist()
             retests = try planner.retests()
         } catch {
             errorMessage = error.localizedDescription

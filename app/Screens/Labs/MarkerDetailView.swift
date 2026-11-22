@@ -7,8 +7,8 @@ struct MarkerLibraryView: View {
     @State private var search = ""
 
     private var markers: [LabMarker] {
-        let found = search.isEmpty ? model.catalogue.markers : model.catalogue.search(search)
-        return found.filter { chapter == nil || $0.chapter == chapter }
+        let base = search.isEmpty ? model.catalogue.visibleMarkers(for: model.sex) : model.catalogue.search(search).filter { $0.applies(to: model.sex) }
+        return base.filter { chapter == nil || $0.chapter == chapter }
     }
 
     private var chapters: [String] {
@@ -35,12 +35,14 @@ struct MarkerLibraryView: View {
     }
 
     private func label(_ marker: LabMarker) -> some View {
-        HStack {
+        let prefs = model.preferences ?? LabPreferences(sex: model.sex)
+        return HStack {
             Text(marker.name)
             Spacer()
             if let latest = try? model.draw.history(of: marker.id).first {
-                Text("\(Format.number(latest.value)) \(latest.unit)").font(.system(size: 12)).foregroundColor(Theme.muted)
-                LabStatusPill(status: LabReader.read(value: latest.value, unit: latest.unit, marker: marker, sex: model.sex).status)
+                let text = latest.textValue ?? "\(Format.number(latest.value)) \(latest.unit)"
+                Text(text).font(.system(size: 12)).foregroundColor(Theme.muted)
+                LabStatusPill(status: LabReader.read(result: latest, marker: marker, preferences: prefs).status)
             }
         }
     }
@@ -51,24 +53,48 @@ struct MarkerDetailView: View {
     @ObservedObject var model: LabsModel
     let marker: LabMarker
     @State private var history: [LabResult] = []
+    @State private var latestDrawResults: [LabResult] = []
 
+    private var prefs: LabPreferences { model.preferences ?? LabPreferences(sex: model.sex, showDrugNotes: model.showDrugNotes) }
     private var latest: LabResult? { history.first }
+    private var latestDrawDraft: LabDrawDraft? {
+        guard let latest else { return nil }
+        return model.draws.first { $0.id == latest.drawID }?.draft
+    }
     private var reading: LabReading? {
-        latest.map { LabReader.read(value: $0.value, unit: $0.unit, marker: marker, sex: model.sex) }
+        latest.map { LabReader.read(result: $0, marker: marker, preferences: prefs, draw: latestDrawDraft) }
+    }
+    private var validityWarnings: [LabValidityWarning] {
+        guard let latest, let draft = latestDrawDraft else { return [] }
+        return LabValidityGate.evaluate(result: latest, marker: marker, draw: draft, sameDrawResults: latestDrawResults,
+                                        catalogue: model.catalogue, sex: model.sex)
+    }
+    private var longitudinal: LabLongitudinalSummary? {
+        let drawsByID = Dictionary(uniqueKeysWithValues: model.draws.map { ($0.id, $0.draft) })
+        return LabLongitudinalTracker.summarize(marker: marker, history: history, drawsByID: drawsByID)
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 header
+                if !validityWarnings.isEmpty { validityCard }
+                if let longitudinal, (longitudinal.previousValue != nil || longitudinal.switchedLab || !longitudinal.driftFlags.isEmpty) {
+                    longitudinalCard(longitudinal)
+                }
                 if !bands.isEmpty { bandsCard }
                 if history.count > 1 { trendCard }
                 if !history.isEmpty { historyCard }
+                if let inter = marker.interventions {
+                    steppedInterventionsCard(inter)
+                    if !inter.whatNotToDo.isEmpty { guardrailsCard(inter.whatNotToDo) }
+                }
+                if !marker.discordance.isEmpty { listCard("Discordance & masking rules", marker.discordance) }
                 sevenPoints
-                if !doctorLines.isEmpty { doctorCard }
+                if !doctorLines.isEmpty || !(marker.escalation?.specialists.isEmpty ?? true) { doctorCard }
                 if let formula = marker.formula { listCard("How the app works it out", [formulaText(formula)]) }
                 if !marker.retest.isEmpty { listCard("When to retest", marker.retest.map(\.text)) }
-                if !marker.prep.isEmpty { listCard("Before the draw", marker.prep.map { model.catalogue.prepStep($0)?.text ?? $0 }) }
+                if !visiblePrepSteps.isEmpty { listCard("Before the draw", visiblePrepSteps) }
                 if !marker.disputes.isEmpty { disputesCard }
                 linksCard
                 Text("Source: \(marker.lesson)").font(.system(size: 11)).foregroundColor(Theme.muted)
@@ -78,7 +104,13 @@ struct MarkerDetailView: View {
         .screenBackground()
         .navigationTitle(marker.name)
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { history = (try? model.draw.history(of: marker.id)) ?? [] }
+        .onAppear {
+            let loaded = (try? model.draw.history(of: marker.id)) ?? []
+            history = loaded
+            if let first = loaded.first {
+                latestDrawResults = (try? model.draw.results(inDraw: first.drawID)) ?? []
+            }
+        }
     }
 
     private func formulaText(_ formula: LabFormula) -> String {
@@ -90,19 +122,41 @@ struct MarkerDetailView: View {
         return "\(text), from the same draw.\(condition) A value the lab printed is used instead."
     }
 
-    private var bands: [LabBand] { marker.bands.filter { $0.sex == nil || $0.sex == .any || $0.sex == model.sex || $0.sex == .female } }
-    private var doctorLines: [LabDoctorLine] { marker.doctor.filter { shows($0.tag) } }
-    private func shows(_ tag: String?) -> Bool { tag != "drug" || model.showDrugNotes }
+    private var bands: [LabBand] { marker.visibleBands(for: model.sex) }
+    private var doctorLines: [LabDoctorLine] { marker.visibleDoctorLines(sex: model.sex, showDrugNotes: model.showDrugNotes) }
+    private var visiblePrepSteps: [String] {
+        marker.prep.compactMap { id in
+            guard let step = model.catalogue.prepStep(id) else { return id }
+            guard model.sex.allows(sex: nil, tag: step.tag, showDrugNotes: model.showDrugNotes) else { return nil }
+            return step.text
+        }
+    }
+    private func shows(_ tag: String?) -> Bool { model.sex.allows(sex: nil, tag: tag, showDrugNotes: model.showDrugNotes) }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(marker.chapter).font(.system(size: 12)).foregroundColor(Theme.muted)
             if let latest, let reading {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(Format.number(latest.value)).font(.system(size: 30, weight: .bold)).foregroundColor(Theme.text)
-                    Text(latest.unit).foregroundColor(Theme.muted)
+                    if let text = latest.textValue {
+                        Text(text).font(.system(size: 26, weight: .bold)).foregroundColor(Theme.text)
+                    } else if let sec = latest.secondaryValue {
+                        Text("\(Format.number(latest.value))/\(Format.number(sec))").font(.system(size: 28, weight: .bold)).foregroundColor(Theme.text)
+                        Text(latest.unit).foregroundColor(Theme.muted)
+                    } else {
+                        Text("\(latest.valueOperator == .belowLimit ? "< " : "")\(Format.number(latest.value))")
+                            .font(.system(size: 30, weight: .bold)).foregroundColor(Theme.text)
+                        Text(latest.unit).foregroundColor(Theme.muted)
+                    }
                     Spacer()
                     LabStatusPill(status: reading.status)
+                }
+                if let stratum = reading.activeStratum {
+                    Text("Stratum: \(stratum.population)")
+                        .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.green)
+                }
+                if let tierLabel = reading.tierLabel, !tierLabel.isEmpty {
+                    Text(tierLabel).font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
                 }
                 Text("Latest: \(Format.longDate(latest.date))\(latest.isCalculated ? " · calculated from that draw" : "")")
                     .font(.system(size: 12)).foregroundColor(Theme.muted)
@@ -113,6 +167,11 @@ struct MarkerDetailView: View {
                 ForEach(Array(reading.doctorLines.filter { shows($0.tag) }.enumerated()), id: \.offset) { _, line in
                     Text("\(line.urgency.title): \(line.text)").font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.red)
                 }
+                ForEach(Array(reading.conditionalDoctorLines.filter { shows($0.tag) }.enumerated()), id: \.offset) { _, line in
+                    Text("Check symptoms (\(line.urgency.title)): \(line.requires.map { "with \($0) — " } ?? "")\(line.text)")
+                        .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.amber)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 Text("Not tested yet").font(.system(size: 15)).foregroundColor(Theme.muted)
             }
@@ -120,6 +179,106 @@ struct MarkerDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+    }
+
+    private var validityCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel("Pre-analytic validity check")
+            ForEach(Array(validityWarnings.enumerated()), id: \.offset) { _, warn in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(warn.title).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.amber)
+                    Text(warn.detail).font(.system(size: 12)).foregroundColor(Theme.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    private func longitudinalCard(_ summary: LabLongitudinalSummary) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel("Trajectory & baseline")
+            if let dp = summary.deltaFromPrevious, let pp = summary.percentFromPrevious {
+                let sign = dp >= 0 ? "+" : ""
+                Text("Since previous draw: \(sign)\(Format.number(dp)) \(summary.unit ?? "") (\(sign)\(Format.number(pp, maxDecimals: 1))%)")
+                    .font(.system(size: 13)).foregroundColor(Theme.text)
+            }
+            if let db = summary.deltaFromBaseline, let pb = summary.percentFromBaseline, summary.previousValue != summary.baselineValue {
+                let sign = db >= 0 ? "+" : ""
+                Text("Since baseline: \(sign)\(Format.number(db)) \(summary.unit ?? "") (\(sign)\(Format.number(pb, maxDecimals: 1))%)")
+                    .font(.system(size: 12)).foregroundColor(Theme.muted)
+            }
+            ForEach(Array(summary.driftFlags.enumerated()), id: \.offset) { _, flag in
+                Text("• \(flag.message)").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.amber)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    private func steppedInterventionsCard(_ inter: LabInterventions) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Stepped action plan")
+            if !inter.tier1Foundations.isEmpty {
+                DisclosureGroup("1. Foundations (\(inter.tier1Foundations.count))") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(inter.tier1Foundations, id: \.self) { Text("• \($0)").font(.system(size: 13)).fixedSize(horizontal: false, vertical: true) }
+                    }
+                    .padding(.top, 4)
+                }
+                .font(.system(size: 13, weight: .semibold)).tint(Theme.green)
+            }
+            if !inter.tier2Nutrition.isEmpty {
+                DisclosureGroup("2. Nutrition (\(inter.tier2Nutrition.count))") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(inter.tier2Nutrition, id: \.self) { Text("• \($0)").font(.system(size: 13)).fixedSize(horizontal: false, vertical: true) }
+                    }
+                    .padding(.top, 4)
+                }
+                .font(.system(size: 13, weight: .semibold)).tint(Theme.green)
+            }
+            if !inter.tier3Supplements.isEmpty {
+                DisclosureGroup("3. Supplements (\(inter.tier3Supplements.count))") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(inter.tier3Supplements.enumerated()), id: \.offset) { _, supp in
+                            let dose = supp.dose.map { " (\($0))" } ?? ""
+                            let notes = supp.notes.map { " — \($0)" } ?? ""
+                            Text("• \(supp.name)\(dose)\(notes)").font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                .font(.system(size: 13, weight: .semibold)).tint(Theme.green)
+            }
+            if model.showDrugNotes && !inter.tier4Peptides.isEmpty {
+                DisclosureGroup("4. Educational compounds (\(inter.tier4Peptides.count))") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(inter.tier4Peptides, id: \.self) { Text("• \($0)").font(.system(size: 13)).fixedSize(horizontal: false, vertical: true) }
+                    }
+                    .padding(.top, 4)
+                }
+                .font(.system(size: 13, weight: .semibold)).tint(Theme.amber)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    private func guardrailsCard(_ items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "exclamationmark.octagon.fill").foregroundColor(Theme.red)
+                SectionLabel("What not to do")
+            }
+            ForEach(items, id: \.self) { line in
+                Text("• \(line)").font(.system(size: 13)).foregroundColor(Theme.text).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityIdentifier("labs-marker-what-not-to-do")
     }
 
     private var bandsCard: some View {
@@ -214,6 +373,10 @@ struct MarkerDetailView: View {
     private var doctorCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel("See a doctor when")
+            if let specs = marker.escalation?.specialists, !specs.isEmpty {
+                Text("Specialists: \(specs.joined(separator: ", "))")
+                    .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.amber)
+            }
             ForEach(Array(doctorLines.enumerated()), id: \.offset) { _, line in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
@@ -254,14 +417,15 @@ struct MarkerDetailView: View {
 
     @ViewBuilder
     private var linksCard: some View {
-        let markers = (marker.links?.markers ?? []).compactMap(model.catalogue.marker)
+        let linkedIDs = Array(Set((marker.links?.markers ?? []) + marker.coTests)).sorted()
+        let markers = linkedIDs.compactMap(model.catalogue.marker).filter { $0.applies(to: model.sex) }
         let supplements = (marker.links?.supplements ?? []).map { id in
             model.services.supplementLibrary?.entries.first { $0.id == id }?.name ?? id
         }
         let genes = (marker.links?.genes ?? []).compactMap(model.catalogue.gene)
         if !markers.isEmpty || !supplements.isEmpty || !genes.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                SectionLabel("Linked")
+                SectionLabel("Companion co-tests & links")
                 ForEach(markers) { other in
                     NavigationLink(other.name) { MarkerDetailView(model: model, marker: other) }.font(.system(size: 13))
                 }

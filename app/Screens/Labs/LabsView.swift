@@ -7,7 +7,10 @@ final class LabsModel: ObservableObject {
     @Published private(set) var dashboard: LabDashboard?
     @Published private(set) var draws: [LabDraw] = []
     @Published private(set) var resultCounts: [Int: Int] = [:]
+    @Published private(set) var validityCounts: [Int: Int] = [:]
     @Published private(set) var doctorItems: [Insight] = []
+    @Published private(set) var activePatterns: [LabPatternMatch] = []
+    @Published private(set) var discordances: [LabDiscordanceAlert] = []
     @Published private(set) var preferences: LabPreferences?
     @Published var errorMessage: String?
 
@@ -27,13 +30,45 @@ final class LabsModel: ObservableObject {
 
     func load() {
         do {
-            preferences = try services.labSettings.load()
+            let prefs = try services.labSettings.load()
+            preferences = prefs
             dashboard = try LabDashboard.build(catalogue: catalogue, db: services.db, today: today)
             draws = try draw.draws()
             var counts: [Int: Int] = [:]
-            for item in draws { counts[item.id] = try draw.results(inDraw: item.id).count }
+            var vCounts: [Int: Int] = [:]
+            for item in draws {
+                let res = try draw.results(inDraw: item.id)
+                counts[item.id] = res.count
+                vCounts[item.id] = res.reduce(0) { sum, r in
+                    guard let m = catalogue.marker(r.markerID) else { return sum }
+                    let w = LabValidityGate.evaluate(result: r, marker: m, draw: item.draft,
+                                                     sameDrawResults: res, catalogue: catalogue, sex: prefs.sex)
+                    return sum + (w.isEmpty ? 0 : 1)
+                }
+            }
             resultCounts = counts
-            doctorItems = try services.insights.labs(on: today).filter { $0.ruleID.hasPrefix("lab-doctor-") }
+            validityCounts = vCounts
+            doctorItems = try services.insights.labs(on: today).filter { $0.ruleID.hasPrefix("lab-doctor") }
+
+            if let newest = draws.first {
+                let newestResults = try draw.results(inDraw: newest.id)
+                let ctx = try? LabNonBloodContext.load(from: services.db, on: newest.draft.date)
+                activePatterns = try LabPatternEvaluator.evaluate(drawID: newest.id, draws: draw, catalogue: catalogue,
+                                                                  preferences: prefs, context: ctx)
+                discordances = LabPatternEvaluator.discordances(in: newestResults, catalogue: catalogue, preferences: prefs)
+            } else {
+                activePatterns = []
+                discordances = []
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func confirmSex(_ chosen: LabSex) {
+        do {
+            try services.labSettings.setSex(chosen)
+            load()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -86,8 +121,11 @@ struct LabsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                if model.preferences?.isSexConfirmed == false { sexConfirmationCard }
                 ForEach(model.doctorItems) { doctorBanner($0) }
                 actions
+                if !model.activePatterns.isEmpty { activePatternsSection }
+                if !model.discordances.isEmpty { discordancesSection }
                 if let dashboard = model.dashboard {
                     biologicalAgeCard(dashboard.biologicalAge, from: dashboard.biologicalAgeDraw)
                     if !dashboard.systems.isEmpty { systemsSection(dashboard.systems) }
@@ -118,12 +156,70 @@ struct LabsView: View {
         }
         .onAppear { model.load() }
         .sheet(isPresented: $addingDraw, onDismiss: model.load) {
-            AddDrawSheet(catalogue: model.catalogue, draws: model.draw, today: model.today)
+            AddDrawSheet(catalogue: model.catalogue, draws: model.draw, sex: model.sex, today: model.today)
         }
         .sheet(isPresented: $editingSettings, onDismiss: model.load) {
             LabsSettingsSheet(settings: model.services.labSettings)
         }
         .errorAlert($model.errorMessage)
+    }
+
+    private var sexConfirmationCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Confirm profile")
+            Text("Choose your sex so reference ranges, panels, and prep checklists match you.")
+                .font(.system(size: 13)).foregroundColor(Theme.text).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                Button("Male") { model.confirmSex(.male) }
+                    .buttonStyle(CompactButtonStyle())
+                    .accessibilityIdentifier("labs-confirm-male")
+                Button("Female") { model.confirmSex(.female) }
+                    .buttonStyle(CompactButtonStyle(ghost: true))
+                    .accessibilityIdentifier("labs-confirm-female")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(highlighted: true)
+        .accessibilityIdentifier("labs-sex-confirm-card")
+    }
+
+    private var activePatternsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Active patterns (latest draw)")
+            ForEach(model.activePatterns) { match in
+                NavigationLink { PatternDetailView(match: match, showDrugNotes: model.showDrugNotes) } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(match.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                            if !match.matchedPhenotypes.isEmpty {
+                                Text(match.matchedPhenotypes.map(\.name).joined(separator: " · "))
+                                    .font(.system(size: 12)).foregroundColor(Theme.amber).multilineTextAlignment(.leading)
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.system(size: 12)).foregroundColor(Theme.muted)
+                    }
+                }
+                .accessibilityIdentifier("labs-pattern-\(match.id)")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+    }
+
+    private var discordancesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Cross-marker checks")
+            ForEach(model.discordances) { disc in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(disc.title).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.amber)
+                    Text(disc.detail).font(.system(size: 12)).foregroundColor(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
     }
 
     /// Writes every draw and open item to labs-review-<date>.md for the labs-review skill.
@@ -163,7 +259,7 @@ struct LabsView: View {
             HStack(spacing: 8) {
                 NavigationLink("Plan draw") {
                     PlanDrawView(catalogue: model.catalogue, draws: model.draw, sex: model.sex,
-                                 genetics: model.services.genetics, today: model.today)
+                                 genetics: model.services.genetics, showDrugNotes: model.showDrugNotes, today: model.today)
                 }
                 .accessibilityIdentifier("labs-plan-draw")
                 NavigationLink("Markers") { MarkerLibraryView(model: model) }
@@ -319,6 +415,9 @@ struct LabsView: View {
                             if let lab = draw.draft.lab { Text(lab).font(.system(size: 12)).foregroundColor(Theme.muted) }
                         }
                         Spacer()
+                        if let vCount = model.validityCounts[draw.id], vCount > 0 {
+                            Pill(text: "\(vCount) prep note\(vCount == 1 ? "" : "s")", tone: .amber)
+                        }
                         Text("\(model.resultCounts[draw.id] ?? 0) results").font(.system(size: 12)).foregroundColor(Theme.muted)
                         Image(systemName: "chevron.right").font(.system(size: 12)).foregroundColor(Theme.muted)
                     }
@@ -414,19 +513,43 @@ struct LabsSettingsSheet: View {
     @State private var hasBirthDate = false
     @State private var birthDate = Date()
     @State private var showDrugNotes = false
+    @State private var reproductiveStatus: LabReproductiveStatus?
+    @State private var isEnduranceAthlete = false
+    @State private var isSmoker = false
+    @State private var africanAncestry = false
     @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Sex (picks the bands)", selection: $sex) {
-                    Text("Male").tag(LabSex.male)
-                    Text("Female").tag(LabSex.female)
+                Section("Profile") {
+                    Picker("Sex (picks the bands)", selection: $sex) {
+                        Text("Male").tag(LabSex.male)
+                        Text("Female").tag(LabSex.female)
+                    }
+                    Toggle("Date of birth set", isOn: $hasBirthDate)
+                    if hasBirthDate { DatePicker("Date of birth", selection: $birthDate, displayedComponents: .date) }
+                    if sex == .female {
+                        Picker("Cycle / stage", selection: $reproductiveStatus) {
+                            Text("Unspecified").tag(LabReproductiveStatus?.none)
+                            Text("Premenopausal").tag(LabReproductiveStatus?.some(.premenopausal))
+                            Text("Postmenopausal (no HRT)").tag(LabReproductiveStatus?.some(.postmenopausal))
+                            Text("Postmenopausal (on HRT)").tag(LabReproductiveStatus?.some(.postmenopausalHRT))
+                            Text("Pregnancy · 1st trimester").tag(LabReproductiveStatus?.some(.pregnantTrimester1))
+                            Text("Pregnancy · 2nd trimester").tag(LabReproductiveStatus?.some(.pregnantTrimester2))
+                            Text("Pregnancy · 3rd trimester").tag(LabReproductiveStatus?.some(.pregnantTrimester3))
+                        }
+                    }
                 }
-                Toggle("Date of birth set", isOn: $hasBirthDate)
-                if hasBirthDate { DatePicker("Date of birth", selection: $birthDate, displayedComponents: .date) }
-                Toggle("Show drug and TRT notes", isOn: $showDrugNotes)
-                    .accessibilityIdentifier("labs-drug-notes-toggle")
+                Section("Optional reference-band modifiers") {
+                    Toggle("Endurance athlete", isOn: $isEnduranceAthlete)
+                    Toggle("Active smoker", isOn: $isSmoker)
+                    Toggle("African ancestry (WBC/ANC)", isOn: $africanAncestry)
+                }
+                Section("Notes") {
+                    Toggle("Show drug and TRT notes", isOn: $showDrugNotes)
+                        .accessibilityIdentifier("labs-drug-notes-toggle")
+                }
             }
             .navigationTitle("Labs settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -445,6 +568,10 @@ struct LabsSettingsSheet: View {
         hasBirthDate = prefs.birthDate != nil
         birthDate = prefs.birthDate.map(BodyDates.date(from:)) ?? birthDate
         showDrugNotes = prefs.showDrugNotes
+        reproductiveStatus = prefs.reproductiveStatus
+        isEnduranceAthlete = prefs.isEnduranceAthlete
+        isSmoker = prefs.isSmoker
+        africanAncestry = prefs.africanAncestry
     }
 
     private func save() {
@@ -452,6 +579,10 @@ struct LabsSettingsSheet: View {
             try settings.setSex(sex)
             try settings.setBirthDate(hasBirthDate ? BodyDates.day(from: birthDate) : nil)
             try settings.setShowDrugNotes(showDrugNotes)
+            if sex == .female { try settings.setReproductiveStatus(reproductiveStatus) }
+            try settings.setEnduranceAthlete(isEnduranceAthlete)
+            try settings.setSmoker(isSmoker)
+            try settings.setAfricanAncestry(africanAncestry)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

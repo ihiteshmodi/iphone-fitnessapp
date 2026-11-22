@@ -94,17 +94,14 @@ Screenshots of the real app.
 - Run it whenever the diet changes.
 
 **Bloodwork** (Body → Bloodwork; shown when `output/labs-catalogue.json` is bundled)
-- **Draws:** add a draw with its date, time, lab and how you came in (hours fasted, hard training in the last 72 h, alcohol, biotin and iron stopped, recent illness; each can stay unanswered). Add results by searching a marker, typing the value, and picking a unit the catalogue lists. The lab's own range is asked for on markers the vault reads against it, and is optional elsewhere.
-- **Reading:** each result is read against the vault's bands: optimal, low, high, or a *disputed zone* (inside some of the vault's optimal bands but not others; no flag). A value on a boundary two bands share shows both names. Crossing a doctor line raises a red alert at the top, naming the first threshold reached; it can be dismissed.
-- **Calculated markers:** the ratios and formulas the vault quotes (HOMA-IR, TG:HDL, cholesterol/HDL, non-HDL, remnant cholesterol, globulin, A/G, BUN/creatinine, AST/ALT, corrected calcium and sodium, anion gap, transferrin saturation, UIBC, NLR, MLR, Mentzer, zinc:copper, T:E2, DHT/T, Free T3:reverse T3) are worked out from the same draw only. A value the lab printed is used instead.
-- **Dashboard:** one tile per body system (optimal, disputed, outside and doctor counts, a trend, retests due), heart-risk markers (ApoB, Lp(a), hs-CRP, blood pressure, CAC), hormones over time, and every draw.
-- **Biological age:** PhenoAge (Levine et al. 2018, labelled *Research (owner-approved)*, because the vault names the inputs but gives no formula) from one draw with albumin, creatinine, glucose, hs-CRP, lymphocyte %, MCV, RDW, ALP and WBC plus your age. Without a complete draw it names what the closest draw is missing.
-- **Markers:** the full library, searchable, each with the vault's bands, trend, every result, how it is tested, what pushes it up or down, what to read it next to, what to do, doctor lines, retest timing, prep, where the vault disagrees (and what the app uses), and links. Drug and TRT notes are hidden unless switched on in settings; women-only notes are marked.
-- **Plan a draw:** one list of every test to ask the lab for (with the per-panel wording folded underneath), the prep timeline counted back from the draw day and hour, the panels your last results suggest adding (with the vault's reason), and retest windows.
-- **Genetics:** the vault's genes sorted by what they change (form, read, priority, nothing, doctor), each with the vault's genotype table; pick yours from the table. APOE is shown like any other gene.
-- **Settings (gear):** sex (picks the bands), date of birth (for PhenoAge) and the drug-notes switch.
-- **Lab history (More):** applies your past results from `output/lab-history.csv` when it is bundled; applying again adds nothing.
-- **AI labs review (share button):** writes every draw, reading, open item, retest and genotype to one markdown file for an agent that knows the vault.
+- **Profile & strict sex filtering:** a one-tap *Male / Female* confirmation banner on first visit (editable in Settings, alongside date of birth, athlete/smoker/ancestry flags, and female cycle/pregnancy/HRT stage). Selecting *Male* shows strictly Male and All-Adults bands, panels, checklists, and notes; selecting *Female* shows strictly Female and All-Adults items.
+- **Draws & smart unit scaling:** add a draw with its date, time, lab and pre-analytic state (hours fasted, hard training in 72 h, alcohol, biotin and iron stopped, recent illness, sleep, acute stress, recent vaccine/surgery, medications, and cycle day for women). Each result row shows the expected unit and typical range, auto-converts known conventional/SI/affine units, warns and offers a 1-tap unit switch on 10×/100×/1000× scale mismatches, accepts custom unit multipliers when a lab prints an unlisted unit, and supports `< LOD` detection limits, dipstick words, titers (`1:80`), assay selection (`LC-MS/MS`, `Equilibrium dialysis`, `Immunoassay`), and paired Systolic/Diastolic blood pressure.
+- **Pre-analytic validity gate:** checks collection time (7–10 AM hormone peak), fasting (skipping fasting-exempt markers), biotin/training/alcohol/iron/illness washouts, assay pitfalls, and urinalysis specific gravity (`< 1.005` dilution masking, `> 1.030` concentration artifact) and squamous contamination before flagging a result.
+- **Demographic strata, reading & trajectory:** selects the matching reference and optimal stratum for your sex, age at draw date, assay/specimen, and modifiers; unions adjacent undisputed optimal sub-bands while keeping true vault contradictions as *disputed zone*; reads `needsLabRange` tests against your lab's ULN; and tracks draw-over-draw deltas, annualized velocity (PSA, eGFR, Globulin, Cortisol:DHEA-S vs personal baseline), 2-draw persistence, and baseline resets when switching commercial labs.
+- **Calculated ratios & 6 pattern engines:** works out same-draw ratios (HOMA-IR, TG:HDL, TC:HDL, non-HDL, remnant cholesterol, globulin, A/G, BUN/creatinine, AST/ALT, corrected calcium and sodium, anion gap, transferrin saturation, UIBC, NLR and MLR including auto-derived differential counts, Mentzer, zinc:copper, T:E2, DHT/T, Free T3:reverse T3, Cortisol:DHEA-S, Free PSA %, spot UACR), evaluates the 6 multi-marker pattern engines (*Thyroid Conversion*, *HPA Axis Dysregulation*, *Inflammation Cascade*, *Iron & Inflammation*, *Metabolic Dysfunction Cluster*, *Heart Risk*) with matched phenotypes, progression stages, differential look-alikes, read-only Diet/Training/Waist context, and cross-marker discordance alerts.
+- **Safety escalation & stepped actions:** unconditional and symptom-paired panic checks, multilineage cytopenia detection, specialist routing, stepped interventions (*Foundations → Nutrition → Supplements → Educational Tier 4* when drug notes are on), and red *What not to do* guardrails.
+- **Plan a draw:** sex-filtered baseline panels with per-marker draw/assay notes, automatic reflex follow-up `co_tests` for out-of-optimal markers, optional Tier 2/3 upgrades, interactive Draw-Day Checklist (*Night before*, *Morning of*, *Post-draw*, *What to record*), prep countdown timeline, and retest windows.
+- **Genetics, lab history & AI export:** genotype tables by impact bucket, `output/lab-history.csv` one-tap import on More, and enriched `labs-review-<date>.md` export including validity flags, patterns, discordances, and reflex co-tests.
 
 **Room for improvement** (Diet → Today)
 - **Today:** what fired today or yesterday, worst first: trans fat (Fix), leucine under 3 g in a protein meal, fiber under 14 g per 1,000 kcal (with the psyllium fix), fat outside 20–35% / under 0.8 g per kg, EPA + DHA under 250 mg, caffeine in the evening (stop 8–10 h before bed), and your own rules: flax or chia, collagen not counted. *Dismiss* hides an item for that day.
@@ -257,7 +254,7 @@ There are no environment variables or secrets. The app is configured by settings
 | `output/meridian-presets.json` | Coach presets made by `python tools/meridian-presets/build_presets.py "<Train & Eat folder>"`; bundled when present and loaded from More → Coach presets. Paid-program content, so it stays out of the repository | absent (card hidden) | No |
 | `output/nutrient-values.csv` | Approved extra nutrient values for your foods (`name,key,amount`); bundled when present and applied from More → Nutrient data | absent (card hidden) | No |
 | `output/supplement-library.json` | The vault's supplement library; in the repository and bundled (More → Supplements) | absent (library hidden) | No |
-| `output/labs-catalogue.json` | The bloodwork and genetics catalogue (markers, bands, doctor lines, formulas, prep, panels, patterns, genes) merged by `tools/labs-catalogue/merge_catalogue.py`; bundled when present. The vault's content, so it stays out of the repository | absent (Labs hidden) | No |
+| `output/labs-catalogue.json` | The bloodwork and genetics catalogue compiled by `tools/labs-catalogue/compile_clinical_rules.py` (and `merge_catalogue.py`); bundled when present. The vault's content, so it stays out of the repository | absent (Labs hidden) | No |
 | `output/lab-history.csv` | Your past lab results (`kind,date,time,lab,marker_id,value,unit,lab_low,lab_high,note`, plus a `setting` row for the date of birth); bundled when present and applied from More → Lab history. Personal health data, so it stays out of the repository | absent (card hidden) | No |
 | `-UITestImportPath <file>` | Simulator tests only: import this database at launch | unset | No |
 | `-UITestInitialTab <0-4>` | Simulator tests only: start on a tab (0 Workout, 1 Body, 2 Diet, 3 Progress, 4 More) | `0` | No |
@@ -266,7 +263,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 20)
+### Database tables (schema version 21)
 
 | Table | Holds |
 |---|---|
@@ -289,8 +286,8 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `insight_dismissals`, `insight_rules` | Room for improvement: items dismissed for a day, and rules accepted or marked as not applying |
 | `checkins`, `meal_walks`, `recovery_signs` | The optional check-in: urine and sweat per day, walks after meals, weekly recovery signs |
 | `refeed_days` | Refeed dates chosen while cutting and what each day was marked |
-| `lab_draws` | Blood draws: date, time, lab and the prep state (fasted hours, hard training in 72 h, alcohol, biotin and iron pills stopped, recent illness) |
-| `lab_results` | One typed result per marker per draw, in a unit the labs catalogue lists, with the lab's own range if entered |
+| `lab_draws` | Blood draws: date, time, lab and pre-analytic state (fasted hours, hard training in 72 h, alcohol, biotin/iron stopped, recent illness, sleep, acute stress, vaccine/surgery, medications, cycle day) |
+| `lab_results` | One result per marker per draw: numeric value, optional `<` / `>` limit operator, paired secondary value (BP diastolic), qualitative/titer text, custom unit multiplier, specimen/assay, and optional printed lab range |
 | `lab_genotypes` | One genotype per gene, picked from that gene's table in the genetics volume, with the date it was entered |
 | `settings` | The settings above |
 

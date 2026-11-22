@@ -58,6 +58,10 @@ final class PhaseBTourUITests: XCTestCase {
 
     func testA_LabsHub() {
         guard openLabs(snapMore: true) else { return }
+        if element("labs-confirm-male").exists {
+            snap("b01-labs-sex-prompt")
+            element("labs-confirm-male").tap(); sleep(1)
+        }
         snap("b01-labs")
         scrollSnaps("b01-labs", times: 5)
         top()

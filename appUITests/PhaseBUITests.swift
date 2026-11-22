@@ -61,4 +61,32 @@ final class PhaseBUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         XCTAssertEqual(toggle.value as? String, "1")
     }
+
+    func testConfirmMaleHidesFemaleCycleFieldAndUnitMismatchSwitchesUnit() {
+        openLabs()
+        if element("labs-confirm-male").exists {
+            tap("labs-confirm-male")
+        }
+        XCTAssertFalse(element("labs-sex-confirm-card").exists)
+
+        tap("labs-add-draw")
+        XCTAssertFalse(element("labs-cycle-day").exists, "female cycle day stays hidden when Male is selected")
+
+        tap("labs-add-result")
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Free T3")
+        app.staticTexts["Free T3"].firstMatch.tap()
+
+        let value = element("labs-result-value")
+        XCTAssertTrue(value.waitForExistence(timeout: 5))
+        value.tap()
+        value.typeText("0.34")
+
+        let switchBtn = element("labs-switch-suggested-unit")
+        XCTAssertTrue(switchBtn.waitForExistence(timeout: 5), "10x scale mismatch suggests switching pg/mL to ng/dL")
+        switchBtn.tap()
+        tap("labs-save-draw")
+    }
 }
