@@ -306,4 +306,27 @@ final class MeasurementProgressTests: XCTestCase {
         }
         XCTAssertEqual(try service.sites(), [])
     }
+
+    func testAddingAndUpdatingASiteUnitSupportsMillimetersCentimetersAndPercent() throws {
+        try service.addSite(name: "Body Fat (belly Button)", firstReading: 6.2, target: 4.9, unit: .millimeters)
+
+        let skinfold = try progress(for: "Body Fat (belly Button)")
+        XCTAssertEqual(skinfold.unit, .millimeters)
+        XCTAssertEqual(skinfold.status, .toLose(1.30))
+        XCTAssertEqual(try service.detail(site: "Body Fat (belly Button)").unit, .millimeters)
+
+        try service.setUnit(site: "body fat (belly button)", .centimeters)
+
+        XCTAssertEqual(try progress(for: "Body Fat (belly Button)").unit, .centimeters)
+        XCTAssertEqual(try service.detail(site: "Body Fat (belly Button)").unit, .centimeters)
+    }
+
+    func testChangingTheUnitNeedsATarget() throws {
+        try db.addMeasurement(on: "2026-10-01", site: "Body Fat", inches: 14.5)
+
+        XCTAssertEqual(try service.detail(site: "Body Fat").unit, .percent)
+        XCTAssertThrowsError(try service.setUnit(site: "Body Fat", .millimeters)) { error in
+            XCTAssertEqual(error as? ValidationError, ValidationError("Set a target for this site first"))
+        }
+    }
 }

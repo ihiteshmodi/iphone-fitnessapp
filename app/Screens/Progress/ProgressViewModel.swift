@@ -43,11 +43,11 @@ enum MeasurementText {
         }
     }
 
-    static func ringCaption(_ status: MeasurementStatus) -> String {
+    static func ringCaption(_ status: MeasurementStatus, unit: MeasurementUnit = .inches) -> String {
         switch status {
-        case .toGain: return "in to gain"
-        case .toLose: return "in to lose"
-        case .ahead: return "in ahead"
+        case .toGain: return "\(unit.rawValue) to gain"
+        case .toLose: return "\(unit.rawValue) to lose"
+        case .ahead: return "\(unit.rawValue) ahead"
         case .atTarget: return "at target"
         case .noReading: return "no reading"
         case .noTarget: return "no target"
@@ -118,10 +118,10 @@ final class ProgressViewModel: ObservableObject {
         "Within ±\(Format.number(tolerancePercent, maxDecimals: 1))% of a target counts as on track. Amber beyond that, red beyond \(Format.number(max(MeasurementGoal.offTargetPercent, tolerancePercent), maxDecimals: 1))%."
     }
 
-    func addSite(nameText: String, firstReadingText: String, targetText: String) throws {
+    func addSite(nameText: String, firstReadingText: String, targetText: String, unit: MeasurementUnit = .inches) throws {
         guard let first = Format.decimal(firstReadingText) else { throw ValidationError("Enter the first reading as a number") }
         guard let target = Format.decimal(targetText) else { throw ValidationError("Enter the target as a number") }
-        try services.measurements.addSite(name: nameText, firstReading: first, target: target)
+        try services.measurements.addSite(name: nameText, firstReading: first, target: target, unit: unit)
     }
 
     // MARK: Volume chart

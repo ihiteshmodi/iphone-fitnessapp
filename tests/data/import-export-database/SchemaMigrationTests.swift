@@ -209,6 +209,28 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         let db = try XCTUnwrap(try service.openLiveDatabase())
         XCTAssertEqual(db.userVersion, Schema.currentVersion)
     }
+
+    func testMigratingMeasurementTargetsWithoutUnitSetsSkinfoldSitesToMillimetersAndKeepsTapeSitesInInches() throws {
+        let url = try makeFitnessDatabase(named: "v20-units.sqlite")
+        let raw = try Database(path: url.path)
+        try raw.execute("ALTER TABLE measurement_targets DROP COLUMN unit")
+        try raw.execute("INSERT INTO measurement_targets (site, inches, direction) VALUES ('Body Fat (belly Button)', 4.9, 'reduce')")
+        try raw.execute("INSERT INTO measurement_targets (site, inches, direction) VALUES ('Body Fat (side handles)', 2.0, 'reduce')")
+        try raw.execute("INSERT INTO measurement_targets (site, inches, direction) VALUES ('Body Fat', 12.0, 'reduce')")
+        try raw.execute("INSERT INTO measurement_targets (site, inches, direction) VALUES ('Waist', 28.0, 'reduce')")
+        try raw.execute("INSERT INTO measurement_targets (site, inches, direction) VALUES ('Left Calf', 15.31, 'grow')")
+        try raw.runScript("PRAGMA user_version = 20")
+        try FileManager.default.copyItem(at: url, to: location.databaseURL)
+
+        let db = try XCTUnwrap(try service.openLiveDatabase())
+
+        let units = Dictionary(uniqueKeysWithValues: try db.query("SELECT site, unit FROM measurement_targets").map { ($0.text("site"), $0.text("unit")) })
+        XCTAssertEqual(units["Body Fat (belly Button)"], "mm")
+        XCTAssertEqual(units["Body Fat (side handles)"], "mm")
+        XCTAssertEqual(units["Body Fat"], "%")
+        XCTAssertEqual(units["Waist"], "in")
+        XCTAssertEqual(units["Left Calf"], "in")
+    }
 }
 
 private extension Database {

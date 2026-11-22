@@ -18,6 +18,21 @@ public enum MeasurementDirection: String, Equatable {
     case reduce
 }
 
+/// Unit chosen for a body measurement site: tape sites in inches or centimeters, caliper skinfolds in millimeters, body fat in percent.
+public enum MeasurementUnit: String, CaseIterable, Equatable {
+    case inches = "in"
+    case millimeters = "mm"
+    case centimeters = "cm"
+    case percent = "%"
+
+    public static func inferred(for site: String) -> MeasurementUnit {
+        let lower = site.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if lower == "body fat" || lower == "body fat %" { return .percent }
+        if lower.hasPrefix("body fat (") || lower.contains("skinfold") { return .millimeters }
+        return .inches
+    }
+}
+
 /// How far from its target a site is, in the direction that matters.
 public enum MeasurementAttention: Equatable {
     /// At the target, ahead of it, or short of it by no more than the tolerance.
@@ -98,6 +113,7 @@ public struct MeasurementProgress: Equatable, Identifiable {
     public let current: Double?
     public let target: Double
     public let direction: MeasurementDirection
+    public let unit: MeasurementUnit
     public let status: MeasurementStatus
     public let fraction: Double
     /// Current against target in percent of the target (positive above it); nil without a reading.
@@ -110,6 +126,7 @@ public struct MeasurementDetail: Equatable {
     public let current: Double?
     public let target: Double?
     public let direction: MeasurementDirection
+    public let unit: MeasurementUnit
     public let status: MeasurementStatus
     public let fraction: Double
     public let percentFromTarget: Double?
@@ -129,15 +146,16 @@ public final class MeasurementService {
 
     /// Sites that have a target, the ones with the most still to do first; sites without a reading come last.
     public func progress() throws -> [MeasurementProgress] {
-        let targets = try db.query("SELECT site, inches, direction FROM measurement_targets")
+        let targets = try db.query("SELECT site, inches, direction, unit FROM measurement_targets")
         let tolerance = try SettingsRepository(db).load().measurementTolerancePercent
         let rows = try targets.map { row -> (progress: MeasurementProgress, distance: Double?) in
             let site = row.text("site")
             let target = row.double("inches")
             let direction = MeasurementDirection(rawValue: row.text("direction")) ?? .grow
+            let unit = MeasurementUnit(rawValue: row.text("unit")) ?? .inches
             let current = try readings(site: site).last?.inches
             let status = MeasurementGoal.status(current: current, target: target, direction: direction)
-            let progress = MeasurementProgress(site: site, current: current, target: target, direction: direction, status: status,
+            let progress = MeasurementProgress(site: site, current: current, target: target, direction: direction, unit: unit, status: status,
                                                fraction: MeasurementGoal.fraction(current: current, target: target, direction: direction),
                                                percentFromTarget: MeasurementGoal.percentFromTarget(current: current, target: target),
                                                attention: MeasurementGoal.attention(current: current, target: target, direction: direction,
@@ -164,12 +182,13 @@ public final class MeasurementService {
     public func detail(site: String) throws -> MeasurementDetail {
         let name = try canonicalName(site)
         let history = try readings(site: name)
-        let row = try db.query("SELECT inches, direction FROM measurement_targets WHERE site = ?", [.text(name)]).first
+        let row = try db.query("SELECT inches, direction, unit FROM measurement_targets WHERE site = ?", [.text(name)]).first
         let target = row?.double("inches")
         let direction = row.flatMap { MeasurementDirection(rawValue: $0.text("direction")) } ?? .grow
+        let unit = row.flatMap { MeasurementUnit(rawValue: $0.text("unit")) } ?? MeasurementUnit.inferred(for: name)
         let current = history.last?.inches
         let tolerance = try SettingsRepository(db).load().measurementTolerancePercent
-        return MeasurementDetail(site: name, current: current, target: target, direction: direction,
+        return MeasurementDetail(site: name, current: current, target: target, direction: direction, unit: unit,
                                  status: MeasurementGoal.status(current: current, target: target, direction: direction),
                                  fraction: MeasurementGoal.fraction(current: current, target: target, direction: direction),
                                  percentFromTarget: MeasurementGoal.percentFromTarget(current: current, target: target),
@@ -186,13 +205,23 @@ public final class MeasurementService {
         try db.execute("UPDATE measurement_targets SET direction = ? WHERE site = ?", [.text(direction.rawValue), .text(name)])
     }
 
+    /// Switches the display unit ('in', 'mm', 'cm', '%') of a tracked site.
+    public func setUnit(site: String, _ unit: MeasurementUnit) throws {
+        let name = try canonicalName(site)
+        guard try db.query("SELECT 1 AS found FROM measurement_targets WHERE site = ?", [.text(name)]).first != nil else {
+            throw ValidationError("Set a target for this site first")
+        }
+        try db.execute("UPDATE measurement_targets SET unit = ? WHERE site = ?", [.text(unit.rawValue), .text(name)])
+    }
+
     public func setTarget(site: String, inches: Double) throws {
         try validate(inches: inches)
         let name = try canonicalName(site)
+        let inferredUnit = MeasurementUnit.inferred(for: name)
         try db.execute("""
-            INSERT INTO measurement_targets (site, inches, set_on) VALUES (?, ?, ?)
+            INSERT INTO measurement_targets (site, inches, set_on, unit) VALUES (?, ?, ?, ?)
             ON CONFLICT(site) DO UPDATE SET inches = excluded.inches, set_on = excluded.set_on
-            """, [.text(name), .double(inches), .text(clock.today().string)])
+            """, [.text(name), .double(inches), .text(clock.today().string), .text(inferredUnit.rawValue)])
     }
 
     @discardableResult
@@ -224,7 +253,8 @@ public final class MeasurementService {
 
     /// A new site starts with one reading (dated today unless given) and a target. Unless told otherwise, a target below
     /// the first reading means "reduce".
-    public func addSite(name: String, firstReading: Double, target: Double, direction: MeasurementDirection? = nil, on date: ISODate? = nil) throws {
+    public func addSite(name: String, firstReading: Double, target: Double, direction: MeasurementDirection? = nil,
+                        unit: MeasurementUnit = .inches, on date: ISODate? = nil) throws {
         try validate(inches: firstReading)
         try validate(inches: target)
         let site = try canonicalName(name)
@@ -235,8 +265,8 @@ public final class MeasurementService {
         let chosen = direction ?? (target < firstReading ? .reduce : .grow)
         try db.transaction {
             try insertReading(site: site, inches: firstReading, on: day)
-            try db.execute("INSERT INTO measurement_targets (site, inches, set_on, direction) VALUES (?, ?, ?, ?)",
-                           [.text(site), .double(target), .text(clock.today().string), .text(chosen.rawValue)])
+            try db.execute("INSERT INTO measurement_targets (site, inches, set_on, direction, unit) VALUES (?, ?, ?, ?, ?)",
+                           [.text(site), .double(target), .text(clock.today().string), .text(chosen.rawValue), .text(unit.rawValue)])
         }
     }
 

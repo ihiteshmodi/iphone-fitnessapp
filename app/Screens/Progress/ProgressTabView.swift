@@ -105,7 +105,7 @@ private struct ProgressRingCard: View {
             RingView(progress: ring.fraction, size: 46, lineWidth: 5, color: MeasurementText.ringColor(ring.attention))
             VStack(alignment: .leading, spacing: 2) {
                 Text(ring.site).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text).lineLimit(2)
-                Text("\(MeasurementText.inches(ring.current)) → \(MeasurementText.inches(ring.target)) in")
+                Text("\(MeasurementText.inches(ring.current)) → \(MeasurementText.inches(ring.target)) \(ring.unit.rawValue)")
                     .font(.system(size: 11)).foregroundColor(Theme.muted).lineLimit(1).minimumScaleFactor(0.8)
                 Text(MeasurementText.statusLine(ring.status))
                     .font(.system(size: 11)).foregroundColor(MeasurementText.color(ring.attention))
@@ -134,15 +134,39 @@ struct ProgressAddSiteSheet: View {
     @State private var name = ""
     @State private var reading = ""
     @State private var target = ""
+    @State private var unit: MeasurementUnit = .inches
+    @State private var userPickedUnit = false
     @State private var errorMessage: String?
 
     var body: some View {
+        let nameBinding = Binding<String>(
+            get: { name },
+            set: { updated in
+                name = updated
+                if !userPickedUnit {
+                    unit = MeasurementUnit.inferred(for: updated)
+                }
+            }
+        )
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    BodyField(label: "Name", text: $name, identifier: "site-name-field", keyboard: .default)
-                    BodyField(label: "First reading (today)", text: $reading, unit: "in", identifier: "site-reading-field")
-                    BodyField(label: "Target", text: $target, unit: "in", identifier: "site-target-field")
+                    BodyField(label: "Name", text: nameBinding, identifier: "site-name-field", keyboard: .default)
+                    VStack(alignment: .leading, spacing: 6) {
+                        SectionLabel("Unit")
+                        Picker("Unit", selection: Binding(get: { unit }, set: { chosen in
+                            userPickedUnit = true
+                            unit = chosen
+                        })) {
+                            ForEach(MeasurementUnit.allCases, id: \.self) { option in
+                                Text(option.rawValue).tag(option)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("site-unit-picker")
+                    }
+                    BodyField(label: "First reading (today)", text: $reading, unit: unit.rawValue, identifier: "site-reading-field")
+                    BodyField(label: "Target", text: $target, unit: unit.rawValue, identifier: "site-target-field")
                 }
                 .padding(16)
             }
@@ -161,7 +185,7 @@ struct ProgressAddSiteSheet: View {
 
     private func save() {
         do {
-            try model.addSite(nameText: name, firstReadingText: reading, targetText: target)
+            try model.addSite(nameText: name, firstReadingText: reading, targetText: target, unit: unit)
             onSaved()
             dismiss()
         } catch {

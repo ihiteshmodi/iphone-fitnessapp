@@ -39,8 +39,9 @@ extension Database {
         try execute("INSERT INTO body_measurements (measured_on, site, inches) VALUES (?, ?, ?)", [.text(date), .text(site), .double(inches)])
     }
 
-    func addTarget(site: String, inches: Double, direction: String = "grow") throws {
-        try execute("INSERT INTO measurement_targets (site, inches, direction) VALUES (?, ?, ?)", [.text(site), .double(inches), .text(direction)])
+    func addTarget(site: String, inches: Double, direction: String = "grow", unit: String = "in") throws {
+        try execute("INSERT INTO measurement_targets (site, inches, direction, unit) VALUES (?, ?, ?, ?)",
+                    [.text(site), .double(inches), .text(direction), .text(unit)])
     }
 }
 

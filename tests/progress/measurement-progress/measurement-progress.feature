@@ -68,3 +68,9 @@ Feature: Measurement progress
   Scenario: A new site starts as reduce when its target is below its first reading
     When I add "Hips" with a first reading 38 and a target 36
     Then "Hips" is a reduce site
+
+  Scenario: Track a skinfold or body-fat site in millimeters, centimeters, or percent
+    When I add "Body Fat (belly Button)" with a first reading 6.2 and a target 4.9 in "mm"
+    Then "Body Fat (belly Button)" appears on Progress in "mm" with 1.30 to lose
+    When I change "Body Fat (belly Button)" unit to "cm"
+    Then "Body Fat (belly Button)" detail and Progress report unit "cm"

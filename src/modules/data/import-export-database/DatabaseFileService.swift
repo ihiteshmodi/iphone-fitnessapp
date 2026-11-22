@@ -434,6 +434,8 @@ public struct DatabaseFileService {
             let targetColumnsV22 = Set(try db.query("PRAGMA table_info(measurement_targets)").map { $0.text("name") })
             if !targetColumnsV22.contains("unit") {
                 try db.execute("ALTER TABLE measurement_targets ADD COLUMN unit TEXT NOT NULL DEFAULT 'in' CHECK (unit IN ('in', 'mm', 'cm', '%'))")
+                try db.execute("UPDATE measurement_targets SET unit = 'mm' WHERE site LIKE 'Body Fat (%' COLLATE NOCASE")
+                try db.execute("UPDATE measurement_targets SET unit = '%' WHERE site = 'Body Fat' COLLATE NOCASE")
             }
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }

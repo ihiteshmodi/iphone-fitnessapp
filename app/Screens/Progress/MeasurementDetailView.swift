@@ -45,6 +45,8 @@ final class MeasurementDetailViewModel: ObservableObject {
 
     func setDirection(_ direction: MeasurementDirection) throws { try services.measurements.setDirection(site: site, direction) }
 
+    func setUnit(_ unit: MeasurementUnit) throws { try services.measurements.setUnit(site: site, unit) }
+
     /// "Current" is whatever the newest reading says, so editing it logs a new reading.
     func logReading(inches: Double, on date: ISODate) throws { try services.measurements.logReading(site: site, inches: inches, on: date) }
 
@@ -137,12 +139,12 @@ private struct MeasurementDetailContent: View {
     private func summaryCard(_ detail: MeasurementDetail) -> some View {
         HStack(spacing: 16) {
             RingView(progress: detail.fraction, size: 104, lineWidth: 11,
-                     label: MeasurementText.ringLabel(detail.status), subLabel: MeasurementText.ringCaption(detail.status),
+                     label: MeasurementText.ringLabel(detail.status), subLabel: MeasurementText.ringCaption(detail.status, unit: detail.unit),
                      color: MeasurementText.ringColor(detail.attention))
             VStack(alignment: .leading, spacing: 8) {
-                valueRow(label: "Current", value: MeasurementText.inches(detail.current), tint: Theme.text,
+                valueRow(label: "Current", value: MeasurementText.inches(detail.current), unit: detail.unit.rawValue, tint: Theme.text,
                          editIdentifier: "measurement-current-edit-button") { sheet = .editCurrent }
-                valueRow(label: "Target", value: MeasurementText.inches(detail.target), tint: Theme.green,
+                valueRow(label: "Target", value: MeasurementText.inches(detail.target), unit: detail.unit.rawValue, tint: Theme.green,
                          editIdentifier: "measurement-target-edit-button") { sheet = .editTarget }
                 if let percent = MeasurementText.percentText(detail.percentFromTarget) {
                     Text("\(percent) from target")
@@ -150,7 +152,10 @@ private struct MeasurementDetailContent: View {
                         .foregroundColor(MeasurementText.color(detail.attention))
                         .accessibilityIdentifier("measurement-percent")
                 }
-                if detail.target != nil { directionPicker(detail) }
+                if detail.target != nil {
+                    directionPicker(detail)
+                    unitPicker(detail)
+                }
             }
         }
         .card()
@@ -176,13 +181,33 @@ private struct MeasurementDetailContent: View {
         }
     }
 
-    private func valueRow(label: String, value: String, tint: Color, editIdentifier: String, edit: @escaping () -> Void) -> some View {
+    private func unitPicker(_ detail: MeasurementDetail) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SectionLabel("Unit")
+            Picker("Unit", selection: Binding(get: { detail.unit }, set: { chosen in
+                do {
+                    try model.setUnit(chosen)
+                    session.didChange()
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
+            })) {
+                ForEach(MeasurementUnit.allCases, id: \.self) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("measurement-unit-picker")
+        }
+    }
+
+    private func valueRow(label: String, value: String, unit: String, tint: Color, editIdentifier: String, edit: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             SectionLabel(label)
             HStack(alignment: .firstTextBaseline) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(value).font(.system(size: 24, weight: .bold)).foregroundColor(tint)
-                    Text("in").font(.system(size: 12)).foregroundColor(Theme.muted)
+                    Text(unit).font(.system(size: 12)).foregroundColor(Theme.muted)
                 }
                 Spacer()
                 Button("Edit", action: edit)
@@ -198,7 +223,7 @@ private struct MeasurementDetailContent: View {
                 SectionLabel("History")
                 Spacer()
                 if let target = detail.target {
-                    Text("- - target \(Format.fixed(target))").font(.system(size: 11, weight: .medium)).foregroundColor(Theme.green)
+                    Text("- - target \(Format.fixed(target)) \(detail.unit.rawValue)").font(.system(size: 11, weight: .medium)).foregroundColor(Theme.green)
                 }
             }
             if detail.history.isEmpty {
@@ -212,7 +237,8 @@ private struct MeasurementDetailContent: View {
     }
 
     private var readingsCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let unitLabel = model.detail?.unit.rawValue ?? "in"
+        return VStack(alignment: .leading, spacing: 0) {
             HStack {
                 SectionLabel("Readings")
                 Spacer()
@@ -222,7 +248,7 @@ private struct MeasurementDetailContent: View {
             }
             .padding(.bottom, 4)
             ForEach(showsAllReadings ? model.readings : Array(model.readings.prefix(Self.collapsedReadingCount))) { reading in
-                BodyHistoryRow(date: model.dateText(reading.date), value: "\(Format.fixed(reading.inches)) in",
+                BodyHistoryRow(date: model.dateText(reading.date), value: "\(Format.fixed(reading.inches)) \(unitLabel)",
                                identifier: "reading-\(reading.id)") { sheet = .editReading(reading) }
             }
             if model.readings.count > Self.collapsedReadingCount {
@@ -237,27 +263,28 @@ private struct MeasurementDetailContent: View {
     @ViewBuilder
     private func sheetContent(_ sheet: MeasurementSheet) -> some View {
         let today = model.today
+        let unitLabel = model.detail?.unit.rawValue ?? "in"
         switch sheet {
         case .editTarget:
-            BodyValueEntrySheet(title: "Target", fieldLabel: "Target", unit: "in",
+            BodyValueEntrySheet(title: "Target", fieldLabel: "Target", unit: unitLabel,
                                 initialText: model.detail?.target.map { Format.fixed($0) } ?? "", today: today) { inches, _ in
                 try model.setTarget(inches: inches)
                 session.didChange()
             }
         case .editCurrent:
-            BodyValueEntrySheet(title: "Current", fieldLabel: "Current", unit: "in",
+            BodyValueEntrySheet(title: "Current", fieldLabel: "Current", unit: unitLabel,
                                 initialText: model.detail?.current.map { Format.fixed($0) } ?? "", today: today) { inches, day in
                 try model.logReading(inches: inches, on: day)
                 session.didChange()
             }
         case .logReading:
-            BodyValueEntrySheet(title: "Log reading", fieldLabel: "Reading", unit: "in",
+            BodyValueEntrySheet(title: "Log reading", fieldLabel: "Reading", unit: unitLabel,
                                 initialDate: today, today: today) { inches, day in
                 try model.logReading(inches: inches, on: day)
                 session.didChange()
             }
         case .editReading(let reading):
-            BodyValueEntrySheet(title: "Edit reading", fieldLabel: "Reading", unit: "in", initialText: Format.fixed(reading.inches),
+            BodyValueEntrySheet(title: "Edit reading", fieldLabel: "Reading", unit: unitLabel, initialText: Format.fixed(reading.inches),
                                 initialDate: reading.date, today: today, deleteTitle: "Delete reading",
                                 onDelete: {
                                     try model.deleteReading(reading)
