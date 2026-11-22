@@ -17,7 +17,7 @@ public final class NutrientImporter {
 
     public init(_ db: Database) { self.db = db }
 
-    public func apply(_ csv: String) throws -> Result {
+    public func apply(_ csv: String, overwriteExisting: Bool = true) throws -> Result {
         let library = FoodLibrary(db)
         var applied = 0
         var missing: [String] = []
@@ -31,20 +31,34 @@ public final class NutrientImporter {
                 continue
             }
             var draft = changed[food.id] ?? food.draft
+            var didChange = false
             if key == "omega3_form", let form = Omega3Form(rawValue: amount) {
-                draft.omega3Form = form
+                if overwriteExisting || draft.omega3Form == nil {
+                    draft.omega3Form = form
+                    didChange = true
+                }
             } else if key == "glycemic_index", let gi = Double(amount), (0...115).contains(gi) {
-                draft.glycemicIndex = gi
+                if overwriteExisting || draft.glycemicIndex == nil {
+                    draft.glycemicIndex = gi
+                    didChange = true
+                }
             } else if let nutrient = Nutrient(rawValue: key), let value = Double(amount), value >= 0 {
-                draft.nutrients[nutrient] = value
+                if overwriteExisting || draft.nutrients[nutrient] == nil {
+                    draft.nutrients[nutrient] = value
+                    didChange = true
+                }
             } else {
                 continue
             }
-            changed[food.id] = draft
-            applied += 1
+            if didChange {
+                changed[food.id] = draft
+                applied += 1
+            }
         }
-        try db.transaction {
-            for (id, draft) in changed { try library.update(id, draft) }
+        if !changed.isEmpty {
+            try db.transaction {
+                for (id, draft) in changed { try library.update(id, draft) }
+            }
         }
         return Result(applied: applied, missingFoods: missing)
     }

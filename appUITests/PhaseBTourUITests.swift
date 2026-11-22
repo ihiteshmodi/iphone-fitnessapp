@@ -38,21 +38,14 @@ final class PhaseBTourUITests: XCTestCase {
 
     private func top() { for _ in 0..<6 { app.swipeDown() } }
 
-    /// Applies the bundled lab history (adds nothing the second time) and opens Body → Bloodwork.
+    /// Opens Body → Bloodwork.
     @discardableResult
     private func openLabs(snapMore: Bool = false) -> Bool {
         continueAfterFailure = true
         app = XCUIApplication()
-        app.launchArguments = UITestSeed.launchArguments + ["-UITestInitialTab", "4"]
+        app.launchArguments = UITestSeed.launchArguments + ["-UITestInitialTab", "1"]
         app.launch()
         sleep(2)
-        if reveal("apply-lab-history") {
-            if snapMore { snap("b00-more-lab-history") }
-            element("apply-lab-history").tap(); sleep(2)
-            if snapMore { snap("b00-more-lab-history-applied") }
-        }
-        app.tabBars.buttons.element(boundBy: 1).tap()
-        sleep(1)
         return open("labs-entry", snap: "labs-open")
     }
 

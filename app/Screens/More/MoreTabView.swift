@@ -24,9 +24,6 @@ struct MoreTabView: View {
                     BreakModeCard(services: services, onChange: { session.didChange() })
                         .id(ObjectIdentifier(services))
                     deloadCard
-                    CoachPresetsCard()
-                    NutrientDataCard()
-                    LabHistoryCard()
                     toolsCard
                     historyCard
                     pastDataCard

@@ -1,0 +1,936 @@
+{
+ "routines": [
+  {
+   "name": "Meridian · Back + Shoulders",
+   "exercises": [
+    {
+     "name": "Lat Pulldowns (Cable)",
+     "sets": 4,
+     "min_reps": 10,
+     "max_reps": 10
+    },
+    {
+     "name": "Shoulder Press (Machine)",
+     "sets": 4,
+     "min_reps": 8,
+     "max_reps": 8
+    },
+    {
+     "name": "Chest-Supported Transverse Row (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Lateral Raise (Dumbbell)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Unilateral Sagittal Row (Cable)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Rear Delt Flys (Machine)",
+     "sets": 2,
+     "min_reps": 10,
+     "max_reps": 12
+    }
+   ]
+  },
+  {
+   "name": "Meridian · Chest + Arms",
+   "exercises": [
+    {
+     "name": "Incline Bench Press (Dumbbell)",
+     "sets": 4,
+     "min_reps": 8,
+     "max_reps": 8
+    },
+    {
+     "name": "Preacher Curl (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Dips (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Chest Fly (Machine)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Tricep Pushdown (Cable)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Bicep Curl (Cable)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Chest Press (Machine)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    }
+   ]
+  },
+  {
+   "name": "Meridian · Legs",
+   "exercises": [
+    {
+     "name": "Hip Adduction (Machine)",
+     "sets": 2,
+     "min_reps": 10,
+     "max_reps": 12
+    },
+    {
+     "name": "Back Extensions (Free-Weight)",
+     "sets": 4,
+     "min_reps": 10,
+     "max_reps": 10
+    },
+    {
+     "name": "Single-Leg Press (Machine)",
+     "sets": 4,
+     "min_reps": 10,
+     "max_reps": 10
+    },
+    {
+     "name": "Lying Leg Curls (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Leg Extension (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    }
+   ]
+  },
+  {
+   "name": "Meridian · Legs + Shoulders",
+   "exercises": [
+    {
+     "name": "Shoulder Press (Machine)",
+     "sets": 4,
+     "min_reps": 8,
+     "max_reps": 8
+    },
+    {
+     "name": "Hip Adduction (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Romanian Deadlift (Smith Machine)",
+     "sets": 4,
+     "min_reps": 8,
+     "max_reps": 8
+    },
+    {
+     "name": "Leg Press (Machine)",
+     "sets": 4,
+     "min_reps": 8,
+     "max_reps": 8
+    },
+    {
+     "name": "Seated Leg Curl (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Leg Extension (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    }
+   ]
+  },
+  {
+   "name": "Meridian · Lower",
+   "exercises": [
+    {
+     "name": "Calf Press (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Hip Adduction (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Romanian Deadlift (Smith Machine)",
+     "sets": 4,
+     "min_reps": 8,
+     "max_reps": 8
+    },
+    {
+     "name": "Leg Press (Machine)",
+     "sets": 4,
+     "min_reps": 8,
+     "max_reps": 8
+    },
+    {
+     "name": "Seated Leg Curl (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Leg Extension (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    }
+   ]
+  },
+  {
+   "name": "Meridian · Pull",
+   "exercises": [
+    {
+     "name": "Lat Pulldowns (Cable)",
+     "sets": 3,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Preacher Curl (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Rear Delt Flys (Cable)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Chest-Supported Transverse Row (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Bicep Curls (EZ-Bar)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Chest-Supported Sagittal Row (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Crunches (Machine)",
+     "sets": 2,
+     "min_reps": 10,
+     "max_reps": 12
+    }
+   ]
+  },
+  {
+   "name": "Meridian · Push",
+   "exercises": [
+    {
+     "name": "Incline Bench Press (Dumbbell)",
+     "sets": 4,
+     "min_reps": 8,
+     "max_reps": 8
+    },
+    {
+     "name": "Dips (Machine)",
+     "sets": 3,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Chest Fly (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Lateral Raise (Cable)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Tricep Pushdown (Cable)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Chest Press (Machine)",
+     "sets": 2,
+     "min_reps": 6,
+     "max_reps": 8
+    }
+   ]
+  },
+  {
+   "name": "Meridian · Upper",
+   "exercises": [
+    {
+     "name": "Incline Bench Press (Dumbbell)",
+     "sets": 4,
+     "min_reps": 8,
+     "max_reps": 8
+    },
+    {
+     "name": "Lat Pulldowns (Cable)",
+     "sets": 3,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Shoulder Press (Machine)",
+     "sets": 3,
+     "min_reps": 6,
+     "max_reps": 8
+    },
+    {
+     "name": "Preacher Curl (Machine)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Dips (Machine)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Chest Fly (Machine)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    },
+    {
+     "name": "Chest-Supported Transverse Row (Machine)",
+     "sets": 2,
+     "min_reps": 8,
+     "max_reps": 10
+    }
+   ]
+  }
+ ],
+ "workouts": [
+  {
+   "name": "Meridian · 4-Day Upper/Lower",
+   "days": [
+    {
+     "title": "Upper",
+     "weekday": 1,
+     "exercises": [
+      {
+       "name": "Chest Press (Machine)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Lat Pulldowns (Cable)",
+       "sets": 3,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Shoulder Press (Machine)",
+       "sets": 3,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Preacher Curl (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Dips (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Chest Fly (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Chest-Supported Transverse Row (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      }
+     ]
+    },
+    {
+     "title": "Lower",
+     "weekday": 2,
+     "exercises": [
+      {
+       "name": "Calf Press (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Hip Adduction (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Romanian Deadlift (Smith Machine)",
+       "sets": 4,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Leg Press (Machine)",
+       "sets": 4,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Seated Leg Curl (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Leg Extension (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      }
+     ]
+    },
+    {
+     "title": "Upper",
+     "weekday": 4,
+     "exercises": [
+      {
+       "name": "Chest Press (Machine)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Lat Pulldowns (Cable)",
+       "sets": 3,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Shoulder Press (Machine)",
+       "sets": 3,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Preacher Curl (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Dips (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Chest Fly (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Chest-Supported Transverse Row (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      }
+     ]
+    },
+    {
+     "title": "Lower",
+     "weekday": 5,
+     "exercises": [
+      {
+       "name": "Calf Press (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Hip Adduction (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Romanian Deadlift (Smith Machine)",
+       "sets": 4,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Leg Press (Machine)",
+       "sets": 4,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Seated Leg Curl (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Leg Extension (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Meridian · Chest + Arms / Back + Shoulders / Legs",
+   "days": [
+    {
+     "title": "Chest + Arms",
+     "weekday": null,
+     "exercises": [
+      {
+       "name": "Incline Bench Press (Dumbbell)",
+       "sets": 5,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Chest Press (Machine)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Chest Fly (Machine)",
+       "sets": 3,
+       "min_reps": 12,
+       "max_reps": 12
+      },
+      {
+       "name": "Bicep Curls (EZ-Bar)",
+       "sets": 3,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Tricep Pushdown (Cable)",
+       "sets": 3,
+       "min_reps": 12,
+       "max_reps": 12
+      },
+      {
+       "name": "Hammer Curls (Dumbbell)",
+       "sets": 2,
+       "min_reps": 12,
+       "max_reps": 12
+      }
+     ]
+    },
+    {
+     "title": "Back + Shoulders",
+     "weekday": null,
+     "exercises": [
+      {
+       "name": "Lat Pulldowns (Cable)",
+       "sets": 5,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Chest-Supported Rows (Dumbbell)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Shoulder Press (Machine)",
+       "sets": 4,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Lateral Raise (Dumbbell)",
+       "sets": 3,
+       "min_reps": 15,
+       "max_reps": 15
+      },
+      {
+       "name": "Rear Delt Flys (Machine)",
+       "sets": 2,
+       "min_reps": 15,
+       "max_reps": 15
+      },
+      {
+       "name": "Straight Arm Pulldowns (Cable)",
+       "sets": 2,
+       "min_reps": 12,
+       "max_reps": 12
+      }
+     ]
+    },
+    {
+     "title": "Legs",
+     "weekday": null,
+     "exercises": [
+      {
+       "name": "Leg Press (Machine)",
+       "sets": 5,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Seated Leg Curl (Machine)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Leg Extension (Machine)",
+       "sets": 3,
+       "min_reps": 12,
+       "max_reps": 12
+      },
+      {
+       "name": "Hip Thrust (Machine)",
+       "sets": 3,
+       "min_reps": 12,
+       "max_reps": 12
+      },
+      {
+       "name": "Seated Calf Raises (Machine)",
+       "sets": 3,
+       "min_reps": 15,
+       "max_reps": 15
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Meridian · Upper / Lower (at home)",
+   "days": [
+    {
+     "title": "Upper A",
+     "weekday": null,
+     "exercises": [
+      {
+       "name": "Flat Bench Press (Dumbbell)",
+       "sets": 5,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Chest-Supported Rows (Dumbbell)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Shoulder Press (Dumbbell)",
+       "sets": 3,
+       "min_reps": 8,
+       "max_reps": 10
+      },
+      {
+       "name": "Lateral Raise (Dumbbell)",
+       "sets": 2,
+       "min_reps": 12,
+       "max_reps": 15
+      },
+      {
+       "name": "Hammer Curls (Dumbbell)",
+       "sets": 2,
+       "min_reps": 10,
+       "max_reps": 12
+      }
+     ]
+    },
+    {
+     "title": "Lower A",
+     "weekday": null,
+     "exercises": [
+      {
+       "name": "Goblet Squat (Dumbbell)",
+       "sets": 5,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Romanian Deadlift (Dumbbell)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Reverse Lunges (Dumbbell)",
+       "sets": 2,
+       "min_reps": 10,
+       "max_reps": 12
+      },
+      {
+       "name": "Calf Raises (Dumbbell)",
+       "sets": 2,
+       "min_reps": 13,
+       "max_reps": 15
+      },
+      {
+       "name": "Lying Leg Raises",
+       "sets": 2,
+       "min_reps": 12,
+       "max_reps": 15
+      }
+     ]
+    },
+    {
+     "title": "Upper B",
+     "weekday": null,
+     "exercises": [
+      {
+       "name": "Incline Bench Press (Dumbbell)",
+       "sets": 5,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Bent-Over Row (Dumbbell)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Push-Ups",
+       "sets": 2,
+       "min_reps": 12,
+       "max_reps": 15
+      },
+      {
+       "name": "Bent Over Reverse Flyes (Dumbbell)",
+       "sets": 2,
+       "min_reps": 12,
+       "max_reps": 15
+      },
+      {
+       "name": "Overhead Tricep Extension (Dumbbell)",
+       "sets": 2,
+       "min_reps": 10,
+       "max_reps": 12
+      }
+     ]
+    },
+    {
+     "title": "Lower A",
+     "weekday": null,
+     "exercises": [
+      {
+       "name": "Goblet Squat (Dumbbell)",
+       "sets": 5,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Romanian Deadlift (Dumbbell)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Reverse Lunges (Dumbbell)",
+       "sets": 2,
+       "min_reps": 10,
+       "max_reps": 12
+      },
+      {
+       "name": "Calf Raises (Dumbbell)",
+       "sets": 2,
+       "min_reps": 13,
+       "max_reps": 15
+      },
+      {
+       "name": "Lying Leg Raises",
+       "sets": 2,
+       "min_reps": 12,
+       "max_reps": 15
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Meridian · Push / Pull / Legs",
+   "days": [
+    {
+     "title": "Push",
+     "weekday": null,
+     "exercises": [
+      {
+       "name": "Bench Press (Barbell)",
+       "sets": 5,
+       "min_reps": 6,
+       "max_reps": 6
+      },
+      {
+       "name": "Dips",
+       "sets": 3,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Chest Fly (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Lateral Raise (Cable)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Tricep Pushdown (Cable)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Incline Bench Press (Smith Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      }
+     ]
+    },
+    {
+     "title": "Pull",
+     "weekday": null,
+     "exercises": [
+      {
+       "name": "Lat Pulldowns (Cable)",
+       "sets": 3,
+       "min_reps": 8,
+       "max_reps": 8
+      },
+      {
+       "name": "Preacher Curl (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Rear Delt Flys (Cable)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Chest-Supported Transverse Row (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Bicep Curls (EZ-Bar)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Chest-Supported Sagittal Row (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Crunches (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      }
+     ]
+    },
+    {
+     "title": "Legs",
+     "weekday": null,
+     "exercises": [
+      {
+       "name": "Hip Adduction (Machine)",
+       "sets": 2,
+       "min_reps": 10,
+       "max_reps": 12
+      },
+      {
+       "name": "Back Extensions (Free-Weight)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Single-Leg Press (Machine)",
+       "sets": 4,
+       "min_reps": 10,
+       "max_reps": 10
+      },
+      {
+       "name": "Lying Leg Curls (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      },
+      {
+       "name": "Leg Extension (Machine)",
+       "sets": 2,
+       "min_reps": 6,
+       "max_reps": 8
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

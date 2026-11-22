@@ -116,6 +116,11 @@ final class AppSession: ObservableObject {
         guard let fileService else { return }
         do {
             if let db = try fileService.openLiveDatabase() {
+                let presetsData = Bundle.main.url(forResource: "meridian-presets", withExtension: "json")
+                    .flatMap { try? Data(contentsOf: $0) }
+                let nutrientsCSV = Bundle.main.url(forResource: "nutrient-values", withExtension: "csv")
+                    .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+                try? BundledReferenceSync.sync(db: db, presetsData: presetsData, nutrientsCSV: nutrientsCSV)
                 services = Services(db: db, clock: clock)
                 phase = .ready
             } else {

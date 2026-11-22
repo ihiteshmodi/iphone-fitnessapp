@@ -35,11 +35,11 @@ targets:
             rm -f "$DEST"
             echo "note: output/fitness.sqlite not found, building without bundled data"
           fi
-          # Coach presets made by tools/meridian-presets (a paid program's content, so never committed).
+          # Coach presets (non-personal reference templates, kept in the repository and synced silently on launch).
           PRESETS="${SRCROOT}/output/meridian-presets.json"
           PRESETS_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/meridian-presets.json"
           if [ -f "$PRESETS" ]; then cp -f "$PRESETS" "$PRESETS_DEST"; else rm -f "$PRESETS_DEST"; fi
-          # Approved nutrient values for the owner's foods (kept in the repository).
+          # Approved nutrient and glycemic-index values for foods (kept in the repository and synced silently on launch).
           VALUES="${SRCROOT}/output/nutrient-values.csv"
           VALUES_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/nutrient-values.csv"
           if [ -f "$VALUES" ]; then cp -f "$VALUES" "$VALUES_DEST"; else rm -f "$VALUES_DEST"; fi
@@ -51,10 +51,8 @@ targets:
           LABS="${SRCROOT}/output/labs-catalogue.json"
           LABS_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/labs-catalogue.json"
           if [ -f "$LABS" ]; then cp -f "$LABS" "$LABS_DEST"; else rm -f "$LABS_DEST"; fi
-          # The owner's past lab results (personal health data, git-ignored; never committed).
-          HISTORY="${SRCROOT}/output/lab-history.csv"
-          HISTORY_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/lab-history.csv"
-          if [ -f "$HISTORY" ]; then cp -f "$HISTORY" "$HISTORY_DEST"; else rm -f "$HISTORY_DEST"; fi
+          # Ensure no stale lab-history.csv remains in the app bundle (personal lab data lives in fitness.sqlite).
+          rm -f "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/lab-history.csv"
     dependencies:
       - package: FitnessCore
     info:

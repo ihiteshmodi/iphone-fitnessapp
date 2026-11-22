@@ -516,38 +516,3 @@ struct DrawDetailView: View {
         }
     }
 }
-
-/// Applies the owner's past lab results, bundled as output/lab-history.csv. Applying again adds nothing new.
-struct LabHistoryCard: View {
-    @EnvironmentObject private var services: Services
-    @EnvironmentObject private var session: AppSession
-    @State private var status: String?
-
-    static var bundledFile: URL? { Bundle.main.url(forResource: "lab-history", withExtension: "csv") }
-
-    var body: some View {
-        if let url = Self.bundledFile, let catalogue = services.labCatalogue {
-            VStack(alignment: .leading, spacing: 8) {
-                SectionLabel("Lab history")
-                Text("Your past blood tests, typed in from the lab reports. Shows up in Body → Bloodwork.")
-                    .font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
-                Button("Apply lab history") { apply(url, catalogue) }
-                    .buttonStyle(PrimaryButtonStyle(ghost: true))
-                    .accessibilityIdentifier("apply-lab-history")
-                if let status { Text(status).font(.system(size: 12)).foregroundColor(Theme.green).fixedSize(horizontal: false, vertical: true) }
-            }
-            .card()
-        }
-    }
-
-    private func apply(_ url: URL, _ catalogue: LabCatalogue) {
-        do {
-            let result = try LabHistoryImporter(services.db, catalogue: catalogue).apply(try String(contentsOf: url, encoding: .utf8))
-            let skipped = result.skipped.isEmpty ? "" : " Skipped \(result.skipped.count) rows."
-            status = "Added \(result.drawsAdded) draws and \(result.resultsAdded) results.\(skipped)"
-            session.didChange()
-        } catch {
-            status = (error as? ValidationError)?.message ?? error.localizedDescription
-        }
-    }
-}

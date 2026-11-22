@@ -51,3 +51,9 @@ Feature: Import and export the database
     And days after 2026-10-30 have nothing ticked
     And the old skipped-items table is gone
     And opening it again changes nothing, so an item unticked afterwards stays unticked
+
+  Scenario: Coach presets and reference nutrients sync silently on launch without overwriting later manual edits
+    Given bundled coach presets and nutrient/GI CSV values
+    When the app opens a database containing matching foods
+    Then coach presets and food nutrients/GIs are populated automatically without manual buttons
+    And reopening with the same bundled CSV preserves a user's manual food edit while filling newly added foods

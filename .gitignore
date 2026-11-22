@@ -2,9 +2,10 @@
 # Keep this repository free of workout history, body weight and measurements.
 current_artifacts/
 output/*
-# These two are fine to keep on GitHub (owner's choice): food nutrient values and the supplement library.
+# Non-personal reference data kept on GitHub (owner's choice): food nutrient/GI values, supplement library, and coach presets.
 !output/nutrient-values.csv
 !output/supplement-library.json
+!output/meridian-presets.json
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
