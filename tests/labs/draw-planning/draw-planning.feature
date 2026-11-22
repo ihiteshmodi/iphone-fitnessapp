@@ -31,3 +31,10 @@ Feature: Plan a draw and know when to retest
     And a "Follow-up co-tests" item adds "Reverse T3" (skipping Ferritin because it was already in that draw)
     And Tier 2/3 upgrades exclude female-only markers like AMH, and the draw-day checklist omits female menstrual bullets for a Male
 
+  Scenario: Guided Bloodwork highlights starred Mandatory Core Tests pending (never tested vs due for retest) and 4-step guide
+    Given a Male user has tested CBC, CMP, Lipid Panel, Glucose, HbA1c, TSH, Vitamin D, and Testosterone, with Ferritin tested 14 weeks ago (low) and ApoB/Lp(a)/Fasting Insulin/B12 never tested
+    When CoreBloodworkGuide summarizes Bloodwork status
+    Then untested core tests list ApoB, Lp(a), Fasting Insulin, and Vitamin B12 as Never Tested
+    And Ferritin appears under Core Retest Due while Lp(a) once tested never re-triggers routine retest
+    And the 4-step How Bloodwork Works guide is available
+

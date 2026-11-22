@@ -459,25 +459,31 @@ struct DrawDetailView: View {
             let reading = LabReader.read(result: result, marker: marker, preferences: prefs, draw: draw.draft, genotypes: model.genotypes)
             let warnings = LabValidityGate.evaluate(result: result, marker: marker, draw: draw.draft,
                                                     sameDrawResults: results, catalogue: model.catalogue, sex: model.sex)
+            let bar = LabRangeBarModel.build(marker: marker, sex: model.sex, reading: reading, latestResult: result)
             NavigationLink { MarkerDetailView(model: model, marker: marker) } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(marker.name)
-                        if result.isCalculated { Text("Calculated from this draw").font(.system(size: 11)).foregroundColor(Theme.muted) }
-                        if result.labLow != nil || result.labHigh != nil {
-                            Text("Lab range \(result.labLow.map { Format.number($0) } ?? "…")–\(result.labHigh.map { Format.number($0) } ?? "…")")
-                                .font(.system(size: 11)).foregroundColor(Theme.muted)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(marker.name)
+                            if result.isCalculated { Text("Calculated from this draw").font(.system(size: 11)).foregroundColor(Theme.muted) }
+                            if result.labLow != nil || result.labHigh != nil {
+                                Text("Lab range \(result.labLow.map { Format.number($0) } ?? "…")–\(result.labHigh.map { Format.number($0) } ?? "…")")
+                                    .font(.system(size: 11)).foregroundColor(Theme.muted)
+                            }
+                            if let firstWarn = warnings.first {
+                                Text(firstWarn.title).font(.system(size: 11)).foregroundColor(Theme.amber)
+                            }
+                            if let firstGene = reading.geneticNotes.first {
+                                Text(firstGene).font(.system(size: 11)).foregroundColor(Theme.green).lineLimit(2)
+                            }
                         }
-                        if let firstWarn = warnings.first {
-                            Text(firstWarn.title).font(.system(size: 11)).foregroundColor(Theme.amber)
-                        }
-                        if let firstGene = reading.geneticNotes.first {
-                            Text(firstGene).font(.system(size: 11)).foregroundColor(Theme.green).lineLimit(2)
-                        }
+                        Spacer()
+                        Text(formattedResultText(result)).foregroundColor(Theme.muted)
+                        LabStatusPill(status: reading.status)
                     }
-                    Spacer()
-                    Text(formattedResultText(result)).foregroundColor(Theme.muted)
-                    LabStatusPill(status: reading.status)
+                    if let bar {
+                        MarkerMiniRangeBar(bar: bar, status: reading.status)
+                    }
                 }
             }
         }

@@ -148,4 +148,55 @@ final class DrawPlanningTests: XCTestCase {
         XCTAssertEqual(malePlan.upgrades().map(\.markerID), ["cortisol"])
         XCTAssertEqual(malePlan.checklist()?.loggingProtocol, ["Collection time"])
     }
+
+    func testCoreBloodworkGuideFlagsNeverTestedAndDueCoreTestsAndProvidesWalkthroughSteps() throws {
+        let coreJSON = #"""
+        {
+          "markers": [
+            {"id": "hemoglobin", "name": "Hemoglobin", "units": [{"unit": "g/dL", "default": true}]},
+            {"id": "wbc", "name": "WBC", "units": [{"unit": "x10^9/L", "default": true}]},
+            {"id": "platelets", "name": "Platelets", "units": [{"unit": "x10^9/L", "default": true}]},
+            {"id": "glucose", "name": "Glucose", "units": [{"unit": "mg/dL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 72, "high": 85, "unit": "mg/dL"}],
+             "retest": [{"text": "6-12m", "minMonths": 6, "maxMonths": 12, "after": "routine"}]},
+            {"id": "apob", "name": "ApoB", "units": [{"unit": "mg/dL", "default": true}]},
+            {"id": "lpa", "name": "Lp(a)", "units": [{"unit": "nmol/L", "default": true}],
+             "retest": [{"text": "Once", "minMonths": 120, "after": "routine"}]},
+            {"id": "ferritin", "name": "Ferritin", "units": [{"unit": "ng/mL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 60, "high": 150, "unit": "ng/mL"}],
+             "retest": [{"text": "8-12w", "minWeeks": 8, "maxWeeks": 12, "after": "abnormal"}]},
+            {"id": "total-testosterone", "name": "Total Testosterone", "units": [{"unit": "ng/dL", "default": true}]},
+            {"id": "progesterone", "name": "Progesterone", "sex": "female", "units": [{"unit": "ng/mL", "default": true}]}
+          ],
+          "panels": [
+            {"id": "baseline-core", "name": "Core adult baseline", "markers": ["hemoglobin", "wbc", "platelets", "glucose", "apob", "ferritin"], "when": "first"},
+            {"id": "baseline-male", "name": "Male hormone baseline", "markers": ["total-testosterone"], "when": "first", "tag": "male"},
+            {"id": "baseline-female", "name": "Female hormone baseline", "markers": ["progesterone"], "when": "first", "tag": "female"}
+          ]
+        }
+        """#
+        let cat = try LabCatalogue(data: Data(coreJSON.utf8))
+        let localDB = try Database.inMemory()
+        let svc = LabDrawService(localDB, catalogue: cat)
+        let d1 = try svc.addDraw(LabDrawDraft(date: date("2026-08-01")))
+        try svc.addResult(drawID: d1, markerID: "hemoglobin", value: 15.2, unit: "g/dL")
+        try svc.addResult(drawID: d1, markerID: "wbc", value: 5.5, unit: "x10^9/L")
+        try svc.addResult(drawID: d1, markerID: "platelets", value: 240, unit: "x10^9/L")
+        try svc.addResult(drawID: d1, markerID: "glucose", value: 80, unit: "mg/dL")
+        try svc.addResult(drawID: d1, markerID: "ferritin", value: 25, unit: "ng/mL") // low -> due after 8 weeks (2026-09-26)
+        try svc.addResult(drawID: d1, markerID: "lpa", value: 18, unit: "nmol/L") // once in a lifetime
+
+        XCTAssertTrue(CoreBloodworkGuide.isCoreMarker("apob", catalogue: cat, sex: .male))
+        XCTAssertTrue(CoreBloodworkGuide.isCoreMarker("lpa", catalogue: cat, sex: .male))
+        XCTAssertTrue(CoreBloodworkGuide.isCoreMarker("total-testosterone", catalogue: cat, sex: .male))
+        XCTAssertFalse(CoreBloodworkGuide.isCoreMarker("progesterone", catalogue: cat, sex: .male))
+
+        let summary = try CoreBloodworkGuide.summarize(catalogue: cat, draws: svc, sex: .male, today: date("2026-11-22"))
+        XCTAssertEqual(summary.steps.count, 4)
+        XCTAssertTrue(summary.neverTested.map(\.id).contains("apob"))
+        XCTAssertTrue(summary.neverTested.map(\.id).contains("total-testosterone"))
+        XCTAssertFalse(summary.neverTested.map(\.id).contains("cbc"), "CBC was covered by hemoglobin/wbc/platelets")
+        XCTAssertTrue(summary.retestDue.map(\.id).contains("ferritin"), "Low ferritin from 16 weeks ago is due for retest")
+        XCTAssertFalse(summary.retestDue.map(\.id).contains("lpa"), "Lp(a) once tested never re-triggers routine retest")
+    }
 }

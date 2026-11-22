@@ -149,4 +149,39 @@ final class LabReadingTests: XCTestCase {
         let tgRead = LabReader.read(result: tg, marker: cat.marker("triglycerides")!, preferences: prefs)
         XCTAssertEqual(tgRead.conditionalDoctorLines.count, 1)
     }
+
+    func testVisualRangeBarMapsTwoSidedAndOneSidedNumericMarkersAndSkipsQualitative() throws {
+        let ferritin = try XCTUnwrap(catalogue.marker("ferritin"))
+        let reading92 = read(92, "ng/mL", marker: "ferritin", sex: .male)
+        let bar = try XCTUnwrap(LabRangeBarModel.build(marker: ferritin, sex: .male, reading: reading92))
+
+        XCTAssertEqual(bar.segments.map(\.kind), [.low, .normal, .optimal, .normal, .high])
+        let totalWidth = bar.segments.reduce(0.0) { $0 + $1.widthFraction }
+        XCTAssertEqual(totalWidth, 1.0, accuracy: 1e-6)
+        let optSeg = try XCTUnwrap(bar.segments.first { $0.kind == .optimal })
+        let pin = try XCTUnwrap(bar.pinFraction)
+        XCTAssertGreaterThanOrEqual(pin, optSeg.startFraction)
+        XCTAssertLessThanOrEqual(pin, optSeg.endFraction)
+        XCTAssertTrue(bar.optimalLabel.contains("60") && bar.optimalLabel.contains("150"), bar.optimalLabel)
+
+        let oneSidedJSON = #"""
+        {"markers": [
+          {"id": "apob", "name": "ApoB", "units": [{"unit": "mg/dL", "default": true}],
+           "bands": [{"label": "Optimal", "kind": "optimal", "low": null, "high": 70, "unit": "mg/dL"},
+                     {"label": "Lab", "kind": "lab", "low": null, "high": 100, "unit": "mg/dL"}]},
+          {"id": "urine-nitrites", "name": "Urine nitrites", "units": [],
+           "bands": [{"label": "Negative", "kind": "optimal", "values": ["Negative"]}]}
+        ]}
+        """#
+        let cat2 = try LabCatalogue(data: Data(oneSidedJSON.utf8))
+        let apob = try XCTUnwrap(cat2.marker("apob"))
+        let apobRead = LabReader.read(value: 95, unit: "mg/dL", marker: apob, sex: .male)
+        let apobBar = try XCTUnwrap(LabRangeBarModel.build(marker: apob, sex: .male, reading: apobRead))
+        XCTAssertEqual(apobBar.segments.first?.kind, .optimal)
+        let apobOpt = try XCTUnwrap(apobBar.segments.first { $0.kind == .optimal })
+        XCTAssertGreaterThan(try XCTUnwrap(apobBar.pinFraction), apobOpt.endFraction)
+
+        let nitrites = try XCTUnwrap(cat2.marker("urine-nitrites"))
+        XCTAssertNil(LabRangeBarModel.build(marker: nitrites, sex: .male))
+    }
 }

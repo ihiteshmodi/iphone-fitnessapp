@@ -56,3 +56,9 @@ Feature: Read a result the vault's way
     When Urine Nitrites is "Negative" and "Positive", ANA is "1:80", RF is 45 with lab high 14, and Blood Pressure is 124 / 84 mmHg
     Then Nitrites reads optimal then high, ANA reads watchHigh, RF reads high (> 3x ULN), and BP reads Stage 1 hypertension (from diastolic 84)
 
+  Scenario: Visual range bar maps numeric bands and pin position across two-sided and one-sided markers
+    When Ferritin (lab 30-400, optimal 60-150 ng/mL) is read at 92 ng/mL and ApoB (optimal <= 70 mg/dL) is read at 95 mg/dL
+    Then Ferritin builds a 5-segment range bar (Low, Normal, Optimal, Normal, High) with the You pin inside the Optimal segment
+    And ApoB builds a zero-floored range bar starting with Optimal <= 70 mg/dL and places the You pin in the elevated zone
+    And qualitative dipstick markers return no numeric range bar
+

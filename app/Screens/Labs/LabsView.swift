@@ -12,6 +12,7 @@ final class LabsModel: ObservableObject {
     @Published private(set) var activePatterns: [LabPatternMatch] = []
     @Published private(set) var discordances: [LabDiscordanceAlert] = []
     @Published private(set) var genotypes: [GenotypeEntry] = []
+    @Published private(set) var coreSummary: CoreBloodworkSummary?
     @Published private(set) var preferences: LabPreferences?
     @Published var errorMessage: String?
 
@@ -35,6 +36,7 @@ final class LabsModel: ObservableObject {
             preferences = prefs
             genotypes = (try? services.genetics?.entries()) ?? []
             dashboard = try LabDashboard.build(catalogue: catalogue, db: services.db, today: today)
+            coreSummary = try CoreBloodworkGuide.summarize(catalogue: catalogue, draws: draw, sex: prefs.sex, today: today)
             draws = try draw.draws()
             var counts: [Int: Int] = [:]
             var vCounts: [Int: Int] = [:]
@@ -111,12 +113,13 @@ struct LabsEntryCard: View {
     }
 }
 
-/// Blood Labs: doctor alerts first, then the dashboard, biological age, heart, hormones and every draw.
+/// Blood Labs: doctor alerts first, then the guided core checklist, dashboard, biological age, heart, hormones and every draw.
 struct LabsView: View {
     @StateObject private var model: LabsModel
     @State private var addingDraw = false
     @State private var editingSettings = false
     @State private var editingContext = false
+    @State private var showingGuide = false
     @State private var exportURL: URL?
 
     init(services: Services, catalogue: LabCatalogue) {
@@ -128,6 +131,10 @@ struct LabsView: View {
             VStack(alignment: .leading, spacing: 12) {
                 if model.preferences?.isSexConfirmed == false { sexConfirmationCard }
                 ForEach(model.doctorItems) { doctorBanner($0) }
+                HowBloodworkWorksCard()
+                if let coreSummary = model.coreSummary {
+                    CoreBloodworkPendingCard(summary: coreSummary)
+                }
                 actions
                 if !model.activePatterns.isEmpty { activePatternsSection }
                 if !model.discordances.isEmpty { discordancesSection }
@@ -148,6 +155,9 @@ struct LabsView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 14) {
+                    Button { showingGuide = true } label: { Image(systemName: "questionmark.circle") }
+                        .accessibilityLabel("How Bloodwork Works")
+                        .accessibilityIdentifier("labs-guide-button")
                     Button(action: export) { Image(systemName: "square.and.arrow.up") }
                         .accessibilityLabel("Export labs for AI review")
                         .accessibilityIdentifier("labs-export-button")
@@ -168,6 +178,9 @@ struct LabsView: View {
         }
         .sheet(isPresented: $editingContext, onDismiss: model.load) {
             LabClinicalContextSheet(settings: model.services.labSettings)
+        }
+        .sheet(isPresented: $showingGuide) {
+            BloodworkGuideSheet()
         }
         .errorAlert($model.errorMessage)
     }
@@ -417,7 +430,7 @@ struct LabsView: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel("Draws")
             if model.draws.isEmpty {
-                Text("No draws yet. Add one, or apply your lab history from More.").font(.system(size: 13)).foregroundColor(Theme.muted)
+                Text("No draws yet. Tap + Add a draw to log your lab report.").font(.system(size: 13)).foregroundColor(Theme.muted)
             }
             ForEach(model.draws) { draw in
                 NavigationLink { DrawDetailView(model: model, draw: draw) } label: {
@@ -439,6 +452,136 @@ struct LabsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+    }
+}
+
+struct HowBloodworkWorksCard: View {
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            DisclosureGroup(isExpanded: $isExpanded) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(CoreBloodworkGuide.walkthroughSteps) { step in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("\(step.number).")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(Theme.green)
+                                .frame(width: 18, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(step.title).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                                Text(step.detail).font(.system(size: 12)).foregroundColor(Theme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 6)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "compass.drawing").foregroundColor(Theme.green)
+                    Text("How Bloodwork Works (4-step guide)")
+                        .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                }
+            }
+            .tint(Theme.green)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityIdentifier("labs-how-it-works-card")
+    }
+}
+
+struct CoreBloodworkPendingCard: View {
+    let summary: CoreBloodworkSummary
+    @State private var showAllCompleted = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(summary.pendingCount == 0
+                     ? "★ All Mandatory Core Tests Up to Date"
+                     : "★ \(summary.pendingCount) Mandatory Core Test\(summary.pendingCount == 1 ? "" : "s") Pending")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(summary.pendingCount == 0 ? Theme.green : Theme.gold)
+                Spacer()
+                Pill(text: "\(summary.upToDateCount)/\(summary.items.count) done",
+                     tone: summary.pendingCount == 0 ? .green : .gold)
+            }
+            Text("Start with these foundational ★ Core tests before worrying about any optional follow-ups.")
+                .font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
+
+            if !summary.neverTested.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Never tested (\(summary.neverTested.count))")
+                        .font(.system(size: 12, weight: .bold)).foregroundColor(Theme.gold)
+                    Text(summary.neverTested.map { "★ \($0.title)" }.joined(separator: " · "))
+                        .font(.system(size: 13)).foregroundColor(Theme.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("labs-core-never-tested")
+                }
+            }
+
+            if !summary.retestDue.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Retest due now (\(summary.retestDue.count))")
+                        .font(.system(size: 12, weight: .bold)).foregroundColor(Theme.amber)
+                    Text(summary.retestDue.map { "★ \($0.title)" }.joined(separator: " · "))
+                        .font(.system(size: 13)).foregroundColor(Theme.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("labs-core-retest-due")
+                }
+            }
+
+            if summary.upToDateCount > 0 {
+                DisclosureGroup("Completed & up to date (\(summary.upToDateCount))", isExpanded: $showAllCompleted) {
+                    let done = summary.items.filter { !$0.isPending }
+                    Text(done.map(\.title).joined(separator: " · "))
+                        .font(.system(size: 12)).foregroundColor(Theme.muted)
+                        .padding(.top, 4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .tint(Theme.green)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityIdentifier("labs-core-pending-card")
+    }
+}
+
+struct BloodworkGuideSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("You do NOT need to order all 80+ markers at once. Use Bloodwork in four simple steps:")
+                        .font(.system(size: 14)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
+                    ForEach(CoreBloodworkGuide.walkthroughSteps) { step in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Step \(step.number) · \(step.title)")
+                                .font(.system(size: 15, weight: .bold)).foregroundColor(Theme.green)
+                            Text(step.detail)
+                                .font(.system(size: 13)).foregroundColor(Theme.text).fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .card()
+                    }
+                }
+                .padding(16)
+            }
+            .screenBackground()
+            .navigationTitle("How Bloodwork Works")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.fontWeight(.bold)
+                }
+            }
+        }
     }
 }
 

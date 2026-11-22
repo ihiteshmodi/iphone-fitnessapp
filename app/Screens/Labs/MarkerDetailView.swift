@@ -36,14 +36,135 @@ struct MarkerLibraryView: View {
 
     private func label(_ marker: LabMarker) -> some View {
         let prefs = model.preferences ?? LabPreferences(sex: model.sex)
-        return HStack {
+        let isCore = CoreBloodworkGuide.isCoreMarker(marker.id, catalogue: model.catalogue, sex: model.sex)
+        return HStack(spacing: 6) {
             Text(marker.name)
+            if isCore { Pill(text: "★ Core", tone: .gold) }
             Spacer()
             if let latest = try? model.draw.history(of: marker.id).first {
                 let text = latest.textValue ?? "\(Format.number(latest.value)) \(latest.unit)"
                 Text(text).font(.system(size: 12)).foregroundColor(Theme.muted)
                 LabStatusPill(status: LabReader.read(result: latest, marker: marker, preferences: prefs, genotypes: model.genotypes).status)
             }
+        }
+    }
+}
+
+/// Proportional color-coded horizontal range bar with Low / Normal / Optimal / High zones and a glowing "You" pin.
+struct MarkerRangeBarView: View {
+    let bar: LabRangeBarModel
+    let status: LabStatus?
+
+    private var pinColor: Color {
+        switch status {
+        case .optimal: return Theme.green
+        case .disputed: return Theme.amber
+        case .low, .high: return Theme.gold
+        default: return Theme.text
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                if let low = bar.lowLabel {
+                    Text(low).font(.system(size: 11)).foregroundColor(Theme.muted)
+                }
+                Spacer(minLength: 4)
+                Text(bar.optimalLabel).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.green)
+                Spacer(minLength: 4)
+                if let high = bar.highLabel {
+                    Text(high).font(.system(size: 11)).foregroundColor(Theme.muted)
+                }
+            }
+            GeometryReader { proxy in
+                let totalW = max(proxy.size.width, 1)
+                ZStack(alignment: .leading) {
+                    HStack(spacing: 1) {
+                        ForEach(Array(bar.segments.enumerated()), id: \.offset) { _, seg in
+                            Rectangle()
+                                .fill(segmentColor(seg.kind))
+                                .frame(width: max(totalW * seg.widthFraction - 1, 2), height: 10)
+                        }
+                    }
+                    .clipShape(Capsule())
+
+                    if let pin = bar.pinFraction {
+                        Circle()
+                            .fill(pinColor)
+                            .frame(width: 16, height: 16)
+                            .overlay(Circle().stroke(Theme.background, lineWidth: 2.5))
+                            .shadow(color: pinColor.opacity(0.6), radius: 4)
+                            .offset(x: min(max(totalW * pin - 8, 0), max(totalW - 16, 0)))
+                            .accessibilityIdentifier("labs-range-bar-pin")
+                    }
+                }
+            }
+            .frame(height: 16)
+            if let pinText = bar.pinText {
+                Text("▲ \(pinText)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(pinColor)
+            }
+        }
+        .padding(.top, 4)
+        .accessibilityIdentifier("labs-marker-range-bar")
+    }
+
+    private func segmentColor(_ kind: LabRangeBarModel.SegmentKind) -> Color {
+        switch kind {
+        case .low: return Theme.amber.opacity(0.6)
+        case .normal: return Theme.line
+        case .optimal: return Theme.green
+        case .high: return Theme.red.opacity(0.65)
+        }
+    }
+}
+
+/// Compact 6pt visual spectrum bar for marker rows inside a draw.
+struct MarkerMiniRangeBar: View {
+    let bar: LabRangeBarModel
+    let status: LabStatus?
+
+    private var pinColor: Color {
+        switch status {
+        case .optimal: return Theme.green
+        case .disputed: return Theme.amber
+        case .low, .high: return Theme.gold
+        default: return Theme.text
+        }
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let totalW = max(proxy.size.width, 1)
+            ZStack(alignment: .leading) {
+                HStack(spacing: 1) {
+                    ForEach(Array(bar.segments.enumerated()), id: \.offset) { _, seg in
+                        Rectangle()
+                            .fill(segmentColor(seg.kind))
+                            .frame(width: max(totalW * seg.widthFraction - 1, 1), height: 5)
+                    }
+                }
+                .clipShape(Capsule())
+                if let pin = bar.pinFraction {
+                    Circle()
+                        .fill(pinColor)
+                        .frame(width: 9, height: 9)
+                        .overlay(Circle().stroke(Theme.background, lineWidth: 1.5))
+                        .offset(x: min(max(totalW * pin - 4.5, 0), max(totalW - 9, 0)))
+                }
+            }
+        }
+        .frame(height: 9)
+    }
+
+    private func segmentColor(_ kind: LabRangeBarModel.SegmentKind) -> Color {
+        switch kind {
+        case .low: return Theme.amber.opacity(0.55)
+        case .normal: return Theme.line
+        case .optimal: return Theme.green
+        case .high: return Theme.red.opacity(0.6)
         }
     }
 }
@@ -63,6 +184,12 @@ struct MarkerDetailView: View {
     }
     private var reading: LabReading? {
         latest.map { LabReader.read(result: $0, marker: marker, preferences: prefs, draw: latestDrawDraft, genotypes: model.genotypes) }
+    }
+    private var rangeBar: LabRangeBarModel? {
+        LabRangeBarModel.build(marker: marker, sex: model.sex, reading: reading, latestResult: latest)
+    }
+    private var isCore: Bool {
+        CoreBloodworkGuide.isCoreMarker(marker.id, catalogue: model.catalogue, sex: model.sex)
     }
     private var validityWarnings: [LabValidityWarning] {
         guard let latest, let draft = latestDrawDraft else { return [] }
@@ -138,7 +265,13 @@ struct MarkerDetailView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(marker.chapter).font(.system(size: 12)).foregroundColor(Theme.muted)
+            HStack {
+                Text(marker.chapter).font(.system(size: 12)).foregroundColor(Theme.muted)
+                if isCore {
+                    Spacer()
+                    Pill(text: "★ Mandatory Core", tone: .gold)
+                }
+            }
             if let latest, let reading {
                 HStack(alignment: .firstTextBaseline) {
                     if let text = latest.textValue {
@@ -153,6 +286,9 @@ struct MarkerDetailView: View {
                     }
                     Spacer()
                     LabStatusPill(status: reading.status)
+                }
+                if let rangeBar {
+                    MarkerRangeBarView(bar: rangeBar, status: reading.status)
                 }
                 if let stratum = reading.activeStratum {
                     Text("Stratum: \(stratum.population)")
@@ -177,6 +313,9 @@ struct MarkerDetailView: View {
                 }
             } else {
                 Text("Not tested yet").font(.system(size: 15)).foregroundColor(Theme.muted)
+                if let rangeBar {
+                    MarkerRangeBarView(bar: rangeBar, status: nil)
+                }
             }
             if let what = marker.what { Text(what).font(.system(size: 13)).foregroundColor(Theme.text).fixedSize(horizontal: false, vertical: true) }
         }

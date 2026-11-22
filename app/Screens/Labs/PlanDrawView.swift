@@ -16,6 +16,7 @@ struct PlanDrawView: View {
     @State private var checklist: LabDrawChecklist?
     @State private var checkedSteps: Set<String> = []
     @State private var retests: [RetestDue] = []
+    @State private var coreSummary: CoreBloodworkSummary?
     @State private var errorMessage: String?
 
     private var planner: DrawPlanner {
@@ -37,6 +38,10 @@ struct PlanDrawView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                HowBloodworkWorksCard()
+                if let coreSummary {
+                    CoreBloodworkPendingCard(summary: coreSummary)
+                }
                 VStack(alignment: .leading, spacing: 8) {
                     DatePicker("Draw day", selection: $drawDate, displayedComponents: .date)
                     Stepper("Draw at \(String(format: "%02d:00", drawHour))", value: $drawHour, in: 5...20)
@@ -59,6 +64,8 @@ struct PlanDrawView: View {
     }
 
     private var standing: [OrderItem] { order.filter { $0.reason == nil } }
+    private var corePanels: [OrderItem] { standing.filter { $0.panel.when == "first" } }
+    private var routinePanels: [OrderItem] { standing.filter { $0.panel.when != "first" } }
     private var triggered: [OrderItem] { order.filter { $0.reason != nil } }
 
     /// Each test once, in the order the panels name them: the list to hand the lab.
@@ -67,19 +74,57 @@ struct PlanDrawView: View {
         return standing.flatMap(\.tests).filter { seen.insert($0.markerID ?? $0.name).inserted }
     }
 
+    private var coreTestsList: [OrderTest] {
+        var seen = Set<String>()
+        var base = corePanels.flatMap(\.tests).filter { seen.insert($0.markerID ?? $0.name).inserted }
+        for extraID in ["lpa", "homocysteine"] {
+            if let marker = catalogue.marker(extraID), marker.applies(to: sex), seen.insert(marker.id).inserted {
+                base.append(OrderTest(name: marker.name, markerID: marker.id))
+            }
+        }
+        return base
+    }
+
+    private var routineExtraTests: [OrderTest] {
+        let coreSet = Set(coreTestsList.map { $0.markerID ?? $0.name })
+        var seen = coreSet
+        return routinePanels.flatMap(\.tests).filter { seen.insert($0.markerID ?? $0.name).inserted }
+    }
+
     private var orderCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionLabel("Ask the lab for (\(tests.count) tests)")
-            Text(tests.map(\.name).joined(separator: " · ")).font(.system(size: 13)).foregroundColor(Theme.text)
+            HStack {
+                SectionLabel("★ Core baseline order (\(coreTestsList.count) markers)")
+                Spacer()
+                Pill(text: "★ Start here", tone: .gold)
+            }
+            Text("Hand your lab the pending ★ Core Tests above first — you only need the full \(coreTestsList.count)-marker baseline on your first complete checkup or annual reset.")
+                .font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
+            Text(coreTestsList.map(\.name).joined(separator: " · ")).font(.system(size: 13)).foregroundColor(Theme.text)
                 .fixedSize(horizontal: false, vertical: true)
-            DisclosureGroup("By panel, with what to say") {
+            DisclosureGroup("Core panels, with what to say") {
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(standing, id: \.panel.id) { panelRow($0) }
+                    ForEach(corePanels, id: \.panel.id) { panelRow($0) }
                 }
                 .padding(.top, 6)
             }
             .font(.system(size: 13, weight: .semibold))
             .tint(Theme.green)
+
+            if !routineExtraTests.isEmpty {
+                Divider().overlay(Theme.line)
+                DisclosureGroup("Optional deeper & routine panels (+\(routineExtraTests.count) markers)") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(routineExtraTests.map(\.name).joined(separator: " · "))
+                            .font(.system(size: 12)).foregroundColor(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                        ForEach(routinePanels, id: \.panel.id) { panelRow($0) }
+                    }
+                    .padding(.top, 6)
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .tint(Theme.green)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
@@ -220,9 +265,13 @@ struct PlanDrawView: View {
             let due = retests.filter { $0.from != nil }
             if due.isEmpty { Text("No retest windows yet.").font(.system(size: 13)).foregroundColor(Theme.muted) }
             ForEach(due, id: \.marker.id) { item in
+                let isCore = CoreBloodworkGuide.isCoreMarker(item.marker.id, catalogue: catalogue, sex: sex)
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(item.marker.name).font(.system(size: 13, weight: .semibold))
+                        HStack(spacing: 6) {
+                            Text(item.marker.name).font(.system(size: 13, weight: .semibold))
+                            if isCore { Pill(text: "★ Core", tone: .gold) }
+                        }
                         if let note = item.note ?? item.rule?.text {
                             Text(note).font(.system(size: 11)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
                         }
@@ -245,6 +294,7 @@ struct PlanDrawView: View {
             upgrades = planner.upgrades()
             checklist = planner.checklist()
             retests = try planner.retests()
+            coreSummary = try CoreBloodworkGuide.summarize(catalogue: catalogue, draws: draws, sex: sex, today: today)
         } catch {
             errorMessage = error.localizedDescription
         }
