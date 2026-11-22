@@ -42,7 +42,7 @@ struct MarkerLibraryView: View {
             if let latest = try? model.draw.history(of: marker.id).first {
                 let text = latest.textValue ?? "\(Format.number(latest.value)) \(latest.unit)"
                 Text(text).font(.system(size: 12)).foregroundColor(Theme.muted)
-                LabStatusPill(status: LabReader.read(result: latest, marker: marker, preferences: prefs).status)
+                LabStatusPill(status: LabReader.read(result: latest, marker: marker, preferences: prefs, genotypes: model.genotypes).status)
             }
         }
     }
@@ -62,7 +62,7 @@ struct MarkerDetailView: View {
         return model.draws.first { $0.id == latest.drawID }?.draft
     }
     private var reading: LabReading? {
-        latest.map { LabReader.read(result: $0, marker: marker, preferences: prefs, draw: latestDrawDraft) }
+        latest.map { LabReader.read(result: $0, marker: marker, preferences: prefs, draw: latestDrawDraft, genotypes: model.genotypes) }
     }
     private var validityWarnings: [LabValidityWarning] {
         guard let latest, let draft = latestDrawDraft else { return [] }
@@ -78,6 +78,9 @@ struct MarkerDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 header
+                if let notes = reading?.geneticNotes, !notes.isEmpty {
+                    listCard("Active genetic modifiers", notes)
+                }
                 if !validityWarnings.isEmpty { validityCard }
                 if let longitudinal, (longitudinal.previousValue != nil || longitudinal.switchedLab || !longitudinal.driftFlags.isEmpty) {
                     longitudinalCard(longitudinal)

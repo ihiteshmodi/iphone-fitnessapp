@@ -89,4 +89,20 @@ final class PhaseBUITests: XCTestCase {
         switchBtn.tap()
         tap("labs-save-draw")
     }
+
+    func testGeneticsTRTRxContextSheetAndActionCategories() {
+        openLabs()
+        tap("labs-open-context-sheet")
+        let trtToggle = app.switches["labs-context-trt-toggle"]
+        XCTAssertTrue(trtToggle.waitForExistence(timeout: 5))
+        trtToggle.switches.firstMatch.tap()
+        tap("labs-context-save")
+
+        tap("labs-genetics")
+        XCTAssertTrue(app.navigationBars["Genetics"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'TRT/HRT: On'")).firstMatch.waitForExistence(timeout: 5))
+        tap("labs-gene-row-vdr")
+        XCTAssertTrue(app.staticTexts["Change-Nothing Mandate"].waitForExistence(timeout: 5))
+    }
 }
+

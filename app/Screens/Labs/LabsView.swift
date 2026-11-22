@@ -11,6 +11,7 @@ final class LabsModel: ObservableObject {
     @Published private(set) var doctorItems: [Insight] = []
     @Published private(set) var activePatterns: [LabPatternMatch] = []
     @Published private(set) var discordances: [LabDiscordanceAlert] = []
+    @Published private(set) var genotypes: [GenotypeEntry] = []
     @Published private(set) var preferences: LabPreferences?
     @Published var errorMessage: String?
 
@@ -32,6 +33,7 @@ final class LabsModel: ObservableObject {
         do {
             let prefs = try services.labSettings.load()
             preferences = prefs
+            genotypes = (try? services.genetics?.entries()) ?? []
             dashboard = try LabDashboard.build(catalogue: catalogue, db: services.db, today: today)
             draws = try draw.draws()
             var counts: [Int: Int] = [:]
@@ -48,7 +50,9 @@ final class LabsModel: ObservableObject {
             }
             resultCounts = counts
             validityCounts = vCounts
-            doctorItems = try services.insights.labs(on: today).filter { $0.ruleID.hasPrefix("lab-doctor") }
+            doctorItems = try services.insights.labs(on: today).filter {
+                $0.severity == .fix && ($0.ruleID.hasPrefix("lab-doctor") || $0.ruleID.hasPrefix("lab-gene"))
+            }
 
             if let newest = draws.first {
                 let newestResults = try draw.results(inDraw: newest.id)
@@ -112,6 +116,7 @@ struct LabsView: View {
     @StateObject private var model: LabsModel
     @State private var addingDraw = false
     @State private var editingSettings = false
+    @State private var editingContext = false
     @State private var exportURL: URL?
 
     init(services: Services, catalogue: LabCatalogue) {
@@ -160,6 +165,9 @@ struct LabsView: View {
         }
         .sheet(isPresented: $editingSettings, onDismiss: model.load) {
             LabsSettingsSheet(settings: model.services.labSettings)
+        }
+        .sheet(isPresented: $editingContext, onDismiss: model.load) {
+            LabClinicalContextSheet(settings: model.services.labSettings)
         }
         .errorAlert($model.errorMessage)
     }
@@ -264,8 +272,12 @@ struct LabsView: View {
                 .accessibilityIdentifier("labs-plan-draw")
                 NavigationLink("Markers") { MarkerLibraryView(model: model) }
                     .accessibilityIdentifier("labs-marker-library")
-                NavigationLink("Genetics") { GeneticsView(catalogue: model.catalogue, services: model.services) }
-                    .accessibilityIdentifier("labs-genetics")
+                NavigationLink("Genetics") {
+                    GeneticsView(catalogue: model.catalogue, services: model.services, labsModel: model)
+                }
+                .accessibilityIdentifier("labs-genetics")
+                Button("TRT & Rx") { editingContext = true }
+                    .accessibilityIdentifier("labs-open-context-sheet")
             }
             .buttonStyle(PrimaryButtonStyle(ghost: true))
             .font(.system(size: 13))
@@ -517,6 +529,9 @@ struct LabsSettingsSheet: View {
     @State private var isEnduranceAthlete = false
     @State private var isSmoker = false
     @State private var africanAncestry = false
+    @State private var onTRTOrHRT = false
+    @State private var activeMedications: Set<LabMedicationClass> = []
+    @State private var drinksAlcoholRegularly = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -546,6 +561,17 @@ struct LabsSettingsSheet: View {
                     Toggle("Active smoker", isOn: $isSmoker)
                     Toggle("African ancestry (WBC/ANC)", isOn: $africanAncestry)
                 }
+                Section("TRT, prescriptions & alcohol") {
+                    Toggle("On TRT or systemic HRT", isOn: $onTRTOrHRT)
+                        .accessibilityIdentifier("labs-settings-trt-toggle")
+                    ForEach(LabMedicationClass.allCases, id: \.rawValue) { med in
+                        Toggle(med.title, isOn: Binding(
+                            get: { activeMedications.contains(med) },
+                            set: { if $0 { activeMedications.insert(med) } else { activeMedications.remove(med) } }
+                        ))
+                    }
+                    Toggle("Drinks alcohol regularly", isOn: $drinksAlcoholRegularly)
+                }
                 Section("Notes") {
                     Toggle("Show drug and TRT notes", isOn: $showDrugNotes)
                         .accessibilityIdentifier("labs-drug-notes-toggle")
@@ -572,6 +598,9 @@ struct LabsSettingsSheet: View {
         isEnduranceAthlete = prefs.isEnduranceAthlete
         isSmoker = prefs.isSmoker
         africanAncestry = prefs.africanAncestry
+        onTRTOrHRT = prefs.onTRTOrHRT
+        activeMedications = prefs.activeMedications
+        drinksAlcoholRegularly = prefs.drinksAlcoholRegularly
     }
 
     private func save() {
@@ -583,6 +612,10 @@ struct LabsSettingsSheet: View {
             try settings.setEnduranceAthlete(isEnduranceAthlete)
             try settings.setSmoker(isSmoker)
             try settings.setAfricanAncestry(africanAncestry)
+            try settings.confirmContext(
+                onTRTOrHRT: onTRTOrHRT,
+                activeMedications: activeMedications,
+                drinksAlcoholRegularly: drinksAlcoholRegularly)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

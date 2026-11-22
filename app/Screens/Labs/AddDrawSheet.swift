@@ -456,7 +456,7 @@ struct DrawDetailView: View {
     private func resultRow(_ result: LabResult) -> some View {
         if let marker = model.catalogue.marker(result.markerID) {
             let prefs = model.preferences ?? LabPreferences(sex: model.sex)
-            let reading = LabReader.read(result: result, marker: marker, preferences: prefs, draw: draw.draft)
+            let reading = LabReader.read(result: result, marker: marker, preferences: prefs, draw: draw.draft, genotypes: model.genotypes)
             let warnings = LabValidityGate.evaluate(result: result, marker: marker, draw: draw.draft,
                                                     sameDrawResults: results, catalogue: model.catalogue, sex: model.sex)
             NavigationLink { MarkerDetailView(model: model, marker: marker) } label: {
@@ -470,6 +470,9 @@ struct DrawDetailView: View {
                         }
                         if let firstWarn = warnings.first {
                             Text(firstWarn.title).font(.system(size: 11)).foregroundColor(Theme.amber)
+                        }
+                        if let firstGene = reading.geneticNotes.first {
+                            Text(firstGene).font(.system(size: 11)).foregroundColor(Theme.green).lineLimit(2)
                         }
                     }
                     Spacer()

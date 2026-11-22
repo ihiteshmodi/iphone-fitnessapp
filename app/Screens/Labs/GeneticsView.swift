@@ -1,0 +1,527 @@
+import FitnessCore
+import SwiftUI
+
+extension LabBadgeTone {
+    var pillTone: Pill.Tone {
+        switch self {
+        case .green: return .green
+        case .amber: return .amber
+        case .red: return .red
+        case .grey: return .grey
+        }
+    }
+}
+
+/// Editable initial & anytime sheet for TRT/HRT, prescription medication classes, and regular alcohol context.
+struct LabClinicalContextSheet: View {
+    let settings: LabSettings
+    @Environment(\.dismiss) private var dismiss
+    @State private var onTRTOrHRT = false
+    @State private var activeMedications: Set<LabMedicationClass> = []
+    @State private var drinksAlcoholRegularly = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Genes like Factor V Leiden, CYP2D6/2C19, ALDH2, and HFE interact directly with hormones, prescriptions, and alcohol. You can update these switches anytime in the future.")
+                        .font(.system(size: 13))
+                        .foregroundColor(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Section("Hormone replacement") {
+                    Toggle("On TRT or systemic HRT", isOn: $onTRTOrHRT)
+                        .accessibilityIdentifier("labs-context-trt-toggle")
+                }
+
+                Section("Active prescription classes") {
+                    ForEach(LabMedicationClass.allCases, id: \.rawValue) { med in
+                        Toggle(isOn: binding(for: med)) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(med.title).font(.system(size: 14, weight: .medium))
+                                Text(med.subtitle).font(.system(size: 11)).foregroundColor(Theme.muted)
+                            }
+                        }
+                        .accessibilityIdentifier("labs-context-med-\(med.rawValue)")
+                    }
+                }
+
+                Section("Alcohol") {
+                    Toggle("Drinks alcohol regularly", isOn: $drinksAlcoholRegularly)
+                        .accessibilityIdentifier("labs-context-alcohol-toggle")
+                }
+            }
+            .navigationTitle("TRT & Rx context")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: save)
+                        .accessibilityIdentifier("labs-context-save")
+                }
+            }
+            .onAppear(perform: load)
+            .errorAlert($errorMessage)
+        }
+    }
+
+    private func binding(for med: LabMedicationClass) -> Binding<Bool> {
+        Binding(
+            get: { activeMedications.contains(med) },
+            set: { enabled in
+                if enabled { activeMedications.insert(med) } else { activeMedications.remove(med) }
+            }
+        )
+    }
+
+    private func load() {
+        guard let prefs = try? settings.load() else { return }
+        onTRTOrHRT = prefs.onTRTOrHRT
+        activeMedications = prefs.activeMedications
+        drinksAlcoholRegularly = prefs.drinksAlcoholRegularly
+    }
+
+    private func save() {
+        do {
+            try settings.confirmContext(
+                onTRTOrHRT: onTRTOrHRT,
+                activeMedications: activeMedications,
+                drinksAlcoholRegularly: drinksAlcoholRegularly)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+/// Volume 07 Genetics hub: TRT/Rx context bar, active genetic findings, 5 clinical action categories, and foundational guide.
+struct GeneticsView: View {
+    let catalogue: LabCatalogue
+    let services: Services
+    @ObservedObject var labsModel: LabsModel
+    @State private var screenVM: GeneticsScreenViewModel?
+    @State private var editingContext = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        List {
+            if let vm = screenVM {
+                Section {
+                    contextCard(vm)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                        .listRowBackground(Color.clear)
+                }
+
+                if !vm.activeFindings.isEmpty {
+                    Section("Active genetic findings (\(vm.activeFindings.count))") {
+                        ForEach(vm.activeFindings) { item in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Image(systemName: item.severity == .fix ? "exclamationmark.triangle.fill" : "sparkles")
+                                        .foregroundColor(item.severity == .fix ? Theme.red : Theme.amber)
+                                    Text(item.title)
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(item.severity == .fix ? Theme.red : Theme.text)
+                                }
+                                Text(item.detail)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Theme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+
+                ForEach(vm.sections) { section in
+                    Section {
+                        ForEach(section.genes) { item in
+                            NavigationLink {
+                                GeneDetailView(gene: item.gene, catalogue: catalogue, labsModel: labsModel,
+                                               service: services.genetics, initialPicked: item.pickedGenotype, changed: load)
+                            } label: {
+                                geneRow(item)
+                            }
+                            .accessibilityIdentifier("labs-gene-row-\(item.id)")
+                        }
+                    } header: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(section.title)
+                            if let sub = section.subtitle {
+                                Text(sub).font(.system(size: 11, weight: .regular)).foregroundColor(Theme.muted).textCase(nil)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !catalogue.geneticsGuide.isEmpty {
+                Section {
+                    DisclosureGroup("Foundational genetics rules (\(catalogue.geneticsGuide.count) notes)") {
+                        ForEach(Array(catalogue.geneticsGuide.enumerated()), id: \.offset) { _, item in
+                            Text(item.text).font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .tint(Theme.green)
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .screenBackground()
+        .navigationTitle("Genetics")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { editingContext = true } label: {
+                    Label("TRT & Rx", systemImage: "pills")
+                }
+                .accessibilityIdentifier("labs-context-toolbar-button")
+            }
+        }
+        .sheet(isPresented: $editingContext, onDismiss: {
+            load()
+            labsModel.load()
+        }) {
+            LabClinicalContextSheet(settings: services.labSettings)
+        }
+        .onAppear(perform: load)
+        .errorAlert($errorMessage)
+    }
+
+    @ViewBuilder
+    private func contextCard(_ vm: GeneticsScreenViewModel) -> some View {
+        if vm.needsContextPrompt {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel("TRT & Rx clinical context")
+                Text("Confirm whether you use TRT/HRT, certain prescriptions, or regular alcohol so gene safety checks (like Factor V + TRT or CYP2D6 meds) stay accurate. You can edit this anytime later.")
+                    .font(.system(size: 13)).foregroundColor(Theme.text).fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Button("Set up TRT & Rx") { editingContext = true }
+                        .buttonStyle(CompactButtonStyle())
+                        .accessibilityIdentifier("labs-context-button")
+                    Button("None apply right now") { confirmNone() }
+                        .buttonStyle(CompactButtonStyle(ghost: true))
+                        .accessibilityIdentifier("labs-context-confirm-none")
+                }
+            }
+            .card(highlighted: true)
+            .accessibilityIdentifier("labs-context-prompt-card")
+        } else {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    SectionLabel("TRT & Rx context")
+                    Text(vm.contextSummary)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Theme.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Button("Edit") { editingContext = true }
+                    .buttonStyle(CompactButtonStyle(ghost: true))
+                    .accessibilityIdentifier("labs-context-button")
+            }
+            .card()
+        }
+    }
+
+    private func geneRow(_ item: GeneRowViewModel) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(item.gene.name).font(.system(size: 15, weight: .semibold))
+                    if let badge = item.changeNothingBadge {
+                        Pill(text: badge, tone: .grey)
+                    }
+                }
+                if let sub = item.subtitle {
+                    Text(sub).font(.system(size: 11)).foregroundColor(Theme.muted)
+                }
+            }
+            Spacer()
+            if let picked = item.pickedGenotype {
+                Pill(text: shortGenotype(picked), tone: item.pickedTone.pillTone)
+            }
+        }
+    }
+
+    private func shortGenotype(_ raw: String) -> String {
+        if let paren = raw.firstIndex(of: "("), paren > raw.startIndex {
+            let prefix = raw[..<paren].trimmingCharacters(in: .whitespaces)
+            if !prefix.isEmpty && prefix.count <= 26 { return prefix }
+        }
+        return raw.count > 26 ? String(raw.prefix(24)) + "…" : raw
+    }
+
+    private func confirmNone() {
+        do {
+            try services.labSettings.confirmContext(onTRTOrHRT: false, activeMedications: [], drinksAlcoholRegularly: false)
+            load()
+            labsModel.load()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func load() {
+        do {
+            screenVM = try GeneticsPresenter.screen(catalogue: catalogue, db: services.db, today: services.clock.today())
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+struct GeneDetailView: View {
+    let gene: LabGene
+    let catalogue: LabCatalogue
+    @ObservedObject var labsModel: LabsModel
+    let service: GeneticsService?
+    let initialPicked: String?
+    let changed: () -> Void
+    @EnvironmentObject private var services: Services
+    @State private var picked: String?
+    @State private var loadedInitial = false
+    @State private var errorMessage: String?
+
+    private var vm: GeneDetailViewModel {
+        GeneticsPresenter.detail(gene: gene, pickedGenotype: picked)
+    }
+
+    var body: some View {
+        List {
+            if vm.showChangeNothingBanner {
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Pill(text: "Change-Nothing Mandate", tone: .green)
+                            Spacer()
+                        }
+                        Text("Genotype alone never justifies supplement stacks or program changes here. Test and treat the direct blood or clinical marker instead.")
+                            .font(.system(size: 13))
+                            .foregroundColor(Theme.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
+            if let genotypes = gene.genotypes, !genotypes.isEmpty {
+                Section("Your genotype") {
+                    Picker("Genotype", selection: $picked) {
+                        Text("Not tested / clear").tag(String?.none)
+                        ForEach(genotypes, id: \.genotype) { Text($0.genotype).tag(String?.some($0.genotype)) }
+                    }
+                    .accessibilityIdentifier("labs-genotype-picker")
+                    if let badge = vm.riskBadge {
+                        HStack {
+                            Text("Classification").font(.system(size: 13)).foregroundColor(Theme.muted)
+                            Spacer()
+                            Pill(text: badge, tone: vm.riskLevelTone.pillTone)
+                        }
+                    }
+                }
+            } else {
+                Section { Text("The vault gives no genotype table for this gene.").foregroundColor(Theme.muted) }
+            }
+
+            if let row = vm.selectedRow {
+                Section("What your genotype means") {
+                    if let meaning = row.meaning, !meaning.isEmpty {
+                        Text(meaning).font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let rule = row.clinicalRule, !rule.isEmpty, rule != row.meaning {
+                        Text(rule).font(.system(size: 13)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let urgency = row.urgency {
+                        Text("Urgency: \(urgency.title)").font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.red)
+                    }
+                    ForEach(row.actions ?? [], id: \.self) {
+                        Text("• \($0)").font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let adds = row.addsMarkers, !adds.isEmpty {
+                        Text("Adds to your draw: \(adds.joined(separator: ", "))")
+                            .font(.system(size: 12)).foregroundColor(Theme.green)
+                    }
+                }
+            }
+
+            if gene.coreThesis != nil || gene.mechanismSummary != nil {
+                Section("Core thesis & mechanism") {
+                    if let thesis = gene.coreThesis {
+                        Text(thesis).font(.system(size: 13, weight: .medium)).fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let mech = gene.mechanismSummary {
+                        DisclosureGroup("Biological mechanism") {
+                            Text(mech).font(.system(size: 12)).foregroundColor(Theme.muted)
+                                .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
+                        }
+                        .font(.system(size: 12, weight: .semibold)).tint(Theme.green)
+                    }
+                }
+            }
+
+            if !vm.substitutions.isEmpty {
+                Section("Nutrient form swaps") {
+                    ForEach(Array(vm.substitutions.enumerated()), id: \.offset) { _, sub in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Avoid: \(sub.replaceOrAvoid)")
+                                .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.amber)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("Use instead: \(sub.useInstead)")
+                                .font(.system(size: 13)).foregroundColor(Theme.green)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+
+            if !vm.verifiers.isEmpty {
+                Section("Bloodwork & clinical verifiers") {
+                    ForEach(vm.verifiers) { v in
+                        if let mid = v.markerID, let marker = catalogue.marker(mid) {
+                            NavigationLink { MarkerDetailView(model: labsModel, marker: marker) } label: {
+                                verifierRowContent(v)
+                            }
+                        } else {
+                            verifierRowContent(v)
+                        }
+                    }
+                }
+            } else if let confirm = gene.confirmWith, !confirm.isEmpty {
+                Section("Confirm with bloodwork") {
+                    ForEach(confirm, id: \.self) { Text($0).font(.system(size: 13)) }
+                }
+            }
+
+            if !vm.shiftLines.isEmpty {
+                Section("Target & timing shifts") {
+                    ForEach(vm.shiftLines, id: \.self) {
+                        Text("• \($0)").font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            if !vm.epistaticCells.isEmpty {
+                Section("Gene × bloodwork 2×2 guide") {
+                    DisclosureGroup("Show \(vm.epistaticCells.count) combinations") {
+                        ForEach(Array(vm.epistaticCells.enumerated()), id: \.offset) { _, cell in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(cell.condition).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                                Text(cell.interpretation).font(.system(size: 12)).foregroundColor(Theme.muted)
+                                Text("→ \(cell.action)").font(.system(size: 12, weight: .medium)).foregroundColor(Theme.green)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .tint(Theme.green)
+                }
+            }
+
+            if !vm.contraindications.isEmpty {
+                Section("Safety rules & doctor referrals") {
+                    ForEach(Array(vm.contraindications.enumerated()), id: \.offset) { _, contra in
+                        VStack(alignment: .leading, spacing: 4) {
+                            if let ref = contra.mandatoryReferral, !ref.isEmpty {
+                                Text("Referral: \(ref)").font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.red)
+                            }
+                            if !contra.forbiddenItems.isEmpty {
+                                Text("Strictly avoid: \(contra.forbiddenItems.joined(separator: ", "))")
+                                    .font(.system(size: 12)).foregroundColor(Theme.amber)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            if !contra.coachStopLine.isEmpty {
+                                Text(contra.coachStopLine).font(.system(size: 12)).foregroundColor(Theme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(.vertical, 3)
+                    }
+                }
+            }
+
+            if !vm.whatNotToDo.isEmpty {
+                Section("What NOT to do") {
+                    ForEach(vm.whatNotToDo, id: \.self) {
+                        Text("✕ \($0)").font(.system(size: 13)).foregroundColor(Theme.amber)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            if !vm.caveatLines.isEmpty {
+                Section("Testing & ancestry blind spots") {
+                    DisclosureGroup("Show \(vm.caveatLines.count) testing notes") {
+                        ForEach(vm.caveatLines, id: \.self) {
+                            Text("• \($0)").font(.system(size: 12)).foregroundColor(Theme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .tint(Theme.green)
+                }
+            }
+
+            if vm.selectedRow == nil, let genotypes = gene.genotypes, !genotypes.isEmpty {
+                Section("All variants in the vault") {
+                    ForEach(genotypes, id: \.genotype) { item in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.genotype).font(.system(size: 14, weight: .semibold))
+                            if let meaning = item.meaning {
+                                Text(meaning).font(.system(size: 12)).foregroundColor(Theme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let source = gene.entryID ?? gene.source {
+                Section { Text("Source: \(source)").font(.system(size: 11)).foregroundColor(Theme.muted) }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .screenBackground()
+        .navigationTitle(gene.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if !loadedInitial {
+                picked = initialPicked
+                loadedInitial = true
+            }
+        }
+        .onChange(of: picked) { save($0) }
+        .errorAlert($errorMessage)
+    }
+
+    private func verifierRowContent(_ v: VerifierRowViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(v.markerName).font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Pill(text: v.badge, tone: v.badgeTone.pillTone)
+            }
+            if !v.rule.isEmpty {
+                Text(v.rule).font(.system(size: 12)).foregroundColor(Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func save(_ genotype: String?) {
+        guard loadedInitial, genotype != initialPicked || genotype == nil else { return }
+        do {
+            if let genotype {
+                try service?.set(gene.id, genotype: genotype, on: services.clock.today())
+            } else {
+                try service?.clear(gene.id)
+            }
+            changed()
+            labsModel.load()
+        } catch {
+            errorMessage = (error as? ValidationError)?.message ?? error.localizedDescription
+        }
+    }
+}

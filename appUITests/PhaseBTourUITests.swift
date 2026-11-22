@@ -93,10 +93,17 @@ final class PhaseBTourUITests: XCTestCase {
 
     func testE_Genetics() {
         guard openLabs(), open("labs-genetics", snap: "b09-genetics") else { return }
+        if open("labs-context-toolbar-button", snap: "b09a-genetics-trt-rx-sheet") {
+            app.swipeDown(velocity: .fast); sleep(1)
+        }
         app.swipeUp(); snap("b09-genetics-scroll")
         app.swipeDown()
-        app.cells.element(boundBy: 1).tap()
-        sleep(1); snap("b10-gene")
+        if open("labs-gene-row-f5-f2", snap: "b10-gene-f5") {
+            scrollSnaps("b10-gene-f5", times: 3)
+        } else {
+            app.cells.element(boundBy: 2).tap()
+            sleep(1); snap("b10-gene")
+        }
     }
 
     func testF_Draw() {
