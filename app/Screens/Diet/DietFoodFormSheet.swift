@@ -18,6 +18,7 @@ final class FoodFormModel: ObservableObject {
     @Published var fiber = ""
     @Published var satFat = ""
     @Published var sodium = ""
+    @Published var glycemicIndex = ""
     @Published var notes = ""
     @Published var estimateGrams = ""
     /// Typed text per extra nutrient; empty means unknown.
@@ -53,6 +54,7 @@ final class FoodFormModel: ObservableObject {
         fiber = d.fiber == 0 ? "" : Format.number(d.fiber)
         satFat = d.satFat == 0 ? "" : Format.number(d.satFat)
         sodium = d.sodium == 0 ? "" : Format.number(d.sodium)
+        glycemicIndex = d.glycemicIndex.map { Format.number($0) } ?? ""
         notes = d.notes ?? ""
         estimateGrams = d.estimateGrams.map { Format.number($0) } ?? ""
         nutrientTexts = d.nutrients.mapValues { Format.number($0, maxDecimals: 3) }
@@ -105,6 +107,7 @@ final class FoodFormModel: ObservableObject {
         d.fiber = try number(fiber, "fiber") ?? 0
         d.satFat = try number(satFat, "saturated fat") ?? 0
         d.sodium = try number(sodium, "sodium") ?? 0
+        d.glycemicIndex = try number(glycemicIndex, "glycemic index")
         d.labelCalories = try number(calories, "calories")
         d.price = try number(price, "the price")
         d.packSize = try number(packSize, "the pack size")
@@ -275,7 +278,10 @@ struct DietFoodFormSheet: View {
                 BodyField(label: "Fiber", text: $model.fiber, identifier: "food-fiber-field")
                 BodyField(label: "Sat fat", text: $model.satFat, identifier: "food-satfat-field")
             }
-            BodyField(label: "Sodium (mg)", text: $model.sodium, identifier: "food-sodium-field")
+            HStack(alignment: .top, spacing: 10) {
+                BodyField(label: "Sodium (mg)", text: $model.sodium, identifier: "food-sodium-field")
+                BodyField(label: "Glycemic index (0–115)", text: $model.glycemicIndex, identifier: "food-gi-field")
+            }
             Text(model.caloriesNote).font(.system(size: 12)).foregroundColor(Theme.muted)
         }
     }

@@ -63,8 +63,8 @@ public final class FoodLibrary {
         try requireUniqueName(draft.name, except: nil)
         try db.execute("""
             INSERT INTO foods (name, kind, unit, base_qty, protein, carbs, fat, fiber, sat_fat, sodium, label_calories,
-                               price, pack_size, pieces_per_pack, piece_weight, recipe_makes, notes, estimate_grams, omega3_form)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               price, pack_size, pieces_per_pack, piece_weight, recipe_makes, notes, estimate_grams, omega3_form, glycemic_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, Self.values(draft))
         let id = db.lastInsertRowID
         try saveNutrients(draft.nutrients, of: id)
@@ -77,7 +77,7 @@ public final class FoodLibrary {
         try db.execute("""
             UPDATE foods SET name = ?, kind = ?, unit = ?, base_qty = ?, protein = ?, carbs = ?, fat = ?, fiber = ?, sat_fat = ?,
                              sodium = ?, label_calories = ?, price = ?, pack_size = ?, pieces_per_pack = ?, piece_weight = ?,
-                             recipe_makes = ?, notes = ?, estimate_grams = ?, omega3_form = ?
+                             recipe_makes = ?, notes = ?, estimate_grams = ?, omega3_form = ?, glycemic_index = ?
             WHERE id = ?
             """, Self.values(draft) + [.int(Int64(id))])
         try saveNutrients(draft.nutrients, of: id)
@@ -149,6 +149,9 @@ public final class FoodLibrary {
         for size in [draft.packSize, draft.piecesPerPack, draft.pieceWeight, draft.recipeMakes, draft.estimateGrams].compactMap({ $0 }) {
             guard size.isFinite, size > 0 else { throw ValidationError("Sizes must be above 0") }
         }
+        if let gi = draft.glycemicIndex {
+            guard gi.isFinite, (0...115).contains(gi) else { throw ValidationError("Glycemic index must be between 0 and 115") }
+        }
     }
 
     private func requireUniqueName(_ name: String, except id: Int?) throws {
@@ -161,7 +164,7 @@ public final class FoodLibrary {
          .double(draft.protein), .double(draft.carbs), .double(draft.fat), .double(draft.fiber), .double(draft.satFat), .double(draft.sodium),
          .optional(draft.labelCalories), .optional(draft.price), .optional(draft.packSize), .optional(draft.piecesPerPack),
          .optional(draft.pieceWeight), .optional(draft.recipeMakes), .optional(draft.notes), .optional(draft.estimateGrams),
-         .optional(draft.omega3Form?.rawValue)]
+         .optional(draft.omega3Form?.rawValue), .optional(draft.glycemicIndex)]
     }
 
     private func nutrients(of id: Int) throws -> [Nutrient: Double] {
@@ -189,6 +192,7 @@ public final class FoodLibrary {
             piecesPerPack: row.optionalDouble("pieces_per_pack"), pieceWeight: row.optionalDouble("piece_weight"),
             recipeMakes: row.optionalDouble("recipe_makes"), notes: row.optionalText("notes"),
             estimateGrams: row.optionalDouble("estimate_grams"), nutrients: nutrients,
-            omega3Form: row.optionalText("omega3_form").flatMap(Omega3Form.init(rawValue:))))
+            omega3Form: row.optionalText("omega3_form").flatMap(Omega3Form.init(rawValue:)),
+            glycemicIndex: row.optionalDouble("glycemic_index")))
     }
 }

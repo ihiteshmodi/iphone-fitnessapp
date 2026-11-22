@@ -33,6 +33,8 @@ public final class NutrientImporter {
             var draft = changed[food.id] ?? food.draft
             if key == "omega3_form", let form = Omega3Form(rawValue: amount) {
                 draft.omega3Form = form
+            } else if key == "glycemic_index", let gi = Double(amount), (0...115).contains(gi) {
+                draft.glycemicIndex = gi
             } else if let nutrient = Nutrient(rawValue: key), let value = Double(amount), value >= 0 {
                 draft.nutrients[nutrient] = value
             } else {

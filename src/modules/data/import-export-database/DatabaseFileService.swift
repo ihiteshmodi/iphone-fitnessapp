@@ -426,6 +426,15 @@ public struct DatabaseFileService {
                     CREATE INDEX IF NOT EXISTS lab_results_by_marker ON lab_results(marker_id);
                     """)
             }
+            // Version 22: glycemic_index on foods + unit ('in', 'mm', 'cm', '%') on measurement_targets.
+            let foodColumnsV22 = Set(try db.query("PRAGMA table_info(foods)").map { $0.text("name") })
+            if !foodColumnsV22.contains("glycemic_index") {
+                try db.execute("ALTER TABLE foods ADD COLUMN glycemic_index REAL CHECK (glycemic_index IS NULL OR (glycemic_index >= 0 AND glycemic_index <= 115))")
+            }
+            let targetColumnsV22 = Set(try db.query("PRAGMA table_info(measurement_targets)").map { $0.text("name") })
+            if !targetColumnsV22.contains("unit") {
+                try db.execute("ALTER TABLE measurement_targets ADD COLUMN unit TEXT NOT NULL DEFAULT 'in' CHECK (unit IN ('in', 'mm', 'cm', '%'))")
+            }
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

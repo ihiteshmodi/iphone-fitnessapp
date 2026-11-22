@@ -166,6 +166,14 @@ public enum DailyTargetReport {
             }
         }
     }
+
+    /// Whole-day targets for DailyTargetsView: excludes amino acids (which are per-meal) and shows 0 instead of nil/unknown.
+    public static func dailyRows(_ profile: NutrientProfile) -> [DailyTargetRow] {
+        Nutrient.allCases.compactMap { nutrient in
+            guard nutrient.group != .aminoAcids, let target = nutrient.dailyTarget else { return nil }
+            return DailyTargetRow(nutrient: nutrient, amount: profile[nutrient] ?? 0, target: target)
+        }
+    }
 }
 
 extension Nutrient {

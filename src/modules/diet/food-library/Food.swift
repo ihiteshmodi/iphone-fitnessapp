@@ -93,12 +93,15 @@ public struct FoodDraft: Equatable {
     /// Amino acids, fat types, omega, alcohol, caffeine, vitamins and minerals per `baseQuantity`. Missing = unknown.
     public var nutrients: [Nutrient: Double]
     public var omega3Form: Omega3Form?
+    /// Glycemic index (glucose = 100 scale, 0–115). Nil when unknown or for a recipe (worked out from ingredients).
+    public var glycemicIndex: Double?
 
     public init(name: String, kind: FoodKind = .food, unit: String = "g", baseQuantity: Double = 100,
                 protein: Double = 0, carbs: Double = 0, fat: Double = 0, fiber: Double = 0, satFat: Double = 0, sodium: Double = 0,
                 labelCalories: Double? = nil, price: Double? = nil, packSize: Double? = nil,
                 piecesPerPack: Double? = nil, pieceWeight: Double? = nil, recipeMakes: Double? = nil, notes: String? = nil,
-                estimateGrams: Double? = nil, nutrients: [Nutrient: Double] = [:], omega3Form: Omega3Form? = nil) {
+                estimateGrams: Double? = nil, nutrients: [Nutrient: Double] = [:], omega3Form: Omega3Form? = nil,
+                glycemicIndex: Double? = nil) {
         self.name = name
         self.kind = kind
         self.unit = unit
@@ -119,6 +122,7 @@ public struct FoodDraft: Equatable {
         self.estimateGrams = estimateGrams
         self.nutrients = nutrients
         self.omega3Form = omega3Form
+        self.glycemicIndex = glycemicIndex
     }
 }
 

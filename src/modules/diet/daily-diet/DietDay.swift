@@ -23,6 +23,8 @@ public struct DietLine: Equatable, Identifiable {
     public let cycle: CycleState?
     /// Extra nutrients the line would give if eaten.
     public var profile = NutrientProfile.empty
+    public var kind: FoodKind = .food
+    public var glycemicLoad: Double = 0
     public var id: String { "\(meal)|\(foodID)" }
 }
 
@@ -48,8 +50,17 @@ public struct DietMeal: Equatable {
     public var plannedProfile: NutrientProfile { tickable.reduce(NutrientProfile.empty) { $0 + $1.profile } }
     /// What the meal would give with everything that is on today ticked.
     public var plannedCalories: Double { tickable.reduce(0) { $0 + $1.nutrition.calories } }
+    public var eatenGlycemicLoad: Double { lines.filter { $0.state == .eaten }.reduce(0) { $0 + $1.glycemicLoad } }
+    public var plannedGlycemicLoad: Double { tickable.reduce(0) { $0 + $1.glycemicLoad } }
     /// False when every item is off its cycle today, so there is nothing to tick.
     public var canTick: Bool { !tickable.isEmpty }
+
+    /// True on real food meals (e.g. Brunch, Dinner); false on supplement/electrolyte-only slots (e.g. Morning Psyllium, During workout salts).
+    public var isRealMeal: Bool {
+        let netCarbs = max(0, plannedNutrition.carbs - plannedNutrition.fiber)
+        if plannedNutrition.protein >= 5 || netCarbs >= 5 { return true }
+        return tickable.contains { $0.kind != .supplement && $0.kind != .herb && $0.kind != .liquid && $0.nutrition.calories >= 25 }
+    }
 
     public var tickState: MealTickState {
         let ticked = tickable.filter { $0.state == .eaten }.count

@@ -38,7 +38,7 @@ final class LabTablesSchemaTests: DatabaseFileTestCase {
         try FileManager.default.copyItem(at: url, to: location.databaseURL)
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
-        XCTAssertEqual(db.userVersion, 21)
+        XCTAssertEqual(db.userVersion, Schema.currentVersion)
 
         let cat = try LabCatalogue(data: Data(#"{"markers":[{"id":"ferritin","name":"Ferritin","units":[{"unit":"ng/mL","default":true}]},{"id":"ua","name":"UA"}]}"#.utf8))
         let draws = LabDrawService(db, catalogue: cat)

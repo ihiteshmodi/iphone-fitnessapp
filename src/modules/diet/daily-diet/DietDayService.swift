@@ -34,7 +34,9 @@ public final class DietDayService {
                                 nutrition: try book.nutrition(of: item.foodID, quantity: item.quantity),
                                 cost: try book.cost(of: item.foodID, quantity: item.quantity),
                                 cycle: item.cycle == .daily ? nil : cycle,
-                                profile: try book.profile(of: item.foodID, quantity: item.quantity))
+                                profile: try book.profile(of: item.foodID, quantity: item.quantity),
+                                kind: food.kind,
+                                glycemicLoad: try book.glycemicLoad(of: item.foodID, quantity: item.quantity))
             }
             meals.append(DietMeal(name: meal.name, lines: lines))
         }

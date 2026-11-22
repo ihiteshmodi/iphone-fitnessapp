@@ -1,19 +1,19 @@
 import FitnessCore
 import SwiftUI
 
-/// Amino acids, vitamins, minerals and omega-6 eaten on a day against their daily targets, plus fiber.
+/// Whole-day fiber, vitamins, minerals and omega-3/6 against their daily targets (amino acids are checked per meal).
 struct DailyTargetsView: View {
     let day: DietDay
 
-    private var rows: [DailyTargetRow] { DailyTargetReport.rows(day.eatenProfile) }
+    private var rows: [DailyTargetRow] { DailyTargetReport.dailyRows(day.eatenProfile) }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text("\(Format.weekdayDate(day.date)): what was ticked and added. Unknown means a food has no value for it yet, so it is not a miss.")
+                Text("\(Format.weekdayDate(day.date)): whole-day fiber, vitamins, minerals, and omega targets. Amino acids and glycemic load are checked per meal on your meal cards.")
                     .font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
                 fiberRow.card()
-                ForEach([NutrientGroup.aminoAcids, .vitamins, .minerals, .omega], id: \.self) { group in
+                ForEach([NutrientGroup.vitamins, .minerals, .omega], id: \.self) { group in
                     let groupRows = rows.filter { $0.nutrient.group == group }
                     if !groupRows.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
@@ -37,23 +37,23 @@ struct DailyTargetsView: View {
     }
 
     private func row(for row: DailyTargetRow) -> some View {
-        bar(name: row.nutrient.title, amount: row.amount, target: row.target, unit: row.nutrient.unit, identifier: "target-\(row.nutrient.rawValue)")
+        bar(name: row.nutrient.title, amount: row.amount ?? 0, target: row.target, unit: row.nutrient.unit, identifier: "target-\(row.nutrient.rawValue)")
     }
 
-    private func bar(name: String, amount: Double?, target: Double, unit: String, identifier: String) -> some View {
+    private func bar(name: String, amount: Double, target: Double, unit: String, identifier: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(name).font(.system(size: 13)).foregroundColor(Theme.text)
                 Spacer()
-                Text(amount.map { "\(Format.number($0, maxDecimals: 1)) / \(Format.number(target, maxDecimals: 1)) \(unit)" } ?? "unknown")
+                Text("\(Format.number(amount, maxDecimals: 1)) / \(Format.number(target, maxDecimals: 1)) \(unit)")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(amount == nil ? Theme.muted : ((amount ?? 0) >= target ? Theme.green : Theme.amber))
+                    .foregroundColor(amount >= target ? Theme.green : (amount == 0 ? Theme.muted : Theme.amber))
             }
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.line)
-                    Capsule().fill((amount ?? 0) >= target ? Theme.green : Theme.amber)
-                        .frame(width: proxy.size.width * min((amount ?? 0) / target, 1))
+                    Capsule().fill(amount >= target ? Theme.green : Theme.amber)
+                        .frame(width: proxy.size.width * min(amount / target, 1))
                 }
             }
             .frame(height: 5)

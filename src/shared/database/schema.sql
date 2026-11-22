@@ -126,7 +126,8 @@ CREATE TABLE measurement_targets (
     site   TEXT PRIMARY KEY COLLATE NOCASE,
     inches REAL NOT NULL CHECK (inches > 0),
     set_on TEXT,
-    direction TEXT NOT NULL DEFAULT 'grow' CHECK (direction IN ('grow', 'reduce'))
+    direction TEXT NOT NULL DEFAULT 'grow' CHECK (direction IN ('grow', 'reduce')),
+    unit   TEXT NOT NULL DEFAULT 'in' CHECK (unit IN ('in', 'mm', 'cm', '%'))
 );
 
 CREATE TABLE calorie_entries (
@@ -215,7 +216,8 @@ CREATE TABLE foods (
     recipe_makes    REAL CHECK (recipe_makes IS NULL OR recipe_makes > 0),
     notes           TEXT,
     estimate_grams  REAL CHECK (estimate_grams IS NULL OR estimate_grams > 0),
-    omega3_form     TEXT CHECK (omega3_form IS NULL OR omega3_form IN ('rTG', 'TG', 'EE', 'algae', 'unknown'))
+    omega3_form     TEXT CHECK (omega3_form IS NULL OR omega3_form IN ('rTG', 'TG', 'EE', 'algae', 'unknown')),
+    glycemic_index  REAL CHECK (glycemic_index IS NULL OR (glycemic_index >= 0 AND glycemic_index <= 115))
 );
 
 CREATE TABLE recipe_items (
@@ -365,4 +367,4 @@ INSERT INTO settings (key, value) VALUES
     ('fat_max_percent', '35'),
     ('fat_floor_g_per_kg', '0.8');
 
-PRAGMA user_version = 21;
+PRAGMA user_version = 22;

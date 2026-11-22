@@ -8,6 +8,8 @@ struct DietTodayView: View {
     let onQuickAdd: () -> Void
     let onEditExtra: (DietExtra) -> Void
     let onEditPlan: () -> Void
+    @EnvironmentObject private var services: Services
+    @State private var selectedProfileMeal: DietMeal?
 
     var body: some View {
         VStack(spacing: 12) {
@@ -22,7 +24,7 @@ struct DietTodayView: View {
                     HStack {
                         Text("Daily targets").font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
                         Spacer()
-                        let rows = DailyTargetReport.rows(day.eatenProfile)
+                        let rows = DailyTargetReport.dailyRows(day.eatenProfile)
                         Text("\(rows.filter(\.isMet).count) of \(rows.count) met").font(.system(size: 12)).foregroundColor(Theme.muted)
                         Image(systemName: "chevron.right").foregroundColor(Theme.muted)
                     }
@@ -44,6 +46,11 @@ struct DietTodayView: View {
                 if model.breakPeriod == nil && model.date <= model.today {
                     CheckInCard(date: model.date, meals: day.meals.map(\.name))
                 }
+            }
+        }
+        .sheet(isPresented: Binding(get: { selectedProfileMeal != nil }, set: { if !$0 { selectedProfileMeal = nil } })) {
+            if let meal = selectedProfileMeal {
+                MealProfileSheet(meal: meal, services: services)
             }
         }
     }
@@ -182,21 +189,44 @@ struct DietTodayView: View {
 
     private func mealCard(_ meal: DietMeal) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Button { model.toggle(meal) } label: {
-                HStack(spacing: 8) {
-                    mealCheckbox(meal)
-                    SectionLabel(meal.name)
-                    Spacer()
-                    Text("\(Format.grouped(meal.eatenCalories)) of \(Format.grouped(meal.plannedCalories)) kcal")
-                        .font(.system(size: 12)).foregroundColor(Theme.muted)
+            HStack(spacing: 8) {
+                Button { model.toggle(meal) } label: {
+                    HStack(spacing: 8) {
+                        mealCheckbox(meal)
+                        SectionLabel(meal.name)
+                        Spacer(minLength: 4)
+                    }
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .disabled(!meal.canTick)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("diet-meal-\(meal.name)")
+                .accessibilityValue(meal.tickState == .all ? "all" : (meal.tickState == .some ? "some" : "none"))
+
+                if meal.isRealMeal {
+                    let glVal = meal.eatenCalories > 0 ? meal.eatenGlycemicLoad : meal.plannedGlycemicLoad
+                    Button {
+                        selectedProfileMeal = meal
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chart.bar.xaxis")
+                            Text("GL \(Format.number(glVal, maxDecimals: 0)) · Aminos")
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Theme.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Theme.green.opacity(0.14))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("diet-meal-profile-\(meal.name)")
+                }
+
+                Text("\(Format.grouped(meal.eatenCalories)) of \(Format.grouped(meal.plannedCalories)) kcal")
+                    .font(.system(size: 12)).foregroundColor(Theme.muted)
             }
-            .buttonStyle(.plain)
-            .disabled(!meal.canTick)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("diet-meal-\(meal.name)")
-            .accessibilityValue(meal.tickState == .all ? "all" : (meal.tickState == .some ? "some" : "none"))
             VStack(spacing: 0) {
                 ForEach(meal.lines) { line in
                     DietLineRow(line: line) { model.toggle(line) }

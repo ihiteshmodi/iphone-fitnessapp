@@ -26,6 +26,49 @@ public struct FoodBook {
         try profile(of: id, quantity: quantity, visiting: [])
     }
 
+    public func glycemicLoad(of id: Int, quantity: Double) throws -> Double {
+        try glycemicLoad(of: id, quantity: quantity, visiting: [])
+    }
+
+    /// Decomposes a food or nested recipe into leaf non-recipe foods with their scaled quantities.
+    public func leafQuantities(of id: Int, quantity: Double) throws -> [(food: Food, quantity: Double)] {
+        var bucket: [Int: Double] = [:]
+        var order: [Int] = []
+        try collectLeaves(of: id, quantity: quantity, visiting: [], bucket: &bucket, order: &order)
+        return order.compactMap { fid in foods[fid].map { ($0, bucket[fid] ?? 0) } }
+    }
+
+    private func collectLeaves(of id: Int, quantity: Double, visiting: Set<Int>,
+                               bucket: inout [Int: Double], order: inout [Int]) throws {
+        guard let food = foods[id] else { throw ValidationError("That food is not in the library") }
+        if !food.isRecipe {
+            if bucket[id] == nil { order.append(id) }
+            bucket[id, default: 0] += quantity
+            return
+        }
+        guard !visiting.contains(id) else { throw ValidationError("A recipe cannot contain itself") }
+        let factor = quantity / (food.draft.recipeMakes ?? 1)
+        for line in lines[id] ?? [] {
+            try collectLeaves(of: line.foodID, quantity: line.quantity * factor, visiting: visiting.union([id]),
+                              bucket: &bucket, order: &order)
+        }
+    }
+
+    private func glycemicLoad(of id: Int, quantity: Double, visiting: Set<Int>) throws -> Double {
+        guard let food = foods[id] else { throw ValidationError("That food is not in the library") }
+        if !food.isRecipe {
+            let scaled = food.perBase.scaled(by: quantity / food.draft.baseQuantity)
+            let netCarbs = max(0, scaled.carbs - scaled.fiber)
+            guard netCarbs > 0, let gi = food.draft.glycemicIndex else { return 0 }
+            return gi * netCarbs / 100.0
+        }
+        guard !visiting.contains(id) else { throw ValidationError("A recipe cannot contain itself") }
+        let batch = try (lines[id] ?? []).reduce(0.0) {
+            $0 + (try glycemicLoad(of: $1.foodID, quantity: $1.quantity, visiting: visiting.union([id])))
+        }
+        return batch * (quantity / (food.draft.recipeMakes ?? 1))
+    }
+
     private func profile(of id: Int, quantity: Double, visiting: Set<Int>) throws -> NutrientProfile {
         guard let food = foods[id] else { throw ValidationError("That food is not in the library") }
         guard food.isRecipe else { return NutrientProfile.of(food.draft.nutrients).scaled(by: quantity / food.draft.baseQuantity) }
