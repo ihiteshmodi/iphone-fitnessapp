@@ -133,10 +133,15 @@ final class PhaseAUITests: XCTestCase {
         XCTAssertTrue(element("checkin-walk-Lunch").label.contains("✓"))
     }
 
-    func testDailyTargetsListsAminoAcids() {
+    func testDailyTargetsExcludesAminoAcidsAndMealProfileListsThem() {
         diet("today")
         tap("daily-targets-link")
 
+        XCTAssertTrue(app.staticTexts["Fiber"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Leucine"].exists, "Amino acids moved to per-meal Meal Profile")
+
+        app.navigationBars.buttons.firstMatch.tap()
+        tap("diet-meal-profile-Lunch")
         XCTAssertTrue(app.staticTexts["Leucine"].waitForExistence(timeout: 5))
     }
 

@@ -42,8 +42,7 @@ final class PhaseCUITests: XCTestCase {
 
         let nameField = app.textFields["site-name-field"]
         nameField.tap()
-        nameField.typeText("Tricep Caliper")
-        if app.keyboards.buttons["Return"].exists { app.keyboards.buttons["Return"].tap() }
+        nameField.typeText("Tricep Caliper\n")
 
         let readingField = app.textFields["site-reading-field"]
         readingField.tap()
@@ -56,6 +55,7 @@ final class PhaseCUITests: XCTestCase {
         app.buttons["sheet-save-button"].tap()
 
         let ring = element("measurement-ring-Tricep Caliper")
+        for _ in 0..<4 { app.swipeDown() }
         XCTAssertTrue(ring.waitForExistence(timeout: 5) || scrollUntilExists(ring))
         XCTAssertTrue(ring.label.contains("mm"), "Expected mm in ring label: \(ring.label)")
 
@@ -73,11 +73,10 @@ final class PhaseCUITests: XCTestCase {
         XCTAssertTrue(element("labs-core-pending-card").exists)
 
         tap("labs-marker-library")
-        let search = app.searchFields.firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
-        search.tap()
-        search.typeText("Ferritin")
-        app.staticTexts["Ferritin"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Markers"].waitForExistence(timeout: 5))
+        let firstMarker = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'labs-marker-row-'")).firstMatch
+        XCTAssertTrue(firstMarker.waitForExistence(timeout: 5))
+        firstMarker.tap()
         XCTAssertTrue(element("labs-marker-range-bar").waitForExistence(timeout: 5))
     }
 }

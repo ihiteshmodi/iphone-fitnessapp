@@ -3,14 +3,14 @@ import SwiftUI
 
 /// How a measurement status is worded and coloured, shared by the ring grid and the detail screen.
 enum MeasurementText {
-    static func statusLine(_ status: MeasurementStatus) -> String {
+    static func statusLine(_ status: MeasurementStatus, unit: MeasurementUnit = .inches) -> String {
         switch status {
         case .noReading: return "No reading yet"
         case .noTarget: return "No target"
         case .atTarget: return "At target"
-        case .toGain(let inches): return "\(Format.fixed(inches)) to gain"
-        case .toLose(let inches): return "\(Format.fixed(inches)) to lose"
-        case .ahead(let inches): return "\(Format.fixed(inches)) ahead of target"
+        case .toGain(let inches): return "\(Format.fixed(inches)) \(unit.rawValue) to gain"
+        case .toLose(let inches): return "\(Format.fixed(inches)) \(unit.rawValue) to lose"
+        case .ahead(let inches): return "\(Format.fixed(inches)) \(unit.rawValue) ahead of target"
         }
     }
 

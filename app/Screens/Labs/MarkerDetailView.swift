@@ -23,6 +23,7 @@ struct MarkerLibraryView: View {
                 Section(name) {
                     ForEach(markers.filter { $0.chapter == name }) { marker in
                         NavigationLink { MarkerDetailView(model: model, marker: marker) } label: { label(marker) }
+                            .accessibilityIdentifier("labs-marker-row-\(marker.id)")
                     }
                 }
             }

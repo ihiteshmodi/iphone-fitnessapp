@@ -55,7 +55,7 @@ stop_everything() {
 trap 'stop_everything; exit 130' INT TERM
 trap clean_up EXIT
 
-classes=(WorkoutFlowUITests BodyProgressUITests MorePlanDataUITests DietUITests PhaseAUITests PhaseBUITests)
+classes=(WorkoutFlowUITests BodyProgressUITests MorePlanDataUITests DietUITests PhaseAUITests PhaseBUITests PhaseCUITests)
 [ $# -gt 0 ] && classes=("$@")
 
 total=0

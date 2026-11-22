@@ -201,6 +201,7 @@ struct LabsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(highlighted: true)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("labs-sex-confirm-card")
     }
 

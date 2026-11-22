@@ -49,6 +49,7 @@ private struct ProgressScreen: View {
         .task(id: session.revision) { model.load() }
         .sheet(isPresented: $addingSite) {
             ProgressAddSiteSheet(model: model, onSaved: { session.didChange() })
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $editingTolerance) {
             BodyValueEntrySheet(title: "Tolerance", fieldLabel: "Tolerance", unit: "%", initialText: Format.number(model.tolerancePercent, maxDecimals: 1),
@@ -107,7 +108,7 @@ private struct ProgressRingCard: View {
                 Text(ring.site).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text).lineLimit(2)
                 Text("\(MeasurementText.inches(ring.current)) → \(MeasurementText.inches(ring.target)) \(ring.unit.rawValue)")
                     .font(.system(size: 11)).foregroundColor(Theme.muted).lineLimit(1).minimumScaleFactor(0.8)
-                Text(MeasurementText.statusLine(ring.status))
+                Text(MeasurementText.statusLine(ring.status, unit: ring.unit))
                     .font(.system(size: 11)).foregroundColor(MeasurementText.color(ring.attention))
                     .lineLimit(1).minimumScaleFactor(0.8)
                 if let percent = MeasurementText.percentText(ring.percentFromTarget) {

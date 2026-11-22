@@ -52,20 +52,23 @@ final class PhaseBUITests: XCTestCase {
         openLabs()
         tap("labs-settings-button")
         let toggle = app.switches["labs-drug-notes-toggle"]
+        for _ in 0..<4 where !toggle.exists { app.swipeUp() }
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         XCTAssertEqual(toggle.value as? String, "0")
         toggle.switches.firstMatch.tap()
         app.buttons["Save"].tap()
 
         tap("labs-settings-button")
+        for _ in 0..<4 where !toggle.exists { app.swipeUp() }
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         XCTAssertEqual(toggle.value as? String, "1")
     }
 
     func testConfirmMaleHidesFemaleCycleFieldAndUnitMismatchSwitchesUnit() {
         openLabs()
-        if element("labs-confirm-male").exists {
-            tap("labs-confirm-male")
+        let maleBtn = app.buttons["labs-confirm-male"]
+        if maleBtn.waitForExistence(timeout: 2) {
+            maleBtn.tap()
         }
         XCTAssertFalse(element("labs-sex-confirm-card").exists)
 
