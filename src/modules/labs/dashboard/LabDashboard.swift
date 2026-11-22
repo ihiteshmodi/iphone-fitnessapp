@@ -49,6 +49,7 @@ public struct LabDashboard {
 
     public static func build(catalogue: LabCatalogue, db: Database, today: ISODate) throws -> LabDashboard {
         let preferences = try LabSettings(db).load()
+        let genotypes = (try? GeneticsService(db, catalogue: catalogue).entries()) ?? []
         let draws = LabDrawService(db, catalogue: catalogue)
         var history: [String: [LabResult]] = [:]
         for marker in catalogue.markers {
@@ -65,7 +66,7 @@ public struct LabDashboard {
             var counts = (optimal: 0, disputed: 0, outside: 0, doctor: 0)
             for marker in markers {
                 let latest = history[marker.id]![0]
-                let reading = LabReader.read(result: latest, marker: marker, preferences: preferences)
+                let reading = LabReader.read(result: latest, marker: marker, preferences: preferences, genotypes: genotypes)
                 if !reading.doctorLines.isEmpty { counts.doctor += 1 }
                 switch reading.status {
                 case .optimal: counts.optimal += 1
@@ -84,7 +85,7 @@ public struct LabDashboard {
         let heart = heartMarkers.compactMap(catalogue.marker).map { marker -> HeartItem in
             let latest = history[marker.id]?.first
             return HeartItem(marker: marker, latest: latest,
-                             reading: latest.map { LabReader.read(result: $0, marker: marker, preferences: preferences) })
+                             reading: latest.map { LabReader.read(result: $0, marker: marker, preferences: preferences, genotypes: genotypes) })
         }
         let hormones = hormoneMarkers.compactMap(catalogue.marker).filter { history[$0.id] != nil }
             .map { MarkerSeries(marker: $0, points: series($0, history)) }

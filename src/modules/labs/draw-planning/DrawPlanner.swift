@@ -69,7 +69,7 @@ public struct DrawPlanner {
             }
         }
         if let reflex = try reflexCoTestsItem() { items.append(reflex) }
-        if let genetics, let fromGenes = try genetics.orderItem() { items.append(fromGenes) }
+        if let genetics, let fromGenes = try genetics.orderItem(draws: draws) { items.append(fromGenes) }
         return items
     }
 

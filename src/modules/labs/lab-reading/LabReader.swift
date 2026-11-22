@@ -42,10 +42,13 @@ public struct LabReading: Equatable {
     public let doctorLines: [LabDoctorLine]
     /// Doctor lines whose numeric threshold was crossed and that require checking paired symptoms.
     public let conditionalDoctorLines: [LabDoctorLine]
+    /// Active genotype-driven interpretation notes or target shifts on this marker.
+    public let geneticNotes: [String]
 
     public init(value: Double?, unit: String?, status: LabStatus, tier: LabSeverityTier = .unknown, tierLabel: String? = nil,
                 activeStratum: LabStratum? = nil, bands: [LabBand], optimalBands: [LabBand], disputes: [String],
-                edgeLabels: [String], doctorLines: [LabDoctorLine], conditionalDoctorLines: [LabDoctorLine] = []) {
+                edgeLabels: [String], doctorLines: [LabDoctorLine], conditionalDoctorLines: [LabDoctorLine] = [],
+                geneticNotes: [String] = []) {
         self.value = value
         self.unit = unit
         self.status = status
@@ -58,11 +61,13 @@ public struct LabReading: Equatable {
         self.edgeLabels = edgeLabels
         self.doctorLines = doctorLines
         self.conditionalDoctorLines = conditionalDoctorLines
+        self.geneticNotes = geneticNotes
     }
 }
 
 public enum LabReader {
-    public static func read(result: LabResult, marker: LabMarker, preferences: LabPreferences, draw: LabDrawDraft? = nil) -> LabReading {
+    public static func read(result: LabResult, marker: LabMarker, preferences: LabPreferences,
+                            draw: LabDrawDraft? = nil, genotypes: [GenotypeEntry] = []) -> LabReading {
         if marker.id == "blood-pressure", let diastolic = result.secondaryValue {
             return readBloodPressure(systolic: result.value, diastolic: diastolic, marker: marker, sex: preferences.sex)
         }
@@ -70,10 +75,11 @@ public enum LabReader {
             return readQualitative(text: text, marker: marker, sex: preferences.sex)
         }
         let ageYears: Int? = preferences.birthDate.map { Int(Double(result.date.days(since: $0)) / 365.25) }
-        return readInternal(typed: result.value, unit: result.unit, customDefault: result.defaultValue,
-                            textValue: result.textValue, labLow: result.labLow, labHigh: result.labHigh,
-                            specimen: result.specimen, assay: result.assay, marker: marker,
-                            preferences: preferences, ageYears: ageYears, draw: draw)
+        let base = readInternal(typed: result.value, unit: result.unit, customDefault: result.defaultValue,
+                                textValue: result.textValue, labLow: result.labLow, labHigh: result.labHigh,
+                                specimen: result.specimen, assay: result.assay, marker: marker,
+                                preferences: preferences, ageYears: ageYears, draw: draw)
+        return GeneticsModifierEvaluator.applyReadingModifiers(base: base, marker: marker, preferences: preferences, genotypes: genotypes)
     }
 
     public static func read(value typed: Double, unit: String, marker: LabMarker, sex: LabSex) -> LabReading {

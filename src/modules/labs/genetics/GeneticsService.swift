@@ -18,41 +18,91 @@ public final class GeneticsService {
 
     public func set(_ geneID: String, genotype: String, on day: ISODate) throws {
         guard let gene = catalogue.gene(geneID) else { throw ValidationError("\(geneID) is not in the genetics catalogue") }
-        guard gene.genotypes?.contains(where: { $0.genotype == genotype }) == true else {
+        guard let matched = Self.matchGenotype(genotype, in: gene) else {
             throw ValidationError("\(genotype) is not in the vault's \(gene.name) table")
+        }
+        if gene.id != geneID {
+            try db.execute("DELETE FROM lab_genotypes WHERE gene_id = ?", [.text(geneID)])
         }
         try db.execute("""
             INSERT INTO lab_genotypes (gene_id, genotype, entered_on) VALUES (?, ?, ?)
             ON CONFLICT(gene_id) DO UPDATE SET genotype = excluded.genotype, entered_on = excluded.entered_on
-            """, [.text(geneID), .text(genotype), .text(day.string)])
+            """, [.text(gene.id), .text(matched.genotype), .text(day.string)])
     }
 
     public func clear(_ geneID: String) throws {
-        try db.execute("DELETE FROM lab_genotypes WHERE gene_id = ?", [.text(geneID)])
+        let canonical = catalogue.gene(geneID)?.id ?? geneID
+        try db.execute("DELETE FROM lab_genotypes WHERE gene_id IN (?, ?)", [.text(geneID), .text(canonical)])
     }
 
     public func entries() throws -> [GenotypeEntry] {
-        try db.query("SELECT gene_id, genotype, entered_on FROM lab_genotypes ORDER BY gene_id").compactMap { row in
+        var seenGenes: Set<String> = []
+        return try db.query("SELECT gene_id, genotype, entered_on FROM lab_genotypes ORDER BY gene_id").compactMap { row in
             guard let gene = catalogue.gene(row.text("gene_id")),
-                  let genotype = gene.genotypes?.first(where: { $0.genotype == row.text("genotype") }),
-                  let day = ISODate(row.text("entered_on")) else { return nil }
+                  let genotype = Self.matchGenotype(row.text("genotype"), in: gene),
+                  let day = ISODate(row.text("entered_on")),
+                  seenGenes.insert(gene.id).inserted else { return nil }
             return GenotypeEntry(gene: gene, row: genotype, enteredOn: day)
         }
     }
 
     /// The blood tests the entered genotypes ask for, as one order panel.
-    func orderItem() throws -> OrderItem? {
+    func orderItem(draws: LabDrawService? = nil) throws -> OrderItem? {
         var tests: [OrderTest] = []
         var reasons: [String] = []
+        let orderedRoles: Set<String> = ["mandatory_confirmer", "outranks_genotype", "safety_gate"]
+
         for entry in try entries() {
-            let added = (entry.row.addsMarkers ?? []).map { id in OrderTest(name: catalogue.marker(id)?.name ?? id, markerID: catalogue.marker(id) == nil ? nil : id) }
-            guard !added.isEmpty else { continue }
+            var entryTests: [OrderTest] = []
+            let isBaseline = entry.row.isBaseline
+            let isChangeNothing = entry.gene.actionCategory == .changeNothing || entry.gene.changeNothingMandate
+
+            if !entry.gene.phenotypicVerifiers.isEmpty {
+                for verifier in entry.gene.phenotypicVerifiers where orderedRoles.contains(verifier.role) {
+                    if isBaseline && !isChangeNothing { continue }
+                    switch verifier.kind {
+                    case .nonLab, .pattern:
+                        continue
+                    case .externalLab:
+                        guard !isBaseline else { continue }
+                        entryTests.append(OrderTest(name: verifier.markerName, markerID: nil, drawNote: verifier.rule))
+                    case .marker:
+                        guard let mid = verifier.markerID else { continue }
+                        // Lp(a) is genetically fixed for life; once measured, never re-order from genetics.
+                        if mid == "lpa", let draws, (try? !draws.history(of: "lpa").isEmpty) == true { continue }
+                        let displayName = catalogue.marker(mid)?.name ?? verifier.markerName
+                        let resolvedID = catalogue.marker(mid) == nil ? nil : mid
+                        entryTests.append(OrderTest(name: displayName, markerID: resolvedID, drawNote: verifier.rule))
+                    }
+                }
+            } else {
+                entryTests = (entry.row.addsMarkers ?? []).map { id in
+                    OrderTest(name: catalogue.marker(id)?.name ?? id, markerID: catalogue.marker(id) == nil ? nil : id)
+                }
+            }
+
+            guard !entryTests.isEmpty else { continue }
             reasons.append("\(entry.gene.name) \(entry.row.genotype)")
-            for test in added where !tests.contains(test) { tests.append(test) }
+            for test in entryTests where !tests.contains(where: { ($0.markerID ?? $0.name) == (test.markerID ?? test.name) }) {
+                tests.append(test)
+            }
         }
         guard !tests.isEmpty else { return nil }
         let panel = LabPanel(id: "from-genetics", name: "From your genetics", markers: tests.compactMap(\.markerID), askFor: nil,
                              when: "conditional", trigger: nil, triggerMarkers: nil, source: nil, tag: nil)
         return OrderItem(panel: panel, tests: tests, reason: reasons.joined(separator: "; "))
+    }
+
+    private static func matchGenotype(_ raw: String, in gene: LabGene) -> LabGenotype? {
+        let rows = gene.genotypes ?? []
+        if let exact = rows.first(where: { $0.genotype == raw }) { return exact }
+        if let ci = rows.first(where: { $0.genotype.caseInsensitiveCompare(raw) == .orderedSame }) { return ci }
+        guard gene.legacyGenotypes.contains(where: { $0.caseInsensitiveCompare(raw) == .orderedSame }) else { return nil }
+        let needle = raw.lowercased()
+        let prefixMatches = rows.filter {
+            let g = $0.genotype.lowercased()
+            return g.hasPrefix(needle + " ") || g.contains("(\(needle))") || g.contains(" \(needle) ")
+        }
+        return prefixMatches.count == 1 ? prefixMatches[0] : rows.first
     }
 }
