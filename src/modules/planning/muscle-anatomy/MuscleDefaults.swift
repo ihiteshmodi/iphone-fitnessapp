@@ -4,13 +4,14 @@ import Foundation
 /// These are sensible defaults, not a lookup from a reference book, so the editor lets the user correct them.
 public enum MuscleDefaults {
     public static func assignments(exerciseName: String, group: String?) -> [MuscleAssignment] {
-        let groups = groupNames(group)
+        let explicitGroups = groupNames(group)
         let text = " \(words(exerciseName)) "
+        let groups = explicitGroups.isEmpty ? inferredGroups(from: text) : explicitGroups
 
         if let rule = rules.first(where: { $0.matches(text: text, groups: groups) }) {
             return build(primary: rule.primary, secondary: rule.secondary)
         }
-        return build(primary: groups.flatMap { groupFallback[$0] ?? [] }, secondary: [])
+        return build(primary: explicitGroups.flatMap { groupFallback[$0] ?? [] }, secondary: [])
     }
 
     // MARK: Rules
@@ -116,6 +117,26 @@ public enum MuscleDefaults {
     /// Lowercase words separated by single spaces, so "Stiff-Leg  Deadlifts" becomes "stiff leg deadlifts".
     private static func words(_ text: String) -> String {
         text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
+    }
+
+    /// Infers the group for preset/untagged exercises when `group` is nil, ordered so specific movements ("chest supported row", "leg curl") win.
+    private static func inferredGroups(from paddedText: String) -> [String] {
+        func hasAny(_ terms: [String]) -> Bool {
+            terms.contains { paddedText.contains(" \($0) ") || paddedText.contains(" \($0)s ") }
+        }
+        if hasAny(["leg curl", "hamstring curl"]) { return ["hamstrings"] }
+        if hasAny(["wrist curl", "forearm curl", "reverse wrist", "wrist extension"]) { return ["forearms"] }
+        if hasAny(["curl", "preacher", "bicep"]) { return ["biceps"] }
+        if hasAny(["pushdown", "push down", "pressdown", "tricep", "triceps", "skull", "french press"]) { return ["triceps"] }
+        if hasAny(["pulldown", "pull down", "pull up", "chin up", "pullover", "row"]) { return ["back"] }
+        if hasAny(["shoulder press", "overhead press", "military press", "arnold", "lateral raise", "side lateral", "side raise", "front raise"]) {
+            return ["shoulders"]
+        }
+        if hasAny(["bench press", "chest press", "chest fly", "fly", "flye", "pec deck", "crossover", "dip", "push up", "pushup"]) {
+            return ["chest"]
+        }
+        if hasAny(["hip thrust", "glute bridge"]) { return ["glutes"] }
+        return []
     }
 
     /// "Triceps & Chest" counts as both groups.

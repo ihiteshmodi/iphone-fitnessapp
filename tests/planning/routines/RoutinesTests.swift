@@ -77,4 +77,50 @@ final class RoutinesTests: XCTestCase {
         XCTAssertNotNil(try ExerciseRepository(db).exercise(named: "Chest Press (Machine)"))
         XCTAssertEqual(try SavedWorkoutService(db).all().filter(\.isPreset).map(\.name), ["4-Day Upper/Lower"])
     }
+
+    func testMultiMusclePresetRoutinesMatchBackShouldersChestAndArmsEvenWhenExerciseMuscleIsNull() throws {
+        let lat = try db.addExercise("Lat Pulldowns (Cable)", muscle: nil)
+        let ohp = try db.addExercise("Shoulder Press (Machine)", muscle: nil)
+        let rowMachine = try db.addExercise("Chest-Supported Transverse Row (Machine)", muscle: nil)
+        let incline = try db.addExercise("Incline Bench Press (Dumbbell)", muscle: nil)
+        let curl = try db.addExercise("Preacher Curl (Machine)", muscle: nil)
+        let pushdown = try db.addExercise("Tricep Pushdown (Cable)", muscle: nil)
+
+        try routines.create("Meridian · Back + Shoulders", entries: [
+            RoutineEntry(exerciseID: lat, sets: 4, minReps: 10, maxReps: 10),
+            RoutineEntry(exerciseID: ohp, sets: 4, minReps: 8, maxReps: 8),
+            RoutineEntry(exerciseID: rowMachine, sets: 2, minReps: 6, maxReps: 8),
+        ], isPreset: true)
+        try routines.create("Meridian · Chest + Arms", entries: [
+            RoutineEntry(exerciseID: incline, sets: 4, minReps: 8, maxReps: 8),
+            RoutineEntry(exerciseID: curl, sets: 2, minReps: 6, maxReps: 8),
+            RoutineEntry(exerciseID: pushdown, sets: 2, minReps: 8, maxReps: 10),
+        ], isPreset: true)
+
+        XCTAssertEqual(try routines.all(muscle: "Back").map(\.name), ["Meridian · Back + Shoulders"])
+        XCTAssertEqual(try routines.all(muscle: "Shoulders").map(\.name), ["Meridian · Back + Shoulders"])
+        XCTAssertEqual(try routines.all(muscle: "Chest").map(\.name), ["Meridian · Chest + Arms"])
+        XCTAssertEqual(try routines.all(muscle: "Arms").map(\.name), ["Meridian · Chest + Arms"])
+        XCTAssertEqual(try routines.all(muscle: "Biceps").map(\.name), ["Meridian · Chest + Arms"])
+        XCTAssertEqual(try routines.all(muscle: "Triceps").map(\.name), ["Meridian · Chest + Arms"])
+        XCTAssertTrue(try routines.filterMuscles().contains("Arms"))
+    }
+
+    func testCreatingRoutineRequiresExercisesAndPresetsCanBeEditedRenamedAndDeleted() throws {
+        XCTAssertThrowsError(try routines.create("Empty", entries: [])) {
+            XCTAssertEqual($0 as? ValidationError, ValidationError("Add at least one exercise to the routine"))
+        }
+
+        let preset = try routines.create("Meridian · Push", entries: [
+            RoutineEntry(exerciseID: bench, sets: 3, minReps: 8, maxReps: 10),
+        ], isPreset: true)
+        XCTAssertNoThrow(try routines.rename(preset, to: "Meridian · Push Custom"))
+        XCTAssertNoThrow(try routines.setEntries(preset, [
+            RoutineEntry(exerciseID: bench, sets: 4, minReps: 6, maxReps: 8),
+            RoutineEntry(exerciseID: fly, sets: 2, minReps: 12, maxReps: 15),
+        ]))
+        XCTAssertEqual(try routines.all().first { $0.id == preset }?.entries.count, 2)
+        XCTAssertNoThrow(try routines.delete(preset))
+        XCTAssertNil(try routines.all().first { $0.id == preset })
+    }
 }

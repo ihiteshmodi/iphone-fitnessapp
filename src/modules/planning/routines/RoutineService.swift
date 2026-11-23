@@ -30,25 +30,39 @@ public final class RoutineService {
 
     public init(_ db: Database) { self.db = db }
 
-    /// Your routines first, then presets, each by name. With a muscle, only routines that train it.
+    /// Your routines first, then presets, each by name. With a muscle, includes any routine whose exercises train that muscle group or anatomy region.
     public func all(muscle: String? = nil) throws -> [Routine] {
-        var sql = "SELECT id, name, is_preset FROM routines r"
-        var params: [SQLValue] = []
-        if let muscle {
-            sql += """
-                 WHERE EXISTS (SELECT 1 FROM routine_entries x JOIN exercises e ON e.id = x.exercise_id
-                               WHERE x.routine_id = r.id AND e.muscle = ? COLLATE NOCASE)
-                """
-            params.append(.text(muscle))
-        }
-        sql += " ORDER BY is_preset, name COLLATE NOCASE"
-        return try db.query(sql, params).map { row in
+        let allRoutines = try db.query("SELECT id, name, is_preset FROM routines ORDER BY is_preset, name COLLATE NOCASE").map { row in
             Routine(id: row.int("id"), name: row.text("name"), isPreset: row.int("is_preset") == 1, entries: try entries(of: row.int("id")))
         }
+        guard let muscle, !muscle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return allRoutines
+        }
+        let exercisesRepo = ExerciseRepository(db)
+        let muscleService = ExerciseMuscleService(db)
+        return try allRoutines.filter { routine in
+            try routine.entries.contains { entry in
+                guard let exercise = try exercisesRepo.exercise(id: entry.exerciseID) else { return false }
+                return try Self.exerciseMatches(exercise: exercise, filter: muscle, muscleService: muscleService)
+            }
+        }
+    }
+
+    /// Filter chips shown in Routines: library muscle labels plus canonical group filters trained by existing routines.
+    public func filterMuscles() throws -> [String] {
+        var seen: [String: String] = [:]
+        for label in ["Back", "Chest", "Shoulders", "Arms", "Legs"] + (try ExerciseRepository(db).muscles()) {
+            let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, trimmed.uppercased() != "HIIT", trimmed.uppercased() != "HOLD" else { continue }
+            let key = trimmed.lowercased()
+            if seen[key] == nil { seen[key] = trimmed }
+        }
+        return seen.values.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
     @discardableResult
     public func create(_ name: String, entries: [RoutineEntry], isPreset: Bool = false) throws -> Int {
+        guard !entries.isEmpty else { throw ValidationError("Add at least one exercise to the routine") }
         let name = try validName(name, except: nil)
         return try db.transaction {
             try db.execute("INSERT INTO routines (name, is_preset) VALUES (?, ?)", [.text(name), .int(isPreset ? 1 : 0)])
@@ -67,7 +81,8 @@ public final class RoutineService {
     }
 
     public func setEntries(_ id: Int, _ entries: [RoutineEntry]) throws {
-        try requireEditable(id)
+        try requireExists(id)
+        guard !entries.isEmpty else { throw ValidationError("Add at least one exercise to the routine") }
         try db.transaction {
             try db.execute("DELETE FROM routine_entries WHERE routine_id = ?", [.int(Int64(id))])
             try insert(entries, into: id)
@@ -75,13 +90,13 @@ public final class RoutineService {
     }
 
     public func rename(_ id: Int, to name: String) throws {
-        try requireEditable(id)
+        try requireExists(id)
         let name = try validName(name, except: id)
         try db.execute("UPDATE routines SET name = ? WHERE id = ?", [.text(name), .int(Int64(id))])
     }
 
     public func delete(_ id: Int) throws {
-        try requireEditable(id)
+        try requireExists(id)
         try db.execute("DELETE FROM routines WHERE id = ?", [.int(Int64(id))])
     }
 
@@ -135,11 +150,44 @@ public final class RoutineService {
         guard (0...3).contains(entry.warmupSets) else { throw ValidationError("Warm-up sets must be between 0 and 3") }
     }
 
-    private func requireEditable(_ id: Int) throws {
-        guard let row = try db.query("SELECT is_preset FROM routines WHERE id = ?", [.int(Int64(id))]).first else {
+    private func requireExists(_ id: Int) throws {
+        guard !(try db.query("SELECT 1 FROM routines WHERE id = ?", [.int(Int64(id))])).isEmpty else {
             throw ValidationError("That routine is no longer there")
         }
-        guard row.int("is_preset") == 0 else { throw ValidationError("Presets cannot be changed; use it or copy it") }
+    }
+
+    private static func exerciseMatches(exercise: Exercise, filter: String, muscleService: ExerciseMuscleService) throws -> Bool {
+        let needle = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let raw = exercise.muscle {
+            if raw.lowercased() == needle { return true }
+            let parts = raw.lowercased().split(whereSeparator: { $0 == "&" || $0 == "/" || $0 == "," })
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+            if parts.contains(needle) { return true }
+        }
+        let assignments = try muscleService.muscles(exerciseId: exercise.id).assignments.filter { $0.role == .primary }
+        let regions = Set(assignments.map(\.part.region))
+        let primaryParts = Set(assignments.map(\.part))
+        switch needle {
+        case "chest": return regions.contains(.chest)
+        case "shoulders": return regions.contains(.shoulders)
+        case "back", "mid back", "upper back", "lower back": return regions.contains(.upperBack) || regions.contains(.lowerBack)
+        case "lats": return primaryParts.contains(.lats)
+        case "traps": return !primaryParts.isDisjoint(with: [.trapsUpper, .trapsMid, .trapsLower])
+        case "arms": return !regions.isDisjoint(with: [.biceps, .triceps, .forearms])
+        case "biceps": return regions.contains(.biceps)
+        case "triceps": return regions.contains(.triceps)
+        case "forearm", "forearms": return regions.contains(.forearms)
+        case "abs", "core": return regions.contains(.core)
+        case "legs": return !regions.isDisjoint(with: [.quads, .hamstrings, .glutes, .hips, .calves, .shins])
+        case "quads": return regions.contains(.quads)
+        case "hamstrings": return regions.contains(.hamstrings)
+        case "glutes": return regions.contains(.glutes)
+        case "hips", "abductors", "adductors": return regions.contains(.hips)
+        case "calves": return regions.contains(.calves)
+        case "shins": return regions.contains(.shins)
+        default:
+            return regions.contains { $0.displayName.lowercased() == needle }
+        }
     }
 
     private func validName(_ name: String, except id: Int?) throws -> String {

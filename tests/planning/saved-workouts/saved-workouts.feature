@@ -17,10 +17,11 @@ Feature: Saved workouts
     When I switch back to "PPL Nov 2026"
     Then the plan has "Push" on Monday and "Pull" on Wednesday again
 
-  Scenario: Presets are read-only
-    Given "Meridian · Upper/Lower" is a preset
-    Then renaming or deleting it says "Presets cannot be changed; use it or copy it"
-    And copying it as "My Upper/Lower" gives a saved workout I can change
+  Scenario: Duplicate, rename, delete and preview saved workouts including presets
+    Given "Meridian · Upper/Lower" is a preset with Monday "Upper" (Bench press 4 x 10-10)
+    Then I can inspect its day-by-day exercises and muscle summary before switching
+    And duplicating it as "My Upper/Lower" creates an independent copy
+    And renaming or deleting a preset workout works directly
 
   Scenario: Names are unique
     Given "PPL Nov 2026" is saved

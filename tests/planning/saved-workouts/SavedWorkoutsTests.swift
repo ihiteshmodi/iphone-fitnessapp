@@ -50,18 +50,29 @@ final class SavedWorkoutsTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(try saved.all().first { $0.id == ppl }).isCurrent)
     }
 
-    func testPresetsAreReadOnlyButCanBeCopied() throws {
-        let preset = try saved.addPreset(name: "Meridian · Upper/Lower", days: [SavedWorkoutDayDraft(title: "Upper", weekday: 1, entries: [
-            RoutineEntry(exerciseID: bench, sets: 4, minReps: 10, maxReps: 10)])])
+    func testSavedWorkoutsProvideDayByDayPreviewAndAllowRenamingAndDeletingPresets() throws {
+        let preset = try saved.addPreset(name: "Meridian · Upper/Lower", days: [
+            SavedWorkoutDayDraft(title: "Upper", weekday: 1, entries: [
+                RoutineEntry(exerciseID: bench, sets: 4, minReps: 8, maxReps: 10, warmupSets: 2),
+                RoutineEntry(exerciseID: row, sets: 3, minReps: 8, maxReps: 12),
+            ]),
+        ])
 
-        for change in [{ try self.saved.rename(preset, to: "X") }, { try self.saved.delete(preset) }] {
-            XCTAssertThrowsError(try change()) {
-                XCTAssertEqual($0 as? ValidationError, ValidationError("Presets cannot be changed; use it or copy it"))
-            }
-        }
+        let detail = try XCTUnwrap(try saved.detail(of: preset))
+        XCTAssertEqual(detail.days.count, 1)
+        XCTAssertEqual(detail.days[0].title, "Upper")
+        XCTAssertEqual(detail.days[0].exercises.map(\.name), ["Bench press", "Row"])
+        XCTAssertEqual(detail.days[0].exercises[0].warmupSets, 2)
+        XCTAssertTrue(detail.days[0].muscleSummary.contains("Chest 4"))
+        XCTAssertTrue(detail.days[0].muscleSummary.contains("Upper back 3"))
+
         let copy = try saved.copy(preset, as: "My Upper/Lower")
-        XCTAssertNoThrow(try saved.rename(copy, to: "My Upper/Lower 2"))
         XCTAssertFalse(try XCTUnwrap(try saved.all().first { $0.id == copy }).isPreset)
+
+        XCTAssertNoThrow(try saved.rename(preset, to: "Meridian · Upper/Lower Edited"))
+        XCTAssertEqual(try saved.all().first { $0.id == preset }?.name, "Meridian · Upper/Lower Edited")
+        XCTAssertNoThrow(try saved.delete(preset))
+        XCTAssertNil(try saved.all().first { $0.id == preset })
     }
 
     func testNamesAreUnique() throws {

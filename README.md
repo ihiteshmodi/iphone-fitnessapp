@@ -54,9 +54,9 @@ Screenshots of the real app.
 - **Best-set chart:** the best set of each session as a line (kg above each point, reps below), plus the estimated 1RM after every set.
 - **Muscle diagram:** shows which muscles an exercise trains. It is automatic and editable per exercise, with a picture for every side of the body that has a worked muscle.
 - **Deload mode:** a lighter week that scales the weight and both ends of the rep range for display only, with an option to ignore deload sessions in your progress.
-- **Saved workouts:** Edit plan → Saved workouts keeps the whole workout plan under a name and switches back to it any time. Logged sets belong to exercises, so history and working weights carry over.
-- **Routines:** ready groups of exercises (like recipes for food), browsable by muscle. Save any day as a routine, and *+ Add routine* on a day copies a routine's exercises into it (exercises already there are skipped).
-- **Coach presets:** read-only coach routines and workouts (`output/meridian-presets.json`), synced silently on launch. Use them or copy and change them.
+- **Saved workouts:** Edit plan → Saved workouts keeps the whole workout plan under a name, lets you tap or preview any workout's days, muscle counts, and exercises before switching, and lets you duplicate, rename, or delete any saved workout (including presets). Logged sets belong to exercises, so history and working weights carry over.
+- **Routines:** ready groups of exercises (like recipes for food), browsable by muscle (matching both exercise group labels and primary muscle anatomy such as *Back*, *Shoulders*, *Chest*, *Arms*, *Legs*). Create a routine from scratch with **+ New routine**, edit/duplicate/rename/delete any routine (including presets), save any workout day as a routine, and use *+ Add routine* on a day to copy its exercises in (exercises already there are skipped).
+- **Coach presets:** coach routines and workouts (`output/meridian-presets.json`), synced silently on launch; use, duplicate, edit, rename, or delete them freely.
 - **Plan and library editing:** add, rename, reorder and delete days and exercises, set main sets, warm-up sets and rep ranges, and name days by number or weekday.
 
 **Body and progress**

@@ -24,6 +24,30 @@ public struct SavedWorkout: Equatable, Identifiable {
     public var exerciseCount: Int { days.reduce(0) { $0 + $1.entries.count } }
 }
 
+public struct SavedWorkoutExerciseDetail: Equatable, Identifiable {
+    public var id: Int { exerciseID }
+    public let exerciseID: Int
+    public let name: String
+    public let sets: Int
+    public let minReps: Int
+    public let maxReps: Int
+    public let warmupSets: Int
+    public let primaryMuscles: [String]
+}
+
+public struct SavedWorkoutDayDetail: Equatable, Identifiable {
+    public let id: Int
+    public let title: String
+    public let weekday: Int?
+    public let exercises: [SavedWorkoutExerciseDetail]
+    public let muscleSummary: String
+}
+
+public struct SavedWorkoutDetail: Equatable {
+    public let workout: SavedWorkout
+    public let days: [SavedWorkoutDayDetail]
+}
+
 /// Whole workouts kept under a name. Using one replaces the workout plan; logged sets belong to exercises, so no
 /// history is lost and working weights carry over.
 public final class SavedWorkoutService {
@@ -78,14 +102,55 @@ public final class SavedWorkoutService {
         try insert(name: name, days: try days(of: id), savedOn: day, isPreset: false)
     }
 
+    public func detail(of id: Int) throws -> SavedWorkoutDetail? {
+        guard let workout = try all().first(where: { $0.id == id }) else { return nil }
+        let exercisesRepo = ExerciseRepository(db)
+        let muscleService = ExerciseMuscleService(db)
+        let detailedDays: [SavedWorkoutDayDetail] = try workout.days.enumerated().map { index, day in
+            var regionSets: [MuscleRegion: Int] = [:]
+            let exDetails: [SavedWorkoutExerciseDetail] = try day.entries.map { entry in
+                let exercise = try exercisesRepo.exercise(id: entry.exerciseID)
+                let regions: [MuscleRegion]
+                if let exercise {
+                    let parts = try muscleService.muscles(exerciseId: exercise.id).assignments.filter { $0.role == .primary }.map(\.part.region)
+                    regions = MuscleRegion.allCases.filter { parts.contains($0) }
+                } else {
+                    regions = []
+                }
+                for region in regions { regionSets[region, default: 0] += entry.sets }
+                return SavedWorkoutExerciseDetail(
+                    exerciseID: entry.exerciseID,
+                    name: exercise?.name ?? "Exercise",
+                    sets: entry.sets,
+                    minReps: entry.minReps,
+                    maxReps: entry.maxReps,
+                    warmupSets: entry.warmupSets,
+                    primaryMuscles: regions.map(\.displayName))
+            }
+            let summary = MuscleRegion.allCases
+                .compactMap { region -> String? in
+                    guard let n = regionSets[region], n > 0 else { return nil }
+                    return "\(region.displayName) \(n)"
+                }
+                .joined(separator: " · ")
+            return SavedWorkoutDayDetail(
+                id: index + 1,
+                title: day.title ?? "Day \(index + 1)",
+                weekday: day.weekday,
+                exercises: exDetails,
+                muscleSummary: summary)
+        }
+        return SavedWorkoutDetail(workout: workout, days: detailedDays)
+    }
+
     public func rename(_ id: Int, to name: String) throws {
-        try requireEditable(id)
+        try requireExists(id)
         let name = try validName(name, except: id)
         try db.execute("UPDATE saved_workouts SET name = ? WHERE id = ?", [.text(name), .int(Int64(id))])
     }
 
     public func delete(_ id: Int) throws {
-        try requireEditable(id)
+        try requireExists(id)
         try db.execute("DELETE FROM saved_workouts WHERE id = ?", [.int(Int64(id))])
     }
 
@@ -129,11 +194,10 @@ public final class SavedWorkoutService {
         }
     }
 
-    private func requireEditable(_ id: Int) throws {
-        guard let row = try db.query("SELECT is_preset FROM saved_workouts WHERE id = ?", [.int(Int64(id))]).first else {
+    private func requireExists(_ id: Int) throws {
+        guard !(try db.query("SELECT 1 FROM saved_workouts WHERE id = ?", [.int(Int64(id))])).isEmpty else {
             throw ValidationError("That saved workout is no longer there")
         }
-        guard row.int("is_preset") == 0 else { throw ValidationError("Presets cannot be changed; use it or copy it") }
     }
 
     private func validName(_ name: String, except id: Int?) throws -> String {

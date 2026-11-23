@@ -18,6 +18,18 @@ Feature: Routines
     When I look at routines for Chest
     Then only "Chest finisher" is listed
 
+  Scenario: Multi-muscle preset routines appear under every primary muscle chip even when exercises have no muscle column
+    Given "Meridian · Back + Shoulders" has "Lat Pulldowns (Cable)" and "Shoulder Press (Machine)" with no muscle column set
+    And "Meridian · Chest + Arms" has "Incline Bench Press (Dumbbell)", "Preacher Curl (Machine)" and "Tricep Pushdown (Cable)" with no muscle column set
+    Then filtering routines by "Back" or "Shoulders" returns "Meridian · Back + Shoulders"
+    And filtering routines by "Chest" or "Arms" returns "Meridian · Chest + Arms"
+
+  Scenario: Create, edit, duplicate, rename and delete routines including presets
+    When I create a routine "Arms Specialization" with Preacher Curl 3 x 8-12 and Tricep Pushdown 3 x 10-15
+    Then it is saved with those 2 exercises
+    And creating a routine with an empty exercise list is rejected
+    And preset routines can be duplicated, edited, renamed and deleted directly
+
   Scenario: Coach presets are loaded once from the presets file
     Given a presets file with the routine "Push" (Chest Press (Machine) 4 x 10, Stretching (Upper) 1 x 10 min)
     And the workout "4-Day Upper/Lower" with Monday "Upper" (Chest Press (Machine) 4 x 10)
