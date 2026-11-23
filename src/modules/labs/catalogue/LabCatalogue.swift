@@ -162,6 +162,27 @@ public struct LabBand: Codable, Equatable {
     public let origin: LabOrigin?
     /// Result words for qualitative tests (urine dipstick: "Negative", "Trace"...).
     public let values: [String]?
+
+    public init(label: String, kind: String, low: Double? = nil, high: Double? = nil, unit: String? = nil,
+                sex: LabSex? = nil, source: String? = nil, lowInclusive: Bool? = nil, highInclusive: Bool? = nil,
+                meaning: String? = nil, condition: String? = nil, dispute: String? = nil, tag: String? = nil,
+                origin: LabOrigin? = nil, values: [String]? = nil) {
+        self.label = label
+        self.kind = kind
+        self.low = low
+        self.high = high
+        self.unit = unit
+        self.sex = sex
+        self.source = source
+        self.lowInclusive = lowInclusive
+        self.highInclusive = highInclusive
+        self.meaning = meaning
+        self.condition = condition
+        self.dispute = dispute
+        self.tag = tag
+        self.origin = origin
+        self.values = values
+    }
 }
 
 /// A doctor trigger. op and value are nil when the trigger is signs only or relative to the lab's range; those are
@@ -251,7 +272,8 @@ public struct LabMarker: Decodable, Equatable, Identifiable {
         aliases = try c.decodeIfPresent([String].self, forKey: .aliases) ?? []
         chapter = try c.decodeIfPresent(String.self, forKey: .chapter) ?? ""
         lesson = try c.decodeIfPresent(String.self, forKey: .lesson) ?? ""
-        units = try c.decodeIfPresent([LabUnit].self, forKey: .units) ?? []
+        let rawUnits = try c.decodeIfPresent([LabUnit].self, forKey: .units) ?? []
+        units = Self.enrichedUnits(markerID: id, rawUnits: rawUnits)
         sample = try c.decodeIfPresent(String.self, forKey: .sample)
         needsLabRange = try c.decodeIfPresent(Bool.self, forKey: .needsLabRange) ?? false
         computed = try c.decodeIfPresent(Bool.self, forKey: .computed) ?? false
@@ -262,7 +284,8 @@ public struct LabMarker: Decodable, Equatable, Identifiable {
         nextTo = try c.decodeIfPresent([LabText].self, forKey: .nextTo) ?? []
         whatToDo = try c.decodeIfPresent([LabText].self, forKey: .whatToDo) ?? []
         other = try c.decodeIfPresent([LabText].self, forKey: .other) ?? []
-        bands = try c.decodeIfPresent([LabBand].self, forKey: .bands) ?? []
+        let rawBands = try c.decodeIfPresent([LabBand].self, forKey: .bands) ?? []
+        bands = Self.enrichedBands(markerID: id, rawBands: rawBands)
         doctor = try c.decodeIfPresent([LabDoctorLine].self, forKey: .doctor) ?? []
         retest = try c.decodeIfPresent([LabRetest].self, forKey: .retest) ?? []
         prep = try c.decodeIfPresent([String].self, forKey: .prep) ?? []
@@ -278,6 +301,54 @@ public struct LabMarker: Decodable, Equatable, Identifiable {
         specimens = try c.decodeIfPresent([LabSpecimenAssay].self, forKey: .specimens) ?? []
         interventions = try c.decodeIfPresent(LabInterventions.self, forKey: .interventions)
         escalation = try c.decodeIfPresent(LabEscalation.self, forKey: .escalation)
+    }
+
+    /// Standard molecular-weight and metric unit factors where the analyte has one exact physical mass-to-molar ratio.
+    /// Lp(a) is deliberately left out because apo(a) isoform size varies across individuals (vault dispute C178).
+    private static let analyteUnitFactors: [String: (expectedDefault: String, factors: [(unit: String, toDefault: Double)])] = [
+        "total-cholesterol": ("mg/dL", [("mmol/L", 38.67)]),
+        "hdl-c": ("mg/dL", [("mmol/L", 38.67)]),
+        "non-hdl": ("mg/dL", [("mmol/L", 38.67)]),
+        "albumin": ("g/dL", [("g/L", 0.1)]),
+        "free-testosterone": ("pg/mL", [("pmol/L", 0.28842)]),
+        "dhea-s": ("µg/dL", [("µmol/L", 36.85), ("umol/L", 36.85)]),
+        "reverse-t3": ("ng/dL", [("nmol/L", 65.10)]),
+        "bun": ("mg/dL", [("urea mmol/L", 2.801)]),
+        "serum-magnesium": ("mg/dL", [("mmol/L", 2.4305)]),
+        "rbc-magnesium": ("mg/dL", [("mmol/L", 2.4305)]),
+        "zinc": ("mcg/dL", [("µmol/L", 6.538), ("umol/L", 6.538)]),
+        "selenium": ("ng/mL", [("µmol/L", 78.96), ("umol/L", 78.96)]),
+    ]
+
+    private static func enrichedUnits(markerID: String, rawUnits: [LabUnit]) -> [LabUnit] {
+        guard let spec = analyteUnitFactors[markerID],
+              let defUnit = rawUnits.first(where: \.isDefault)?.unit ?? rawUnits.first?.unit,
+              defUnit.caseInsensitiveCompare(spec.expectedDefault) == .orderedSame else {
+            return rawUnits
+        }
+        var out = rawUnits
+        for item in spec.factors {
+            if let idx = out.firstIndex(where: { $0.unit.caseInsensitiveCompare(item.unit) == .orderedSame }) {
+                if !out[idx].isDefault && out[idx].toDefault == nil {
+                    out[idx] = LabUnit(unit: out[idx].unit, isDefault: false, toDefault: item.toDefault, toDefaultOffset: out[idx].toDefaultOffset)
+                }
+            } else {
+                out.append(LabUnit(unit: item.unit, isDefault: false, toDefault: item.toDefault))
+            }
+        }
+        return out
+    }
+
+    private static func enrichedBands(markerID: String, rawBands: [LabBand]) -> [LabBand] {
+        guard markerID == "lpa",
+              !rawBands.contains(where: { $0.kind == "optimal" && $0.unit == "mg/dL" }),
+              let borderlineLow = rawBands.first(where: { $0.unit == "mg/dL" && $0.low != nil })?.low else {
+            return rawBands
+        }
+        var out = rawBands
+        out.append(LabBand(label: "Optimal", kind: "optimal", low: nil, high: borderlineLow, unit: "mg/dL",
+                           sex: .any, highInclusive: false, meaning: "Below \(Int(borderlineLow)) mg/dL (low risk)"))
+        return out
     }
 
     /// howTested may be written as one sentence or a list.

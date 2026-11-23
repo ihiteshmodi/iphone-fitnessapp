@@ -184,4 +184,38 @@ final class LabReadingTests: XCTestCase {
         let nitrites = try XCTUnwrap(cat2.marker("urine-nitrites"))
         XCTAssertNil(LabRangeBarModel.build(marker: nitrites, sex: .male))
     }
+
+    func testMarkerEnrichesStandardAnalyteConversionsAndReadsNativeSameUnitBandsWithoutMultiplier() throws {
+        let rawJSON = #"""
+        {"markers": [
+          {"id": "hdl-c", "name": "HDL cholesterol", "units": [{"unit": "mg/dL", "default": true}],
+           "bands": [{"label": "Optimal", "kind": "optimal", "low": 50, "high": 70, "unit": "mg/dL"}]},
+          {"id": "albumin", "name": "Albumin", "units": [{"unit": "g/dL", "default": true}],
+           "bands": [{"label": "Optimal", "kind": "optimal", "low": 4.5, "high": 5.2, "unit": "g/dL"}]},
+          {"id": "lpa", "name": "Lipoprotein(a)", "units": [{"unit": "nmol/L", "default": true}, {"unit": "mg/dL"}],
+           "bands": [
+             {"label": "Optimal", "kind": "optimal", "low": null, "high": 75, "unit": "nmol/L"},
+             {"label": "Borderline elevated", "kind": "watch", "low": 30, "high": 50, "unit": "mg/dL"},
+             {"label": "Elevated", "kind": "high", "low": 50, "high": 100, "unit": "mg/dL"}
+           ]}
+        ]}
+        """#
+        let cat = try LabCatalogue(data: Data(rawJSON.utf8))
+        let hdl = try XCTUnwrap(cat.marker("hdl-c"))
+        XCTAssertEqual(try XCTUnwrap(hdl.toDefault(1.55, unit: "mmol/L")), 59.94, accuracy: 0.05)
+        XCTAssertEqual(LabReader.read(value: 1.55, unit: "mmol/L", marker: hdl, sex: .male).status, .optimal)
+
+        let albumin = try XCTUnwrap(cat.marker("albumin"))
+        XCTAssertEqual(try XCTUnwrap(albumin.toDefault(46, unit: "g/L")), 4.6, accuracy: 0.01)
+        XCTAssertEqual(LabReader.read(value: 46, unit: "g/L", marker: albumin, sex: .male).status, .optimal)
+
+        let lpa = try XCTUnwrap(cat.marker("lpa"))
+        XCTAssertNil(lpa.toDefault(28, unit: "mg/dL"))
+        let lowRisk = LabReader.read(value: 28, unit: "mg/dL", marker: lpa, sex: .male)
+        XCTAssertEqual(lowRisk.status, .optimal)
+        XCTAssertEqual(lowRisk.unit, "mg/dL")
+        let borderline = LabReader.read(value: 40, unit: "mg/dL", marker: lpa, sex: .male)
+        XCTAssertEqual(borderline.status, .high)
+        XCTAssertTrue(borderline.bands.contains { $0.label == "Borderline elevated" })
+    }
 }

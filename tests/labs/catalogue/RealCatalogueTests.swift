@@ -147,4 +147,32 @@ final class RealCatalogueTests: XCTestCase {
         XCTAssertTrue(md.contains("# Active genetic modifiers"))
         XCTAssertTrue(md.contains("tTG-IgA"))
     }
+
+    func testCholesterolAlbuminHormoneBUNAndMineralMarkersConvertFromMolarAndMetricUnits() throws {
+        let catalogue = try realCatalogue()
+        let cases: [(id: String, input: Double, unit: String, expected: Double, accuracy: Double)] = [
+            ("total-cholesterol", 5.17, "mmol/L", 199.92, 0.1),
+            ("hdl-c", 1.55, "mmol/L", 59.94, 0.1),
+            ("non-hdl", 3.10, "mmol/L", 119.88, 0.1),
+            ("albumin", 45.0, "g/L", 4.5, 0.01),
+            ("free-testosterone", 100.0, "pmol/L", 28.842, 0.05),
+            ("dhea-s", 6.0, "µmol/L", 221.1, 0.5),
+            ("reverse-t3", 0.30, "nmol/L", 19.53, 0.1),
+            ("bun", 5.0, "urea mmol/L", 14.005, 0.05),
+            ("serum-magnesium", 0.90, "mmol/L", 2.187, 0.02),
+            ("rbc-magnesium", 2.50, "mmol/L", 6.076, 0.02),
+            ("zinc", 15.0, "µmol/L", 98.07, 0.2),
+            ("selenium", 1.60, "µmol/L", 126.34, 0.2),
+        ]
+        for row in cases {
+            let marker = try XCTUnwrap(catalogue.marker(row.id), "Missing marker \(row.id)")
+            let converted = try XCTUnwrap(marker.toDefault(row.input, unit: row.unit), "\(row.id) missing \(row.unit) conversion")
+            XCTAssertEqual(converted, row.expected, accuracy: row.accuracy, "\(row.id) in \(row.unit)")
+        }
+
+        let lpa = try XCTUnwrap(catalogue.marker("lpa"))
+        XCTAssertNil(lpa.toDefault(28, unit: "mg/dL"), "Lp(a) keeps separate unit bands rather than a fixed multiplier")
+        XCTAssertEqual(LabReader.read(value: 28, unit: "mg/dL", marker: lpa, sex: .male).status, .optimal)
+        XCTAssertEqual(LabReader.read(value: 40, unit: "mg/dL", marker: lpa, sex: .male).status, .high)
+    }
 }

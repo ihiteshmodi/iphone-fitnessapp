@@ -184,7 +184,23 @@ def _parse_formula_conversions(primary, secondary_list, formula_text):
     return out
 
 
-def _enrich_units(existing_units, nm_units):
+_ANALYTE_UNIT_FACTORS = {
+    "total-cholesterol": ("mg/dL", [("mmol/L", 38.67)]),
+    "hdl-c": ("mg/dL", [("mmol/L", 38.67)]),
+    "non-hdl": ("mg/dL", [("mmol/L", 38.67)]),
+    "albumin": ("g/dL", [("g/L", 0.1)]),
+    "free-testosterone": ("pg/mL", [("pmol/L", 0.28842)]),
+    "dhea-s": ("µg/dL", [("µmol/L", 36.85), ("umol/L", 36.85)]),
+    "reverse-t3": ("ng/dL", [("nmol/L", 65.10)]),
+    "bun": ("mg/dL", [("urea mmol/L", 2.801)]),
+    "serum-magnesium": ("mg/dL", [("mmol/L", 2.4305)]),
+    "rbc-magnesium": ("mg/dL", [("mmol/L", 2.4305)]),
+    "zinc": ("mcg/dL", [("µmol/L", 6.538), ("umol/L", 6.538)]),
+    "selenium": ("ng/mL", [("µmol/L", 78.96), ("umol/L", 78.96)]),
+}
+
+
+def _enrich_units(existing_units, nm_units, marker_id=None):
     """Builds a complete unit list with default unit preserved from existing_units when present."""
     units = [copy.deepcopy(u) for u in (existing_units or []) if isinstance(u.get("unit"), str)]
     default_unit = next((u["unit"] for u in units if u.get("default")), None)
@@ -270,6 +286,19 @@ def _enrich_units(existing_units, nm_units):
                 entry = {"unit": sib, "toDefault": round(f, 8)}
                 units.append(entry)
                 by_name[sib] = entry
+
+    if marker_id in _ANALYTE_UNIT_FACTORS:
+        expected_def, extra_factors = _ANALYTE_UNIT_FACTORS[marker_id]
+        if default_unit.lower() == expected_def.lower():
+            for sec_u, factor in extra_factors:
+                match_u = next((u for u in units if u["unit"].lower() == sec_u.lower()), None)
+                if match_u is not None:
+                    if not match_u.get("default") and match_u.get("toDefault") is None:
+                        match_u["toDefault"] = factor
+                else:
+                    entry = {"unit": sec_u, "toDefault": factor}
+                    units.append(entry)
+                    by_name[sec_u] = entry
 
     return units
 
@@ -906,7 +935,7 @@ def compile_catalogue(base, global_protocols, baseline_panels, markers, patterns
             lesson_to_slug[lid] = "cortisol"
             continue
 
-        target["units"] = _enrich_units(target.get("units"), nm.get("units"))
+        target["units"] = _enrich_units(target.get("units"), nm.get("units"), marker_id=slug)
         default_unit = next((u["unit"] for u in target["units"] if u.get("default")), None)
 
         # D5: Check if base marker had age-bracketed lab bands that new JSON collapsed
@@ -1044,7 +1073,7 @@ def compile_catalogue(base, global_protocols, baseline_panels, markers, patterns
     for mid in ordered_ids:
         m = by_id[mid]
         if m.get("units"):
-            m["units"] = _enrich_units(m["units"], None)
+            m["units"] = _enrich_units(m["units"], None, marker_id=mid)
 
     # Compile Baseline Recommended Panels (Part 0) + preserve conditional panels from base
     out_panels = []

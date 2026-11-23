@@ -529,3 +529,20 @@ def test_compiles_genetics_five_categories_verifiers_external_ttg_and_non_lab_fi
     assert "non_lab" in v_kinds
     assert v_kinds["pattern"]["patternID"] == "alpha-conversion"
 
+
+def test_enriches_analyte_molecular_weight_and_metric_conversions():
+    from compile_clinical_rules import _enrich_units
+
+    hdl_units = _enrich_units([{"unit": "mg/dL", "default": True}], None, marker_id="hdl-c")
+    assert next(u for u in hdl_units if u["unit"] == "mmol/L")["toDefault"] == 38.67
+
+    alb_units = _enrich_units([{"unit": "g/dL", "default": True}], None, marker_id="albumin")
+    assert next(u for u in alb_units if u["unit"] == "g/L")["toDefault"] == 0.1
+
+    ft_units = _enrich_units([{"unit": "pg/mL", "default": True}, {"unit": "pmol/L"}], None, marker_id="free-testosterone")
+    assert next(u for u in ft_units if u["unit"] == "pmol/L")["toDefault"] == 0.28842
+
+    lpa_units = _enrich_units([{"unit": "nmol/L", "default": True}, {"unit": "mg/dL"}], None, marker_id="lpa")
+    assert next(u for u in lpa_units if u["unit"] == "mg/dL").get("toDefault") is None
+
+

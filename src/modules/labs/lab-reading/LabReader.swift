@@ -93,6 +93,9 @@ public enum LabReader {
         let sex = preferences.sex
         guard let value = customDefault ?? marker.toDefault(typed, unit: unit) else {
             if let textValue { return readQualitative(text: textValue, marker: marker, sex: sex) }
+            if let sameUnitReading = readSameUnitBands(typed: typed, unit: unit, marker: marker, sex: sex, showDrugNotes: preferences.showDrugNotes) {
+                return sameUnitReading
+            }
             return LabReading(value: nil, unit: nil, status: .notComparable, bands: [], optimalBands: [], disputes: [], edgeLabels: [], doctorLines: [])
         }
         let stratum = selectStratum(marker: marker, preferences: preferences, ageYears: ageYears, specimen: specimen, assay: assay, draw: draw)
@@ -316,8 +319,65 @@ public enum LabReader {
         let lows = optimal.compactMap { bounds(of: $0, in: marker)?.low }
         let highs = optimal.compactMap { bounds(of: $0, in: marker)?.high }
         if let lowest = lows.min(), value < lowest, highs.allSatisfy({ value < $0 }) { return .low }
-        if let highest = highs.max(), value > highest { return .high }
+        if let highest = highs.max(), (value > highest || (value == highest && optimal.allSatisfy { $0.highInclusive == false })) { return .high }
         return hasDisputes ? .disputed : .low
+    }
+
+    /// Evaluates known non-convertible secondary units (such as Lp(a) in mg/dL) directly against bands authored in that same unit.
+    private static func readSameUnitBands(typed: Double, unit: String, marker: LabMarker, sex: LabSex, showDrugNotes: Bool) -> LabReading? {
+        guard !unit.isEmpty, marker.units.contains(where: { $0.unit == unit }) else { return nil }
+        let unitBands = marker.bands.filter { $0.unit == unit && applies($0.sex, to: sex) && $0.condition == nil }
+        guard !unitBands.isEmpty else { return nil }
+        let containing = unitBands.filter { contains(($0.low, $0.high), typed, $0) }
+        let optimal = unitBands.filter { $0.kind == "optimal" }
+        guard !optimal.isEmpty else { return nil }
+
+        let inside = optimal.filter { contains(($0.low, $0.high), typed, $0) }
+        let hasDisputes = optimal.contains { $0.dispute != nil }
+        let baseStatus: LabStatus
+        if !hasDisputes && !inside.isEmpty {
+            baseStatus = .optimal
+        } else if hasDisputes && inside.count == optimal.count {
+            baseStatus = .optimal
+        } else if hasDisputes && !inside.isEmpty {
+            baseStatus = .disputed
+        } else {
+            let lows = optimal.compactMap(\.low)
+            let highs = optimal.compactMap(\.high)
+            if let lowest = lows.min(), typed < lowest, highs.allSatisfy({ typed < $0 }) {
+                baseStatus = .low
+            } else if let highest = highs.max(), (typed > highest || (typed == highest && optimal.allSatisfy { $0.highInclusive == false })) {
+                baseStatus = .high
+            } else {
+                baseStatus = hasDisputes ? .disputed : .low
+            }
+        }
+
+        let doctors = marker.doctor
+            .filter { $0.unit == unit && applies($0.sex, to: sex) && sex.allows(sex: $0.sex, tag: $0.tag, showDrugNotes: showDrugNotes) }
+            .filter { line in
+                guard let op = line.op, let limit = line.value else { return false }
+                return crosses(typed, op, limit)
+            }
+            .sorted { $0.urgency < $1.urgency }
+        let tier: LabSeverityTier
+        if baseStatus == .high, containing.contains(where: { $0.kind == "watch" }) && !containing.contains(where: { $0.kind == "high" }) {
+            tier = .watchHigh
+        } else {
+            tier = defaultTier(for: baseStatus)
+        }
+        return LabReading(
+            value: typed,
+            unit: unit,
+            status: baseStatus,
+            tier: tier,
+            tierLabel: containing.first(where: { $0.kind != "lab" })?.label,
+            bands: containing,
+            optimalBands: optimal,
+            disputes: Array(Set(optimal.compactMap(\.dispute))).sorted(),
+            edgeLabels: [],
+            doctorLines: doctors.filter { $0.requires == nil },
+            conditionalDoctorLines: doctors.filter { $0.requires != nil })
     }
 
     private static func mapTierName(_ raw: String) -> LabSeverityTier {

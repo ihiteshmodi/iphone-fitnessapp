@@ -14,6 +14,19 @@ Feature: Clinical bloodwork catalogue
     When I convert a value from that secondary unit to the default unit and back
     Then both conversions match the linear formula
 
+  Scenario: Cholesterol, albumin, hormone, BUN, and mineral markers carry exact molecular or metric unit conversions
+    Given the compiled labs catalogue
+    When I convert HDL cholesterol from 1.55 mmol/L to mg/dL
+    And I convert albumin from 45 g/L to g/dL
+    And I convert free testosterone, DHEA-S, reverse T3, BUN, magnesium, zinc, and selenium from their molar units
+    Then each converts to the marker's default unit using its exact molecular or metric factor
+
+  Scenario: Markers with isoform-variable secondary units like Lp(a) read directly against native bands in that unit
+    Given Lp(a) has native bands in both nmol/L and mg/dL without a fixed conversion factor
+    When I read 28 mg/dL on Lp(a)
+    Then it evaluates as optimal directly against the mg/dL bands without applying a multiplier
+    And 40 mg/dL evaluates as high in the borderline elevated mg/dL band
+
   Scenario: Baseline panels, global protocols, and the 6 pattern engines decode completely
     Given the compiled labs catalogue
     Then baseline panels separate core, male, female, and conditional upgrades with per-marker draw notes
