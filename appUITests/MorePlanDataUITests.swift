@@ -66,10 +66,14 @@ final class MorePlanDataUITests: XCTestCase {
         openMoreTab(app)
         app.buttons["edit-plan-row"].tap()
         let day3 = app.buttons["plan-day-3"]
-        XCTAssertTrue(day3.waitForExistence(timeout: 10))
+        if !day3.waitForExistence(timeout: 3) || !day3.isHittable {
+            scrollUntilHittable(day3, in: app)
+        }
         day3.tap()
         let edit = app.buttons["edit-entry-button"].firstMatch
-        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        if !edit.waitForExistence(timeout: 3) || !edit.isHittable {
+            scrollUntilHittable(edit, in: app)
+        }
         edit.tap()
 
         XCTAssertTrue(app.staticTexts["Main sets"].waitForExistence(timeout: 5))
@@ -141,7 +145,9 @@ final class MorePlanDataUITests: XCTestCase {
 
         app.buttons["edit-plan-row"].tap()
         let dayThree = app.buttons["plan-day-3"]
-        XCTAssertTrue(dayThree.waitForExistence(timeout: 10))
+        if !dayThree.waitForExistence(timeout: 3) || !dayThree.isHittable {
+            scrollUntilHittable(dayThree, in: app)
+        }
         dayThree.tap()
 
         let addExercise = app.buttons["add-exercise-button"]

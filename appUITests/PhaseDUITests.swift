@@ -52,7 +52,7 @@ final class PhaseDUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Quick Arms"].waitForExistence(timeout: 5))
     }
 
-    func testDietPlanLiveTargetsFoodTopSaveRecipeProfileAndSavedDietPreview() {
+    func testDietPlanLiveTargetsAndSavedDietPreview() {
         launch(tab: 2)
         tap("diet-segment-plan")
         XCTAssertTrue(element("plan-daily-targets-link").waitForExistence(timeout: 5))
@@ -60,20 +60,26 @@ final class PhaseDUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Planned daily targets"].waitForExistence(timeout: 5))
         app.navigationBars.buttons.firstMatch.tap()
 
-        tap("plan-saved-diets")
-        tap("save-current-diet")
+        let savedDiets = app.buttons["plan-saved-diets"]
+        XCTAssertTrue(savedDiets.waitForExistence(timeout: 5))
+        savedDiets.tap()
+        app.buttons["save-current-diet"].tap()
         let field = app.alerts.textFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.typeText("Phase D Diet")
         app.alerts.buttons["Save"].tap()
-        tap("preview-diet-Phase D Diet")
-        XCTAssertTrue(element("preview-use-diet").waitForExistence(timeout: 5))
-        tap("saved-diet-preview-done")
-        app.navigationBars.buttons.firstMatch.tap()
 
-        for _ in 0..<4 { app.swipeDown() }
-        tap("diet-segment-foods")
-        tap("foods-new-food")
+        let preview = app.buttons["preview-diet-Phase D Diet"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        preview.tap()
+        XCTAssertTrue(element("preview-use-diet").waitForExistence(timeout: 5))
+        app.buttons["saved-diet-preview-done"].tap()
+    }
+
+    func testFoodTopSaveAndRecipeNutritionProfile() {
+        launch(tab: 2)
+        app.buttons["diet-segment-foods"].tap()
+        app.buttons["foods-new-food"].tap()
         XCTAssertTrue(app.buttons["food-top-save-button"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].firstMatch.tap()
 

@@ -50,13 +50,15 @@ final class PhaseAUITests: XCTestCase {
     func testAnExtraKeepsItsTimeAndNote() {
         diet("today")
         tap("diet-add-extra")
-        type("Tea", into: "extra-search-field")
-        tap("extra-result-Tea biscuits")
+        type("Tea\n", into: "extra-search-field")
+        let result = element("extra-result-Tea biscuits")
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        result.tap()
         // The chip defaults to the current time of day and a second tap clears it, so pick one that is not the default.
         let late = Calendar.current.component(.hour, from: Date()) >= 20
         let chosen = late ? "Morning" : "Night"
         tap("extra-time-\(chosen.lowercased())")
-        type("with chai", into: "extra-note-field")
+        type("with chai\n", into: "extra-note-field")
         tap("extra-add-button")
 
         let extra = element("diet-extra-Tea biscuits")
