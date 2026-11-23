@@ -196,6 +196,12 @@ public struct DailyTargetRow: Equatable {
     public let amount: Double?
     public let target: Double
 
+    public init(nutrient: Nutrient, amount: Double?, target: Double) {
+        self.nutrient = nutrient
+        self.amount = amount
+        self.target = target
+    }
+
     public var share: Double? { amount.map { $0 / target } }
     public var isMet: Bool { (amount ?? 0) >= target }
 

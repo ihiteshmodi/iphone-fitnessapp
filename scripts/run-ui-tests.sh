@@ -28,7 +28,7 @@ mkdir -p "$LOGS"
 stage_database() {
   # UI_SEED_DB=output/fitness.sqlite runs a screenshot tour on the real data instead of the test fixture.
   cp "${UI_SEED_DB:-output/fitness.seed.sqlite}" /Users/Shared/fitness-ui-seed.sqlite
-  if [ "$1" = "DietUITests" ] || [ "$1" = "PhaseAUITests" ]; then
+  if [ "$1" = "DietUITests" ] || [ "$1" = "PhaseAUITests" ] || [ "$1" = "PhaseDUITests" ]; then
     python3 tools/diet-import/demo_diet.py --db /Users/Shared/fitness-ui-seed.sqlite --replace >/dev/null
   fi
 }
@@ -55,7 +55,7 @@ stop_everything() {
 trap 'stop_everything; exit 130' INT TERM
 trap clean_up EXIT
 
-classes=(WorkoutFlowUITests BodyProgressUITests MorePlanDataUITests DietUITests PhaseAUITests PhaseBUITests PhaseCUITests)
+classes=(WorkoutFlowUITests BodyProgressUITests MorePlanDataUITests DietUITests PhaseAUITests PhaseBUITests PhaseCUITests PhaseDUITests)
 [ $# -gt 0 ] && classes=("$@")
 
 total=0
