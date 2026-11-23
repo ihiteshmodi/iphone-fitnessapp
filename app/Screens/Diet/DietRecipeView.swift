@@ -14,6 +14,7 @@ final class RecipeViewModel: ObservableObject {
     @Published private(set) var lines: [RecipeLineRow] = []
     @Published private(set) var perUnit = Nutrition.zero
     @Published private(set) var perUnitCost = Cost.free
+    @Published private(set) var nutritionProfile: RecipeNutritionReport?
     @Published private(set) var usedInPlan: [String] = []
     @Published var errorMessage: String?
 
@@ -35,6 +36,10 @@ final class RecipeViewModel: ObservableObject {
             let quantity = displayQuantity
             perUnit = try services.foods.nutrition(of: recipeID, quantity: quantity)
             perUnitCost = try services.foods.cost(of: recipeID, quantity: quantity)
+            nutritionProfile = try DailyTargetsBreakdownEvaluator.evaluateRecipe(
+                recipeID: recipeID,
+                quantity: quantity,
+                book: try services.foods.book())
             let today = services.clock.today()
             usedInPlan = (try services.dietPlans.plan(inForceOn: today)?.items ?? []).filter { $0.foodID == recipeID }.map {
                 "\($0.meal): \(Format.amount($0.quantity, unit: recipe.unit))"
@@ -124,6 +129,9 @@ struct DietRecipeView: View {
                     totalsCard(recipe)
                     ingredientsCard(recipe)
                     if !model.lines.isEmpty { cookForCard(recipe) }
+                    if let profile = model.nutritionProfile, !model.lines.isEmpty {
+                        recipeProfileSection(recipe: recipe, profile: profile)
+                    }
                     Button("Duplicate as a new recipe") {
                         copyName = "\(recipe.name) copy"
                         naming = true
@@ -248,6 +256,16 @@ struct DietRecipeView: View {
         .card()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("recipe-cook-card")
+    }
+
+    private func recipeProfileSection(recipe: Food, profile: RecipeNutritionReport) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionLabel("Nutrition profile · per \(Format.amount(model.displayQuantity, unit: recipe.unit))")
+            MealProfileCardsView(report: profile.mealProfile)
+            DailyTargetsSectionsView(report: profile.dailyTargets, showSourceLabel: false)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("recipe-nutrition-profile-section")
     }
 
     private func ingredientsCard(_ recipe: Food) -> some View {

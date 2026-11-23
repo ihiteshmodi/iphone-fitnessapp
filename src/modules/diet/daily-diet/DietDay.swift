@@ -145,6 +145,11 @@ public struct DietDay: Equatable {
         meals.reduce(NutrientProfile.empty) { $0 + $1.eatenProfile } + extras.reduce(NutrientProfile.empty) { $0 + $1.profile }
     }
 
+    /// Extra nutrients across all active planned meals on this day (ignoring tick state).
+    public var plannedProfile: NutrientProfile {
+        meals.reduce(NutrientProfile.empty) { $0 + $1.plannedProfile }
+    }
+
     /// Morning, noon, evening, night, then extras with no time; empty groups left out.
     public var extrasByTime: [ExtraGroup] {
         (ExtraTime.allCases.map(Optional.some) + [nil]).compactMap { time in

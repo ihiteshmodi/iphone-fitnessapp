@@ -4,9 +4,9 @@ import SwiftUI
 struct MealProfileSheet: View {
     let meal: DietMeal
     let services: Services
+    var forcePlanned: Bool = false
     @Environment(\.dismiss) private var dismiss
     @State private var report: MealProfileReport?
-    @State private var expandedKey: String? = "gl"
     @State private var errorMessage: String?
 
     var body: some View {
@@ -14,15 +14,17 @@ struct MealProfileSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     if let report {
-                        if report.isPlannedPreview {
+                        if forcePlanned {
+                            Text("Showing the full planned items for \(meal.name). Tap Glycemic load or any amino acid to inspect contributing foods.")
+                                .font(.system(size: 12)).foregroundColor(Theme.muted)
+                        } else if report.isPlannedPreview {
                             Text("Showing the planned items for \(meal.name) (tick items on Today to switch to eaten amounts).")
                                 .font(.system(size: 12)).foregroundColor(Theme.muted)
                         } else {
                             Text("Showing the ticked items eaten in \(meal.name). Tap Glycemic load or any amino acid to see contributing foods.")
                                 .font(.system(size: 12)).foregroundColor(Theme.muted)
                         }
-                        glycemicLoadCard(report)
-                        aminoAcidsCard(report)
+                        MealProfileCardsView(report: report)
                     }
                 }
                 .padding(16)
@@ -37,6 +39,27 @@ struct MealProfileSheet: View {
             }
             .onAppear(perform: load)
             .errorAlert($errorMessage)
+        }
+    }
+
+    private func load() {
+        do {
+            report = try MealProfileEvaluator.evaluate(meal: meal, book: try services.foods.book(), forcePlanned: forcePlanned)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+/// Shared Glycemic Load + Per-meal Amino Acids cards used in Meal Profile and Recipe detail views.
+struct MealProfileCardsView: View {
+    let report: MealProfileReport
+    @State private var expandedKey: String? = "gl"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            glycemicLoadCard(report)
+            aminoAcidsCard(report)
         }
     }
 
@@ -140,7 +163,7 @@ struct MealProfileSheet: View {
                     if isOpen {
                         VStack(alignment: .leading, spacing: 4) {
                             if row.contributors.isEmpty {
-                                Text("0 g — no food in \(meal.name) supplies \(row.nutrient.title.lowercased()).")
+                                Text("0 g — no food in \(report.mealName) supplies \(row.nutrient.title.lowercased()).")
                                     .font(.system(size: 11)).foregroundColor(Theme.muted)
                             } else {
                                 ForEach(row.contributors) { item in
@@ -163,13 +186,5 @@ struct MealProfileSheet: View {
             }
         }
         .card()
-    }
-
-    private func load() {
-        do {
-            report = try MealProfileEvaluator.evaluate(meal: meal, book: try services.foods.book())
-        } catch {
-            errorMessage = error.localizedDescription
-        }
     }
 }

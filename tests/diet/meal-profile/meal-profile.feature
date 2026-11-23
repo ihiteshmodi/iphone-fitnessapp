@@ -21,3 +21,20 @@ Feature: Meal glycemic load, per-meal amino acid profile, and food contributor d
     When I inspect Leucine and Glycemic Load contributors for Brunch
     Then Leucine contributors are sorted highest to lowest with exact grams and percentages summing to ~100%
     And Glycemic Load contributors list Maltodextrin first and Rolled Oats second with GL points and percentages
+
+  Scenario: Tapping any nutrient or fiber on Daily Targets lists meal and extra contributors sorted descending with dual Vitamin D units
+    Given Brunch has Becadexamine (10 mcg Vitamin D) and Nutrija D3+K2 (5000 IU Vitamin D3) plus 1 Shake, and an Extra adds 50 g Rolled Oats
+    When I inspect whole-day Daily Targets contributors
+    Then Vitamin D totals 135 mcg (5,400 IU) with Nutrija D3+K2 listed first (125 mcg, 5,000 IU) and Becadexamine second (10 mcg, 400 IU)
+    And Fiber contributors include Soy Chunks, Extra Rolled Oats, and Brunch Rolled Oats in descending order
+
+  Scenario: Inspecting a recipe shows its Glycemic Load, per-meal Amino Acids, and Daily Target nutrients with ingredient contributors
+    Given Maintenance Shake combines 150 g Soy Chunks, 30 g Rolled Oats, and 30 g Maltodextrin
+    When I evaluate the recipe profile for 1 unit
+    Then it reports 44.0775 GL, per-meal amino acid rows, and daily target rows with ingredient contributors sorted descending
+
+  Scenario: Diet Plan evaluates planned whole-day targets and full planned meal profiles even when only part of today was ticked
+    Given Brunch plans 1 Shake and 2.5 g DL-Methionine, and Dinner plans 100 g Soy Chunks, while only DL-Methionine is ticked so far today
+    When I inspect Planned Daily Targets and Brunch's planned Meal Profile in Diet Plan
+    Then Planned Daily Targets sums both Brunch and Dinner active items
+    And Brunch's planned Meal Profile includes both the Shake and DL-Methionine rather than only the ticked item

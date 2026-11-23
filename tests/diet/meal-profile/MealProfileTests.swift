@@ -80,4 +80,76 @@ final class MealProfileTests: XCTestCase {
         let methRow = try XCTUnwrap(report.aminoRows.first { $0.nutrient == .methionine })
         XCTAssertEqual(methRow.contributors.first?.foodName, "DL-Methionine")
     }
+
+    func testDailyTargetsContributorsRecipeProfileAndPlannedModeEvaluation() throws {
+        let db = try Database.inMemory()
+        let foods = FoodLibrary(db)
+        let plans = DietPlanService(db)
+        let diet = DietDayService(db)
+        let start = date("2026-11-20")
+
+        let soy = try foods.add(FoodDraft(name: "Soy chunks", kind: .food, unit: "g", baseQuantity: 100,
+                                          protein: 52, carbs: 33, fat: 1, fiber: 13,
+                                          nutrients: [.leucine: 3.868, .choline: 120, .iron: 9],
+                                          glycemicIndex: 15))
+        let oats = try foods.add(FoodDraft(name: "Rolled Oats", kind: .food, unit: "g", baseQuantity: 100,
+                                           protein: 12, carbs: 68.5, fat: 9.5, fiber: 10,
+                                           nutrients: [.leucine: 0.98, .choline: 40, .iron: 4],
+                                           glycemicIndex: 55))
+        let multi = try foods.add(FoodDraft(name: "Becadexamine", kind: .supplement, unit: "unit", baseQuantity: 1,
+                                            nutrients: [.vitaminD: 10]))
+        let d3Cap = try foods.add(FoodDraft(name: "D3 5000IU", kind: .supplement, unit: "unit", baseQuantity: 1,
+                                            nutrients: [.vitaminD3: 5000]))
+
+        let shake = try foods.add(FoodDraft(name: "Protein Bowl", kind: .recipe, unit: "unit", baseQuantity: 1, recipeMakes: 1))
+        try foods.setIngredients(of: shake, [
+            RecipeLine(foodID: soy, quantity: 100),
+            RecipeLine(foodID: oats, quantity: 50),
+        ])
+
+        try plans.addItem(foodID: shake, quantity: 1, meal: "Brunch", from: start)
+        try plans.addItem(foodID: multi, quantity: 1, meal: "Brunch", from: start)
+        try plans.addItem(foodID: d3Cap, quantity: 1, meal: "Brunch", from: start)
+        try plans.addItem(foodID: soy, quantity: 100, meal: "Dinner", from: start)
+
+        // Tick ONLY Brunch (not Dinner) and add an extra 40 g Oats
+        try diet.setMealEaten(true, meal: "Brunch", on: start)
+        _ = try diet.addExtra(foodID: oats, .amount(40), on: start)
+
+        let day = try diet.day(start)
+        let book = try foods.book()
+
+        // F7: Today eaten DailyTargetsBreakdownEvaluator
+        let eatenTargets = try DailyTargetsBreakdownEvaluator.evaluate(day: day, book: book, plannedMode: false)
+        XCTAssertEqual(eatenTargets.fiberAmount, 13 + 5 + 4, accuracy: 0.001)
+        XCTAssertEqual(eatenTargets.fiberContributors.map(\.foodName), ["Soy chunks", "Rolled Oats", "Rolled Oats"])
+        XCTAssertEqual(eatenTargets.fiberContributors[0].sourceLabel, "Brunch")
+
+        let vitD = try XCTUnwrap(eatenTargets.nutrientRows.first { $0.row.nutrient == .vitaminD })
+        XCTAssertEqual(vitD.row.amount ?? 0, 135.0, accuracy: 0.001)
+        XCTAssertEqual(vitD.contributors.map(\.foodName), ["D3 5000IU", "Becadexamine"])
+        XCTAssertEqual(vitD.contributors[0].vitaminDIU ?? 0, 5000, accuracy: 0.1)
+        XCTAssertEqual(vitD.contributors[1].vitaminDIU ?? 0, 400, accuracy: 0.1)
+
+        // F8: Recipe profile breakdown (GL + Amino Acids + Daily Targets)
+        let recipeReport = try DailyTargetsBreakdownEvaluator.evaluateRecipe(recipeID: shake, quantity: 1, book: book)
+        XCTAssertEqual(recipeReport.mealProfile.totalGlycemicLoad, 15 * 20 / 100.0 + 55 * 29.25 / 100.0, accuracy: 0.01)
+        XCTAssertEqual(recipeReport.dailyTargets.fiberAmount, 18.0, accuracy: 0.001)
+        let recipeCholine = try XCTUnwrap(recipeReport.dailyTargets.nutrientRows.first { $0.row.nutrient == .choline })
+        XCTAssertEqual(recipeCholine.row.amount ?? 0, 140.0, accuracy: 0.001)
+        XCTAssertEqual(recipeCholine.contributors.map(\.foodName), ["Soy chunks", "Rolled Oats"])
+
+        // F9: Diet Plan live feedback — plannedMode sums Brunch + Dinner even though Dinner is unticked today;
+        // and forcePlanned on a partially-ticked meal evaluates the full planned meal.
+        try diet.setEaten(false, meal: "Brunch", foodID: shake, on: start)
+        let partialDay = try diet.day(start)
+        let partialBrunch = try XCTUnwrap(partialDay.meals.first { $0.name == "Brunch" })
+        let fullPlannedMeal = try MealProfileEvaluator.evaluate(meal: partialBrunch, book: book, forcePlanned: true)
+        XCTAssertTrue(fullPlannedMeal.isPlannedPreview)
+        XCTAssertGreaterThan(fullPlannedMeal.totalGlycemicLoad, 15.0, "Includes unticked Protein Bowl in planned mode")
+
+        let plannedTargets = try DailyTargetsBreakdownEvaluator.evaluate(day: partialDay, book: book, plannedMode: true)
+        let plannedIron = try XCTUnwrap(plannedTargets.nutrientRows.first { $0.row.nutrient == .iron })
+        XCTAssertEqual(plannedIron.row.amount ?? 0, 9 + 2 + 9, accuracy: 0.001, "Brunch bowl (11 mg) + Dinner soy (9 mg) = 20 mg")
+    }
 }

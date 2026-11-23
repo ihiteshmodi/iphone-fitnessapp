@@ -112,6 +112,7 @@ struct DietPlanView: View {
     @State private var editing: PlanItem?
     @State private var addingToMeal: MealTarget?
     @State private var editingRules = false
+    @State private var selectedPlannedMeal: DietMeal?
 
     private struct MealTarget: Identifiable {
         let name: String
@@ -135,6 +136,22 @@ struct DietPlanView: View {
             .accessibilityIdentifier("plan-saved-diets")
             startCard
             totalsCard
+            if let planned = model.planned {
+                NavigationLink {
+                    DailyTargetsView(day: planned, plannedMode: true)
+                } label: {
+                    HStack {
+                        Text("Planned daily targets").font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                        Spacer()
+                        let rows = DailyTargetReport.dailyRows(planned.plannedProfile)
+                        Text("\(rows.filter(\.isMet).count) of \(rows.count) met").font(.system(size: 12)).foregroundColor(Theme.green)
+                        Image(systemName: "chevron.right").foregroundColor(Theme.muted)
+                    }
+                    .card()
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("plan-daily-targets-link")
+            }
             if let plan = model.plan {
                 ForEach(plan.meals, id: \.name) { meal in mealCard(meal) }
             } else {
@@ -153,6 +170,11 @@ struct DietPlanView: View {
             DietPlanItemSheet(services: services, model: model, item: nil, meal: target.name) { session.didChange() }
         }
         .sheet(isPresented: $editingRules) { DietRulesSheet(model: model) { session.didChange() } }
+        .sheet(isPresented: Binding(get: { selectedPlannedMeal != nil }, set: { if !$0 { selectedPlannedMeal = nil } })) {
+            if let meal = selectedPlannedMeal {
+                MealProfileSheet(meal: meal, services: services, forcePlanned: true)
+            }
+        }
     }
 
     private var startCard: some View {
@@ -192,10 +214,29 @@ struct DietPlanView: View {
     }
 
     private func mealCard(_ meal: PlanMeal) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let dayMeal = model.planned?.meals.first { $0.name == meal.name }
+        return VStack(alignment: .leading, spacing: 6) {
             HStack {
-                SectionLabel(meal.name)
+                VStack(alignment: .leading, spacing: 2) {
+                    SectionLabel(meal.name)
+                    if let dayMeal {
+                        let n = dayMeal.plannedNutrition
+                        let glText = dayMeal.plannedGlycemicLoad > 0 ? " · GL \(Format.number(dayMeal.plannedGlycemicLoad, maxDecimals: 1))" : ""
+                        Text("\(Format.grouped(n.calories)) kcal · P \(Format.number(n.protein, maxDecimals: 0)) g · F \(Format.number(n.fat, maxDecimals: 0)) g\(glText)")
+                            .font(.system(size: 11, weight: .medium)).foregroundColor(Theme.muted)
+                    }
+                }
                 Spacer()
+                if let dayMeal {
+                    Button("GL & aminos") { selectedPlannedMeal = dayMeal }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Theme.green)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Theme.card2)
+                        .clipShape(Capsule())
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("plan-meal-profile-\(meal.name)")
+                }
                 if model.mealNames.first != meal.name {
                     Button { model.moveMeal(meal.name, by: -1); session.didChange() } label: { Image(systemName: "arrow.up") }
                         .font(.system(size: 12, weight: .semibold))
