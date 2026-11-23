@@ -16,6 +16,7 @@ struct EditPlanView: View {
     @State private var routineName = ""
     @State private var showingSavedWorkouts = false
     @State private var showingRoutines = false
+    @State private var showingMuscleTargets = false
 
     init(focusDayId: Int? = nil) {
         self.focusDayId = focusDayId
@@ -57,6 +58,12 @@ struct EditPlanView: View {
                 libraryRow("Routines", id: "plan-routines") { showingRoutines = true }
             }
             .listRowBackground(Theme.card)
+            if let coverage = model.coverage {
+                Section {
+                    weeklyCoverageCard(coverage)
+                        .listRowBackground(Theme.card)
+                }
+            }
             ForEach(model.days) { day in
                 daySection(day)
             }
@@ -111,6 +118,11 @@ struct EditPlanView: View {
         .errorAlert($model.errorMessage)
         .sheet(item: $routineTarget) { day in
             NavigationStack { RoutinesView(addingTo: day) { routineTarget = nil } }
+        }
+        .sheet(isPresented: $showingMuscleTargets) {
+            if let coverage = model.coverage {
+                MuscleSetTargetsSheet(model: model, items: coverage.weekly)
+            }
         }
         .alert("Name the routine", isPresented: Binding(get: { dayToSave != nil }, set: { if !$0 { dayToSave = nil } })) {
             TextField("Name", text: $routineName).accessibilityIdentifier("routine-name-field")
@@ -184,11 +196,53 @@ struct EditPlanView: View {
         }
     }
 
+    private func weeklyCoverageCard(_ coverage: PlanMuscleCoverageReport) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    SectionLabel("Weekly muscle coverage · all \(coverage.dayCount) days")
+                    Text("\(coverage.metRequiredMusclesCount) of \(coverage.requiredMusclesCount) required muscles in target range")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(coverage.metRequiredMusclesCount == coverage.requiredMusclesCount ? Theme.green : Theme.amber)
+                }
+                Spacer()
+                Button("Targets") { showingMuscleTargets = true }
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(Theme.green)
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("plan-configure-muscle-targets")
+            }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 6)], alignment: .leading, spacing: 6) {
+                ForEach(coverage.weekly) { item in
+                    let tone: Pill.Tone = {
+                        switch item.state {
+                        case .met: return .green
+                        case .optionalMet: return .grey
+                        case .under: return .amber
+                        case .over: return .red
+                        }
+                    }()
+                    let mark = (item.state == .met || item.state == .optionalMet) ? " ✓" : ""
+                    Pill(text: "\(item.region.displayName) \(item.plannedSets)/\(item.target.rangeLabel)\(mark)", tone: tone)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("plan-weekly-muscle-coverage")
+    }
+
     private func dayHeader(_ day: PlanDay) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(day.label).font(.system(size: 17, weight: .bold)).foregroundColor(Theme.text)
                 Text(model.subtitle(of: day)).font(.system(size: 12)).foregroundColor(Theme.muted)
+                if let muscleLine = model.dayMuscleLine(of: day) {
+                    Text(muscleLine)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Theme.greenSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 8)
             if let weekday = PlanViewModel.weekdayShortName(day.weekday) {
@@ -262,5 +316,103 @@ private struct PlanDayTitleField: View {
         .onChange(of: isFocused) { focused in
             if !focused { onCommit(text) }
         }
+    }
+}
+
+private struct MuscleSetTargetsSheet: View {
+    @ObservedObject var model: PlanViewModel
+    let items: [MuscleRegionCoverage]
+    @Environment(\.dismiss) private var dismiss
+
+    private var currentItems: [MuscleRegionCoverage] {
+        model.coverage?.weekly ?? items
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Default weekly hard-set range is 10–20 sets per muscle. Lower the minimum (even to 0) for smaller or optional muscles like Calves, Hips/Abductors, Glutes, Forearms, or Shins.")
+                        .font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
+                    ForEach(currentItems) { item in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(item.region.displayName).font(.system(size: 15, weight: .bold)).foregroundColor(Theme.text)
+                                if item.target.isCustom { Pill(text: "Custom", tone: .green) }
+                                Spacer()
+                                Text("Planned: \(item.plannedSets) sets")
+                                    .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.muted)
+                                if item.target.isCustom {
+                                    Button("Reset") { model.resetMuscleTarget(region: item.region) }
+                                        .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.amber)
+                                        .buttonStyle(.plain)
+                                }
+                            }
+                            HStack(spacing: 14) {
+                                stepperRow(
+                                    label: "Min",
+                                    value: item.target.minSets,
+                                    onMinus: {
+                                        let next = max(0, item.target.minSets - 1)
+                                        model.saveMuscleTarget(region: item.region, minSets: next, maxSets: item.target.maxSets)
+                                    },
+                                    onPlus: {
+                                        let next = min(40, item.target.minSets + 1)
+                                        let hi = max(item.target.maxSets, next)
+                                        model.saveMuscleTarget(region: item.region, minSets: next, maxSets: hi)
+                                    },
+                                    idPrefix: "muscle-min-\(item.region.rawValue)")
+                                stepperRow(
+                                    label: "Max",
+                                    value: item.target.maxSets,
+                                    onMinus: {
+                                        let next = max(0, item.target.maxSets - 1)
+                                        let lo = min(item.target.minSets, next)
+                                        model.saveMuscleTarget(region: item.region, minSets: lo, maxSets: next)
+                                    },
+                                    onPlus: {
+                                        let next = min(40, item.target.maxSets + 1)
+                                        model.saveMuscleTarget(region: item.region, minSets: item.target.minSets, maxSets: next)
+                                    },
+                                    idPrefix: "muscle-max-\(item.region.rawValue)")
+                            }
+                        }
+                        .card()
+                    }
+                }
+                .padding(16)
+            }
+            .screenBackground()
+            .navigationTitle("Weekly set targets")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.fontWeight(.bold).foregroundColor(Theme.green)
+                        .accessibilityIdentifier("muscle-targets-done")
+                }
+            }
+        }
+    }
+
+    private func stepperRow(label: String, value: Int, onMinus: @escaping () -> Void, onPlus: @escaping () -> Void, idPrefix: String) -> some View {
+        HStack(spacing: 8) {
+            Text(label).font(.system(size: 12)).foregroundColor(Theme.muted)
+            Button(action: onMinus) {
+                Image(systemName: "minus.circle.fill").font(.system(size: 18)).foregroundColor(Theme.green)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("\(idPrefix)-minus")
+            Text("\(value)")
+                .font(.system(size: 14, weight: .bold)).foregroundColor(Theme.text)
+                .frame(minWidth: 24)
+            Button(action: onPlus) {
+                Image(systemName: "plus.circle.fill").font(.system(size: 18)).foregroundColor(Theme.green)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("\(idPrefix)-plus")
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(Theme.card2)
+        .clipShape(Capsule())
     }
 }

@@ -57,7 +57,7 @@ Screenshots of the real app.
 - **Saved workouts:** Edit plan → Saved workouts keeps the whole workout plan under a name, lets you tap or preview any workout's days, muscle counts, and exercises before switching, and lets you duplicate, rename, or delete any saved workout (including presets). Logged sets belong to exercises, so history and working weights carry over.
 - **Routines:** ready groups of exercises (like recipes for food), browsable by muscle (matching both exercise group labels and primary muscle anatomy such as *Back*, *Shoulders*, *Chest*, *Arms*, *Legs*). Create a routine from scratch with **+ New routine**, edit/duplicate/rename/delete any routine (including presets), save any workout day as a routine, and use *+ Add routine* on a day to copy its exercises in (exercises already there are skipped).
 - **Coach presets:** coach routines and workouts (`output/meridian-presets.json`), synced silently on launch; use, duplicate, edit, rename, or delete them freely.
-- **Plan and library editing:** add, rename, reorder and delete days and exercises, set main sets, warm-up sets and rep ranges, and name days by number or weekday.
+- **Plan, muscle coverage, and library editing:** add, rename, reorder and delete days and exercises, set main sets, warm-up sets and rep ranges, and name days by number or weekday. Each workout day header shows its working sets and primary muscle set counts, a top **Weekly muscle coverage** card checks all days combined against each muscle's weekly hard-set range (default `10–20`), and **Targets** lets you set custom `min–max` ranges (including `0` minimum) for any muscle region (respected by Room for improvement's Weekly sets check too).
 
 **Body and progress**
 - **Weigh-ins:** log your weight on any day, edit or delete old ones.
@@ -262,7 +262,7 @@ There are no environment variables or secrets. The app is configured by settings
 
 This app has **no server and no HTTP API**. This section documents the local database and the rules the screens follow.
 
-### Database tables (schema version 22)
+### Database tables (schema version 23)
 
 | Table | Holds |
 |---|---|
@@ -270,9 +270,10 @@ This app has **no server and no HTTP API**. This section documents the local dat
 | `plan_days`, `plan_entries` | Training days and their exercises: main `sets`, `warmup_sets` (0 to 3), min and max reps |
 | `set_logs` | Every logged set: date, exercise, weight kg, reps, deload flag |
 | `form_checks` | Clean-form answer per exercise per day (1 clean, 0 not clean) |
-| `saved_workouts`, `saved_workout_days`, `saved_workout_entries` | Whole workout plans kept under a name (presets are read-only) |
+| `saved_workouts`, `saved_workout_days`, `saved_workout_entries` | Whole workout plans kept under a name |
 | `routines`, `routine_entries` | Ready groups of exercises with sets and rep ranges |
 | `exercise_muscles` | Muscles chosen per exercise (no rows means automatic) |
+| `muscle_set_targets` | Optional per-muscle weekly hard-set range overrides (`min_sets`, `max_sets`, defaulting to `10–20`) |
 | `body_weights`, `body_measurements`, `measurement_targets` | Weigh-ins, readings, targets with a grow or reduce direction and unit (`in`, `mm`, `cm`, `%`) |
 | `calorie_defaults`, `calorie_entries` | Calories per day from a start date, and single-day overrides |
 | `food_nutrients` | Extra nutrients per food (leucine, trans, epa, vitamin_d…); no row means unknown |

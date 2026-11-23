@@ -100,3 +100,10 @@ Feature: Edit the plan: days and their exercises
       | 3     | it is saved                                         |
       | -1    | it is rejected with "Warm-up sets must be between 0 and 3" |
       | 4     | it is rejected with "Warm-up sets must be between 0 and 3" |
+
+  Scenario: Per-muscle weekly set targets default to 10-20, allow custom min-max including 0, and evaluate per-day and all-days coverage
+    Given Day 1 has Bench press 6 sets and Calf raise 6 sets, and Day 2 has Bench press 6 sets
+    And I configure Calves to 4-10 weekly sets and Hips to 0-8 weekly sets
+    Then Day 1 muscle summary reports "Chest 6 · Calves 6"
+    And all-days weekly coverage marks Chest (12 / 10-20), Calves (6 / 4-10), and Hips (0 / 0-8) as met, while Hamstrings (0 / 10-20) is under target
+    And setting minimum sets greater than maximum sets or below 0 is rejected

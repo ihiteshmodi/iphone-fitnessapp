@@ -354,4 +354,41 @@ final class EditPlanTests: XCTestCase {
 
         assertValidation("Min reps cannot be negative") { try editor.addExercise(dayId: day, exerciseId: lat, sets: 3, minReps: -1, maxReps: 10) }
     }
+
+    func testConfigurablePerMuscleSetTargetsAndPerDayPlusWeeklyPlanCoverage() throws {
+        let coverage = PlanMuscleCoverageService(db)
+        let day1 = try editor.addDay()
+        let day2 = try editor.addDay()
+        let bench = try db.addExercise("Bench press", muscle: "Chest")
+        let calf = try db.addExercise("Standing Calf Raise", muscle: "Calves")
+
+        try editor.addExercise(dayId: day1, exerciseId: bench, sets: 6, minReps: 6, maxReps: 10, warmupSets: 2)
+        try editor.addExercise(dayId: day1, exerciseId: calf, sets: 6, minReps: 10, maxReps: 15)
+        try editor.addExercise(dayId: day2, exerciseId: bench, sets: 6, minReps: 8, maxReps: 12)
+
+        try coverage.setTarget(region: .calves, minSets: 4, maxSets: 10)
+        try coverage.setTarget(region: .hips, minSets: 0, maxSets: 8)
+
+        assertValidation("Minimum sets cannot be negative") {
+            try coverage.setTarget(region: .chest, minSets: -1, maxSets: 10)
+        }
+        assertValidation("Minimum sets cannot exceed maximum sets") {
+            try coverage.setTarget(region: .chest, minSets: 12, maxSets: 8)
+        }
+
+        let report = try coverage.evaluatePlan()
+        let day1Summary = try XCTUnwrap(report.perDay[day1])
+        XCTAssertEqual(day1Summary.workingSets, 12, "Warm-up sets excluded from working set total")
+        XCTAssertTrue(day1Summary.summaryText.contains("Chest 6") && day1Summary.summaryText.contains("Calves 6"), day1Summary.summaryText)
+
+        let byRegion = Dictionary(uniqueKeysWithValues: report.weekly.map { ($0.region, $0) })
+        XCTAssertEqual(byRegion[.chest]?.plannedSets, 12)
+        XCTAssertEqual(byRegion[.chest]?.state, .met)
+        XCTAssertEqual(byRegion[.calves]?.plannedSets, 6)
+        XCTAssertEqual(byRegion[.calves]?.state, .met)
+        XCTAssertEqual(byRegion[.hips]?.plannedSets, 0)
+        XCTAssertEqual(byRegion[.hips]?.state, .optionalMet)
+        XCTAssertEqual(byRegion[.hamstrings]?.plannedSets, 0)
+        XCTAssertEqual(byRegion[.hamstrings]?.state, .under)
+    }
 }

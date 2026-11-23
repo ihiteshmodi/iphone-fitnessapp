@@ -231,6 +231,19 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
         XCTAssertEqual(units["Waist"], "in")
         XCTAssertEqual(units["Left Calf"], "in")
     }
+
+    func testMigratingFromVersion22CreatesMuscleSetTargetsTableAndBumpsVersionTo23() throws {
+        let url = try makeFitnessDatabase(named: "v22-muscle-targets.sqlite")
+        let raw = try Database(path: url.path)
+        try raw.execute("DROP TABLE IF EXISTS muscle_set_targets")
+        try raw.runScript("PRAGMA user_version = 22")
+        try FileManager.default.copyItem(at: url, to: location.databaseURL)
+
+        let db = try XCTUnwrap(try service.openLiveDatabase())
+
+        XCTAssertEqual(db.userVersion, 23)
+        XCTAssertEqual(try columns(of: "muscle_set_targets", in: db), ["region", "min_sets", "max_sets"])
+    }
 }
 
 private extension Database {

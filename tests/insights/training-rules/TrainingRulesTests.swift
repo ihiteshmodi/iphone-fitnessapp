@@ -62,6 +62,19 @@ final class TrainingRulesTests: XCTestCase {
         XCTAssertEqual(item.severity, .tip)
     }
 
+    func testWeeklyHardSetsRuleHonorsCustomPerMuscleTargets() throws {
+        let calf = try db.addExercise("Standing Calf Raise", muscle: "Calves")
+        try PlanMuscleCoverageService(db).setTarget(region: .calves, minSets: 4, maxSets: 10)
+        for _ in 0..<6 { try db.addSet(exercise: calf, on: "2026-11-17", weight: 50, reps: 12) }
+
+        let rule = try XCTUnwrap(TrainingRules.daily.first { $0.id == "weekly-sets" })
+        XCTAssertEqual(try rule.evaluate(on: date("2026-11-18"), db: db), .ok)
+
+        try PlanMuscleCoverageService(db).setTarget(region: .calves, minSets: 8, maxSets: 14)
+        guard case .fired(let item) = try rule.evaluate(on: date("2026-11-18"), db: db) else { return XCTFail("should fire when below custom 8-14 range") }
+        XCTAssertTrue(item.detail.contains("Calves 6 sets"), item.detail)
+    }
+
     func testOneWeeklySetReadsSingular() throws {
         try db.addSet(exercise: bench, on: "2026-11-17", weight: 60, reps: 8)
 

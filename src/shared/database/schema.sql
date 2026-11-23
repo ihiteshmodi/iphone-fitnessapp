@@ -351,6 +351,13 @@ CREATE TABLE IF NOT EXISTS lab_genotypes (
     entered_on TEXT NOT NULL CHECK (entered_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
 );
 
+-- Optional per-muscle weekly hard-set target overrides (default is 10-20 sets per MuscleRegion).
+CREATE TABLE IF NOT EXISTS muscle_set_targets (
+    region   TEXT PRIMARY KEY,
+    min_sets INTEGER NOT NULL CHECK (min_sets >= 0),
+    max_sets INTEGER NOT NULL CHECK (max_sets >= min_sets)
+);
+
 -- Each setting is one independent knob. history_start_date affects every screen that looks at progress;
 -- the deload_* settings only affect the workout targets.
 INSERT INTO settings (key, value) VALUES
@@ -367,4 +374,4 @@ INSERT INTO settings (key, value) VALUES
     ('fat_max_percent', '35'),
     ('fat_floor_g_per_kg', '0.8');
 
-PRAGMA user_version = 22;
+PRAGMA user_version = 23;

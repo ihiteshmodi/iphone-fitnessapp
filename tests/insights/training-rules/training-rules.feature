@@ -21,6 +21,7 @@ Feature: Training rules
   Scenario: Weekly hard sets per muscle
     Given 6 sets of Bench press in the last 7 days
     Then Today has "Weekly sets" (Tip) saying Chest 6 sets, aim 10-20
+    And when Calves is configured to 4-10 weekly sets and 6 calf sets are logged, Weekly sets does not flag Calves
 
   Scenario: A cut losing too fast
     Given I am cutting and the weekly average fell from 66.0 kg to 65.0 kg

@@ -8,6 +8,7 @@ final class Services: ObservableObject {
     let workout: WorkoutService
     let detail: ExerciseDetailService
     let planEditor: PlanEditor
+    let muscleCoverage: PlanMuscleCoverageService
     let library: ExerciseRepository
     let logSets: LogSets
     let formChecks: FormChecks
@@ -41,6 +42,7 @@ final class Services: ObservableObject {
         workout = WorkoutService(db, clock: clock)
         detail = ExerciseDetailService(db, clock: clock)
         planEditor = PlanEditor(db)
+        muscleCoverage = PlanMuscleCoverageService(db)
         library = ExerciseRepository(db)
         logSets = LogSets(db, clock: clock)
         formChecks = FormChecks(db)

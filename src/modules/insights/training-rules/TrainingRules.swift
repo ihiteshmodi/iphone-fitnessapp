@@ -125,10 +125,19 @@ struct WeeklySetsRule: DailyRule {
         for row in rows {
             for region in try TrainingRules.primaryRegions(row.int("exercise_id"), db: db) { sets[region, default: 0] += row.int("n") }
         }
-        let outside = sets.filter { !TrainingRules.weeklySets.contains($0.value) }.sorted { $0.key.displayName < $1.key.displayName }
+        let targets = try PlanMuscleCoverageService(db).targets()
+        let outside = sets.filter { region, count in
+            let target = targets[region] ?? MuscleSetTarget(region: region)
+            return !target.contains(count)
+        }.sorted { $0.key.displayName < $1.key.displayName }
         guard !outside.isEmpty else { return .ok }
+        let itemsText = outside.map { region, count in
+            let target = targets[region] ?? MuscleSetTarget(region: region)
+            let rangeHint = target.isCustom ? " (aim \(target.minSets)-\(target.maxSets))" : ""
+            return "\(region.displayName) \(count) set\(count == 1 ? "" : "s")\(rangeHint)"
+        }.joined(separator: ", ")
         return .fired(Insight(ruleID: id, kind: .today, severity: .tip, title: title,
-                              detail: outside.map { "\($0.key.displayName) \($0.value) set\($0.value == 1 ? "" : "s")" }.joined(separator: ", ") + " in the last 7 days; aim for 10-20 hard sets per muscle.",
+                              detail: itemsText + " in the last 7 days; aim for 10-20 hard sets per muscle (or your configured range).",
                               why: "Vault: 10-20 hard sets per muscle a week, 1-3 reps short of failure.", day: day))
     }
 }

@@ -17,6 +17,7 @@ final class PlanViewModel: ObservableObject {
 
     @Published private(set) var days: [PlanDay] = []
     @Published private(set) var entries: [Int: [PlanEntry]] = [:]
+    @Published private(set) var coverage: PlanMuscleCoverageReport?
     @Published private(set) var labelMode: DayLabelMode = .number
     @Published var expanded: Set<Int> = []
     @Published var errorMessage: String?
@@ -45,6 +46,7 @@ final class PlanViewModel: ObservableObject {
                 loaded[day.id] = try Self.entries(of: day, services: services)
             }
             entries = loaded
+            coverage = try services.muscleCoverage.evaluatePlan()
         } catch {
             errorMessage = MoreErrorText.message(for: error)
         }
@@ -67,8 +69,27 @@ final class PlanViewModel: ObservableObject {
 
     func subtitle(of day: PlanDay) -> String {
         let count = day.exerciseCount == 1 ? "1 exercise" : "\(day.exerciseCount) exercises"
-        guard let title = day.title, !title.isEmpty else { return count }
-        return "\(title) · \(count)"
+        let setsPart: String
+        if let summary = coverage?.perDay[day.id], summary.workingSets > 0 {
+            setsPart = " · \(summary.workingSets) sets"
+        } else {
+            setsPart = ""
+        }
+        guard let title = day.title, !title.isEmpty else { return "\(count)\(setsPart)" }
+        return "\(title) · \(count)\(setsPart)"
+    }
+
+    func dayMuscleLine(of day: PlanDay) -> String? {
+        guard let text = coverage?.perDay[day.id]?.summaryText, !text.isEmpty else { return nil }
+        return text
+    }
+
+    func saveMuscleTarget(region: MuscleRegion, minSets: Int, maxSets: Int) {
+        perform { try $0.muscleCoverage.setTarget(region: region, minSets: minSets, maxSets: maxSets) }
+    }
+
+    func resetMuscleTarget(region: MuscleRegion) {
+        perform { try $0.muscleCoverage.resetTarget(region: region) }
     }
 
     static func weekdayShortName(_ weekday: Int?) -> String? {

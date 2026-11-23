@@ -437,6 +437,44 @@ public struct DatabaseFileService {
                 try db.execute("UPDATE measurement_targets SET unit = 'mm' WHERE site LIKE 'Body Fat (%' COLLATE NOCASE")
                 try db.execute("UPDATE measurement_targets SET unit = '%' WHERE site = 'Body Fat' COLLATE NOCASE")
             }
+            // Version 23: configurable per-muscle weekly set targets + Vitamin D3 (IU) & functional compounds upgrade on existing supplements.
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS muscle_set_targets (
+                    region   TEXT PRIMARY KEY,
+                    min_sets INTEGER NOT NULL CHECK (min_sets >= 0),
+                    max_sets INTEGER NOT NULL CHECK (max_sets >= min_sets)
+                )
+                """)
+            try db.execute("""
+                DELETE FROM food_nutrients WHERE nutrient = 'vitamin_d' AND amount = 125
+                    AND food_id IN (SELECT id FROM foods WHERE name IN ('D3 5000IU and K2 MK7 100mcg capsule - Nutrija', 'D3 5000IU and K@ 100mcg capsule - Nutrija'))
+                """)
+            try db.execute("""
+                INSERT OR IGNORE INTO food_nutrients (food_id, nutrient, amount)
+                SELECT id, 'vitamin_d3', 5000 FROM foods
+                WHERE name IN ('D3 5000IU and K2 MK7 100mcg capsule - Nutrija', 'D3 5000IU and K@ 100mcg capsule - Nutrija')
+                """)
+            try db.execute("""
+                DELETE FROM food_nutrients WHERE nutrient = 'vitamin_d' AND amount = 300
+                    AND food_id IN (SELECT id FROM foods WHERE name = 'D3 6000IU spray - Zeelabs (custom)')
+                """)
+            try db.execute("""
+                INSERT OR IGNORE INTO food_nutrients (food_id, nutrient, amount)
+                SELECT id, 'vitamin_d3', 12000 FROM foods WHERE name = 'D3 6000IU spray - Zeelabs (custom)'
+                """)
+            try db.execute("""
+                INSERT OR IGNORE INTO food_nutrients (food_id, nutrient, amount)
+                SELECT id, 'creatine', 1.0 FROM foods WHERE name IN ('Creatine monohydrate - ASES', 'Creatine - ASES')
+                """)
+            try db.execute("""
+                INSERT OR IGNORE INTO food_nutrients (food_id, nutrient, amount)
+                SELECT id, 'glycine', 1.0 FROM foods WHERE name = 'Glycine - ASES'
+                """)
+            try db.execute("""
+                INSERT OR IGNORE INTO food_nutrients (food_id, nutrient, amount)
+                SELECT id, 'psyllium', 1.0 FROM foods WHERE name = 'Psyllium Husk - ASES'
+                """)
+            try db.execute("UPDATE foods SET fiber = 0.85 WHERE name = 'Psyllium Husk - ASES' AND fiber = 0")
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }
