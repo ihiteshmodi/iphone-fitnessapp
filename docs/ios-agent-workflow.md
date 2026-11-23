@@ -74,9 +74,10 @@ feature):
 1. **Screenshot tour:** a UI test class (e.g. `PhaseXTourUITests`) that walks every new or changed screen and takes
    screenshots, asserting almost nothing. Split it into short tests (under 3 minutes each), each opening its own screen.
    Run it on a copy of the owner's real data so the screens show real-length text.
-2. **Review every screenshot** for overlapping buttons, clipped or cut-off text, content hidden under the tab bar, blank
-   bands, wrong dates, and walls of text. Fix, rerun, look again. This also finds logic problems (e.g. an order list
-   that is far too long).
+2. **Screenshot review in Lavish (by the owner, not the agent):** put all exported simulator screenshots into a Lavish
+   gallery page (`npx -y lavish-axi`, saved in the session folder with relative image paths) and wait on
+   `npx -y lavish-axi poll`. **Never inspect or review screenshots yourself** — wait for the owner to mark or name the
+   specific screenshots that need changes, inspect and fix **only** those marked screenshots, and rerun if needed.
 3. **Acceptance UI tests:** one or two real tests per phase (tap through the main flow and assert the result) on the
    test fixture database.
 4. **Full simulator suite:** run every class at the end, fix failures (including old tests that expected text the phase
@@ -97,8 +98,9 @@ Every app gets a runner script like this one:
   keep gigabytes of memory.
 - Never boot a simulator by hand for a quick screenshot without shutting it down afterwards (`xcrun simctl shutdown
   all`).
-- Export screenshots with `xcrun xcresulttool export attachments --path <bundle>.xcresult --output-path .shots`,
-  shrink them with `sips -Z 700` before viewing, and keep `.shots/` and `.uitest-logs/` git-ignored.
+- Export screenshots with `xcrun xcresulttool export attachments --path <bundle>.xcresult --output-path …` into the
+  session folder next to the Lavish HTML gallery (using relative image paths), and keep `.shots/` and `.uitest-logs/`
+  git-ignored. Only view or shrink (`sips -Z 700`) screenshots that the owner specifically marks in Lavish.
 
 ## 4. Review and report
 
