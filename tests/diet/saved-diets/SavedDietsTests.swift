@@ -68,4 +68,16 @@ final class SavedDietsTests: XCTestCase {
         XCTAssertEqual(try saved.all(inForceOn: date("2026-11-19")), [])
         XCTAssertEqual(try summary(on: "2026-11-19").count, 2)
     }
+
+    func testPreviewingASavedDietReturnsMealsItemsQuantitiesAndMacrosWithoutChangingPlan() throws {
+        let id = try saved.saveCurrent(as: "High-protein 2-meal", on: date("2026-11-19"))
+
+        let detail = try XCTUnwrap(try saved.detail(of: id, inForceOn: date("2026-11-19")))
+
+        XCTAssertEqual(detail.meals.map(\.name), ["Brunch", "Dinner"])
+        XCTAssertEqual(detail.meals[0].items.map { "\($0.name) \($0.quantity) \($0.unit)" }, ["Oats 100.0 g"])
+        XCTAssertEqual(detail.meals[1].items.map { "\($0.name) \($0.quantity) \($0.unit)" }, ["Lentils 200.0 g"])
+        XCTAssertEqual(detail.meals[0].nutrition.protein, 13, accuracy: 1e-6)
+        XCTAssertEqual(detail.meals[1].nutrition.protein, 18, accuracy: 1e-6)
+    }
 }

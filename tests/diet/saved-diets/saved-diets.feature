@@ -26,3 +26,9 @@ Feature: Saved diets
     Given "High-protein 2-meal" is saved
     When I delete it
     Then it is no longer listed and the plan in force is unchanged
+
+  Scenario: Previewing a saved diet shows every meal, item, quantity, cycle and macro total without altering the plan
+    Given "High-protein 2-meal" is saved
+    When I inspect its detail preview
+    Then it lists Brunch (Oats 100 g) and Dinner (Lentils 200 g) with meal and whole-diet macros
+    And the active plan is unchanged

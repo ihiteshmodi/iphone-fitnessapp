@@ -14,6 +14,30 @@ public struct SavedDiet: Equatable, Identifiable {
     public var itemCount: Int { meals.reduce(0) { $0 + $1.items.count } }
 }
 
+public struct SavedDietItemDetail: Equatable, Identifiable {
+    public let id: Int
+    public let foodID: Int
+    public let name: String
+    public let quantity: Double
+    public let unit: String
+    public let nutrition: Nutrition
+    public let cycleSummary: String?
+}
+
+public struct SavedDietMealDetail: Equatable, Identifiable {
+    public var id: String { name }
+    public let name: String
+    public let nutrition: Nutrition
+    public let items: [SavedDietItemDetail]
+}
+
+public struct SavedDietDetail: Equatable, Identifiable {
+    public var id: Int { diet.id }
+    public let diet: SavedDiet
+    public let meals: [SavedDietMealDetail]
+    public let effectiveCalories: Double
+}
+
 /// Whole diets kept under a name. Using one copies it into the plan from a date, like any other plan change.
 public final class SavedDietService {
     private let db: Database
@@ -38,6 +62,30 @@ public final class SavedDietService {
                              meals: DietPlan(effectiveFrom: savedOn, items: items).meals, nutrition: nutrition,
                              isInForce: current == Self.signature(items))
         }
+    }
+
+    public func detail(of id: Int, inForceOn day: ISODate) throws -> SavedDietDetail? {
+        guard let diet = try all(inForceOn: day).first(where: { $0.id == id }) else { return nil }
+        let book = try library.book()
+        let detailedMeals: [SavedDietMealDetail] = try diet.meals.map { meal in
+            let itemDetails: [SavedDietItemDetail] = try meal.items.map { item in
+                let food = book.food(item.foodID)
+                let nutrition = try book.nutrition(of: item.foodID, quantity: item.quantity)
+                let cycleText = item.cycle == .daily ? nil : CyclePresentation.summary(item.cycle)
+                return SavedDietItemDetail(
+                    id: item.id,
+                    foodID: item.foodID,
+                    name: food?.name ?? "Food",
+                    quantity: item.quantity,
+                    unit: food?.unit ?? "g",
+                    nutrition: nutrition,
+                    cycleSummary: cycleText)
+            }
+            let mealNutrition = itemDetails.reduce(Nutrition.zero) { $0 + $1.nutrition }
+            return SavedDietMealDetail(name: meal.name, nutrition: mealNutrition, items: itemDetails)
+        }
+        let effective = DigestionCost(diet.nutrition).effective(of: diet.nutrition.calories)
+        return SavedDietDetail(diet: diet, meals: detailedMeals, effectiveCalories: effective)
     }
 
     @discardableResult

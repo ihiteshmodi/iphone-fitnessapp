@@ -238,7 +238,15 @@ struct DietFoodFormSheet: View {
             .screenBackground()
             .navigationTitle(model.existing == nil ? "New food" : "Edit food")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: save)
+                        .fontWeight(.bold)
+                        .foregroundColor(Theme.green)
+                        .accessibilityIdentifier("food-top-save-button")
+                }
+            }
             .errorAlert($errorMessage)
             .confirmationDialog("Delete this food?", isPresented: $confirmingDelete, titleVisibility: .visible) {
                 Button("Delete food", role: .destructive, action: delete)
