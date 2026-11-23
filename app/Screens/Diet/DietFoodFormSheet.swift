@@ -75,7 +75,7 @@ final class FoodFormModel: ObservableObject {
         case .fatTypes: return (Format.decimal(fat) ?? 0) > 0
         case .omega: return kind == .supplement && (Format.decimal(fat) ?? 0) > 0
         case .alcoholCaffeine: return false
-        case .vitamins, .minerals: return kind == .supplement
+        case .vitamins, .minerals, .compounds: return kind == .supplement
         }
     }
 
@@ -317,7 +317,7 @@ struct DietFoodFormSheet: View {
                         if row.isOverLimit { Pill(text: "> UL", tone: .red) }
                         Spacer()
                         if let target = row.target {
-                            Text("\(Format.number(row.amount, maxDecimals: 1)) / \(Format.number(target, maxDecimals: 1)) \(row.nutrient.unit)")
+                            Text(DailyTargetRow(nutrient: row.nutrient, amount: row.amount, target: target).formattedProgress)
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(row.isOverLimit ? Theme.red : (row.amount >= target ? Theme.green : (row.amount == 0 ? Theme.muted : Theme.text)))
                         } else {

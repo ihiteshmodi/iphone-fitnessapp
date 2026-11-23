@@ -13,7 +13,7 @@ struct DailyTargetsView: View {
                 Text("\(Format.weekdayDate(day.date)): whole-day fiber, vitamins, minerals, and omega targets. Amino acids and glycemic load are checked per meal on your meal cards.")
                     .font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
                 fiberRow.card()
-                ForEach([NutrientGroup.vitamins, .minerals, .omega], id: \.self) { group in
+                ForEach([NutrientGroup.vitamins, .minerals, .omega, .compounds], id: \.self) { group in
                     let groupRows = rows.filter { $0.nutrient.group == group }
                     if !groupRows.isEmpty {
                         VStack(alignment: .leading, spacing: 0) {
@@ -37,15 +37,16 @@ struct DailyTargetsView: View {
     }
 
     private func row(for row: DailyTargetRow) -> some View {
-        bar(name: row.nutrient.title, amount: row.amount ?? 0, target: row.target, unit: row.nutrient.unit, identifier: "target-\(row.nutrient.rawValue)")
+        bar(name: row.nutrient.title, amount: row.amount ?? 0, target: row.target, unit: row.nutrient.unit,
+            progressText: row.formattedProgress, identifier: "target-\(row.nutrient.rawValue)")
     }
 
-    private func bar(name: String, amount: Double, target: Double, unit: String, identifier: String) -> some View {
+    private func bar(name: String, amount: Double, target: Double, unit: String, progressText: String? = nil, identifier: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(name).font(.system(size: 13)).foregroundColor(Theme.text)
                 Spacer()
-                Text("\(Format.number(amount, maxDecimals: 1)) / \(Format.number(target, maxDecimals: 1)) \(unit)")
+                Text(progressText ?? "\(Format.number(amount, maxDecimals: 1)) / \(Format.number(target, maxDecimals: 1)) \(unit)")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(amount >= target ? Theme.green : (amount == 0 ? Theme.muted : Theme.amber))
             }

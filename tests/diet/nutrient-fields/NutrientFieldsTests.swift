@@ -86,4 +86,42 @@ final class NutrientFieldsTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(rows.first { $0.nutrient == .iron }).share ?? 0, 0.5, accuracy: 1e-9)
         XCTAssertNil(try XCTUnwrap(rows.first { $0.nutrient == .vitaminD }).amount)
     }
+
+    func testVitaminD3InIUCombinesWithVitaminDInMcgAndFormatsDualUnits() throws {
+        let multi = try library.add(FoodDraft(name: "Becadexamine", kind: .supplement, unit: "unit", baseQuantity: 1, nutrients: [.vitaminD: 10]))
+        let d3Cap = try library.add(FoodDraft(name: "D3 5000IU capsule", kind: .supplement, unit: "unit", baseQuantity: 1, nutrients: [.vitaminD3: 5000]))
+        let d3Spray = try library.add(FoodDraft(name: "D3 6000IU spray", kind: .supplement, unit: "ml", baseQuantity: 1, nutrients: [.vitaminD3: 12000]))
+
+        let book = try library.book()
+        let combined = try book.profile(of: multi, quantity: 1)
+            + book.profile(of: d3Cap, quantity: 1)
+            + book.profile(of: d3Spray, quantity: 0.5)
+
+        XCTAssertEqual(Nutrient.vitaminD3.unit, "IU")
+        XCTAssertTrue(Nutrient.vitaminD3.isFatSoluble)
+        XCTAssertEqual(Nutrient.vitaminD3.upperLimit, 4000)
+        XCTAssertEqual(combined.totalVitaminDMcg, 285.0, accuracy: 1e-6)
+        XCTAssertEqual(combined.totalVitaminDIU, 11400.0, accuracy: 1e-6)
+
+        let dailyRows = DailyTargetReport.dailyRows(combined)
+        let vitDRow = try XCTUnwrap(dailyRows.first { $0.nutrient == .vitaminD })
+        XCTAssertEqual(vitDRow.amount ?? 0, 285.0, accuracy: 1e-6)
+        XCTAssertTrue(vitDRow.formattedProgress.contains("285") && vitDRow.formattedProgress.contains("11,400 IU"))
+    }
+
+    func testFunctionalCompoundsTrackCreatineGlycineAndPsylliumGramsAndRanges() throws {
+        let gainer = try library.add(FoodDraft(name: "Post-workout gainer", protein: 30, carbs: 55, fat: 5,
+                                               nutrients: [.creatine: 3.0, .glycine: 2.0, .psyllium: 5.0]))
+        let profile = try library.book().profile(of: gainer, quantity: 100)
+
+        XCTAssertEqual(Nutrient.creatine.group, .compounds)
+        XCTAssertEqual(Nutrient.glycine.group, .compounds)
+        XCTAssertEqual(Nutrient.psyllium.group, .compounds)
+        XCTAssertEqual(profile[.creatine], 3.0)
+        XCTAssertEqual(profile[.glycine], 2.0)
+        XCTAssertEqual(profile[.psyllium], 5.0)
+        XCTAssertEqual(Nutrient.creatine.recommendedRange, 3.0...5.0)
+        XCTAssertEqual(Nutrient.glycine.recommendedRange, 3.0...5.0)
+        XCTAssertEqual(Nutrient.psyllium.recommendedRange, 5.0...10.0)
+    }
 }

@@ -58,3 +58,9 @@ Feature: Supplement library and checks
     When I tap Suggest Best Stack in Tablets-only mode and in With-today's-food mode
     Then the optimizer selects the combination with highest target coverage and zero upper-limit or fat-soluble breaches
     And when Becadexamine is the only multivitamin in the library, the optimizer caps it at 1 unit and warns about its unavoidable Folate/B3 upper-limit breach
+
+  Scenario: Functional compound grams sum across renamed tubs, blends, and recipes for daily dose checks
+    Given "Post-Workout Blend" (kind food) has 3 g creatine per 100 g and 100 g is planned
+    And "ASES White Tub" (kind supplement, no creatine in its name) has 1 g creatine per 1 g and 2 g is planned
+    Then whole-day creatine is 5 g, within 3-5 g with no warning
+    And when "ASES White Tub" is raised to 6 g, whole-day creatine is 9 g and Supplement checks flags it above 3-5 g

@@ -351,7 +351,7 @@ struct MultivitaminWhatIfView: View {
                 if row.isFatSoluble { Pill(text: "fat-soluble", tone: .gold) }
                 Spacer()
                 if let target = row.target {
-                    Text("\(Format.number(row.amount, maxDecimals: 1)) / \(Format.number(target, maxDecimals: 1)) \(row.nutrient.unit)")
+                    Text(DailyTargetRow(nutrient: row.nutrient, amount: row.amount, target: target).formattedProgress)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(row.isOverLimit ? Theme.red : (row.amount >= target ? Theme.green : (row.amount == 0 ? Theme.muted : Theme.text)))
                     Text("\(Format.number(row.amount / target * 100, maxDecimals: 0))%")

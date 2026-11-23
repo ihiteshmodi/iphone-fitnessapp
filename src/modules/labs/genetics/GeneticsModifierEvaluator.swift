@@ -521,7 +521,9 @@ public enum GeneticsModifierEvaluator {
                     why: why, day: day)
             }
         case "vdr":
-            if (diet.supplementNutrients[.vitaminD] ?? 0) > 125 && (byMarker["vitamin-d"] ?? 50) >= 40 {
+            let suppVitDMcg = (diet.supplementNutrients[.vitaminD] ?? 0)
+                + (diet.supplementNutrients[.vitaminD3] ?? 0) / NutrientProfile.vitaminDIUPerMcg
+            if suppVitDMcg > 125 && (byMarker["vitamin-d"] ?? 50) >= 40 {
                 return Insight(
                     ruleID: "lab-gene-guardrail-vdr", kind: .labs, severity: .improve,
                     title: "Change-Nothing Mandate (VDR): dose Vitamin D by serum 25(OH)D, not VDR SNP",

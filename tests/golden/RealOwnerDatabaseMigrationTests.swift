@@ -39,5 +39,24 @@ final class RealOwnerDatabaseMigrationTests: XCTestCase {
 
         let settings = try SettingsRepository(db).load()
         XCTAssertEqual(settings.goalMode, .maintain)
+
+        let foods = FoodLibrary(db)
+        let d3Cap = try XCTUnwrap(try foods.food(named: "D3 5000IU and K2 MK7 100mcg capsule - Nutrija"))
+        XCTAssertEqual(d3Cap.draft.nutrients[.vitaminD3], 5000)
+        XCTAssertNil(d3Cap.draft.nutrients[.vitaminD])
+
+        let d3Spray = try XCTUnwrap(try foods.food(named: "D3 6000IU spray - Zeelabs (custom)"))
+        XCTAssertEqual(d3Spray.draft.nutrients[.vitaminD3], 12000)
+        XCTAssertNil(d3Spray.draft.nutrients[.vitaminD])
+
+        let creatine = try XCTUnwrap(try foods.food(named: "Creatine monohydrate - ASES"))
+        XCTAssertEqual(creatine.draft.nutrients[.creatine], 1.0)
+
+        let glycine = try XCTUnwrap(try foods.food(named: "Glycine - ASES"))
+        XCTAssertEqual(glycine.draft.nutrients[.glycine], 1.0)
+
+        let psyllium = try XCTUnwrap(try foods.food(named: "Psyllium Husk - ASES"))
+        XCTAssertEqual(psyllium.draft.nutrients[.psyllium], 1.0)
+        XCTAssertEqual(psyllium.draft.fiber, 0.85, accuracy: 1e-6)
     }
 }

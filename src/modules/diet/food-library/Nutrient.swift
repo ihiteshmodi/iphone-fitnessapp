@@ -7,6 +7,7 @@ public enum NutrientGroup: String, CaseIterable {
     case alcoholCaffeine = "Alcohol and caffeine"
     case vitamins = "Vitamins"
     case minerals = "Minerals"
+    case compounds = "Compounds & functional ingredients"
 }
 
 /// The nutrients tracked on top of calories, protein, carbs, fat, fiber, saturated fat and sodium.
@@ -17,8 +18,9 @@ public enum Nutrient: String, CaseIterable, Hashable {
     case epa, dha, ala, omega6
     case alcohol, caffeine
     case vitaminA = "vitamin_a", b1, b2, b3, b5, b6, b12, biotin, choline, folate
-    case vitaminC = "vitamin_c", vitaminD = "vitamin_d", vitaminE = "vitamin_e", vitaminK = "vitamin_k"
+    case vitaminC = "vitamin_c", vitaminD = "vitamin_d", vitaminD3 = "vitamin_d3", vitaminE = "vitamin_e", vitaminK = "vitamin_k"
     case calcium, copper, iron, magnesium, manganese, phosphorus, potassium, selenium, zinc, boron
+    case creatine, glycine, psyllium
 
     public var group: NutrientGroup {
         switch self {
@@ -27,8 +29,10 @@ public enum Nutrient: String, CaseIterable, Hashable {
         case .mufa, .pufa, .trans: return .fatTypes
         case .epa, .dha, .ala, .omega6: return .omega
         case .alcohol, .caffeine: return .alcoholCaffeine
-        case .vitaminA, .b1, .b2, .b3, .b5, .b6, .b12, .biotin, .choline, .folate, .vitaminC, .vitaminD, .vitaminE, .vitaminK: return .vitamins
+        case .vitaminA, .b1, .b2, .b3, .b5, .b6, .b12, .biotin, .choline, .folate, .vitaminC, .vitaminD, .vitaminD3, .vitaminE, .vitaminK:
+            return .vitamins
         case .calcium, .copper, .iron, .magnesium, .manganese, .phosphorus, .potassium, .selenium, .zinc, .boron: return .minerals
+        case .creatine, .glycine, .psyllium: return .compounds
         }
     }
 
@@ -38,6 +42,7 @@ public enum Nutrient: String, CaseIterable, Hashable {
              .calcium, .copper, .iron, .magnesium, .manganese, .phosphorus, .potassium, .zinc, .boron:
             return "mg"
         case .vitaminA, .b12, .biotin, .folate, .vitaminD, .vitaminK, .selenium: return "mcg"
+        case .vitaminD3: return "IU"
         default: return "g"
         }
     }
@@ -54,8 +59,12 @@ public enum Nutrient: String, CaseIterable, Hashable {
         case .vitaminA: return "Vitamin A"
         case .vitaminC: return "Vitamin C"
         case .vitaminD: return "Vitamin D"
+        case .vitaminD3: return "Vitamin D3"
         case .vitaminE: return "Vitamin E"
         case .vitaminK: return "Vitamin K"
+        case .creatine: return "Creatine monohydrate"
+        case .glycine: return "Glycine"
+        case .psyllium: return "Psyllium husk"
         case .b1, .b2, .b3, .b5, .b6, .b12: return rawValue.uppercased()
         default: return rawValue.prefix(1).uppercased() + rawValue.dropFirst()
         }
@@ -100,6 +109,19 @@ public enum Nutrient: String, CaseIterable, Hashable {
         case .potassium: return 2600
         case .selenium: return 55
         case .zinc: return 11
+        case .creatine: return 3
+        case .glycine: return 3
+        case .psyllium: return 5
+        default: return nil
+        }
+    }
+
+    /// Recommended daily dose window for functional compounds (from the vault's supplement chapters).
+    public var recommendedRange: ClosedRange<Double>? {
+        switch self {
+        case .creatine: return 3.0...5.0
+        case .glycine: return 3.0...5.0
+        case .psyllium: return 5.0...10.0
         default: return nil
         }
     }
@@ -120,6 +142,8 @@ public enum Omega3Form: String, CaseIterable, Equatable {
 /// Amounts of the extra nutrients in a portion. A nutrient that one of the foods has no value for is `unknown`
 /// (its sum covers only the foods that do), so a missing value is never read as 0.
 public struct NutrientProfile: Equatable {
+    public static let vitaminDIUPerMcg = 40.0
+
     public var values: [Nutrient: Double]
     public var unknown: Set<Nutrient>
 
@@ -132,6 +156,24 @@ public struct NutrientProfile: Equatable {
 
     public subscript(_ nutrient: Nutrient) -> Double? { values[nutrient] }
 
+    /// Combined Vitamin D in mcg (`vitamin_d` + `vitamin_d3 / 40`), so D and D3 share one fat-soluble pool.
+    public var totalVitaminDMcg: Double {
+        (values[.vitaminD] ?? 0) + (values[.vitaminD3] ?? 0) / Self.vitaminDIUPerMcg
+    }
+
+    /// Combined Vitamin D in IU (`totalVitaminDMcg × 40`).
+    public var totalVitaminDIU: Double {
+        totalVitaminDMcg * Self.vitaminDIUPerMcg
+    }
+
+    public func effectiveAmount(of nutrient: Nutrient) -> Double? {
+        if nutrient == .vitaminD {
+            guard values[.vitaminD] != nil || values[.vitaminD3] != nil else { return nil }
+            return totalVitaminDMcg
+        }
+        return values[nutrient]
+    }
+
     public static func + (lhs: NutrientProfile, rhs: NutrientProfile) -> NutrientProfile {
         NutrientProfile(values: lhs.values.merging(rhs.values, uniquingKeysWith: +), unknown: lhs.unknown.union(rhs.unknown))
     }
@@ -140,9 +182,11 @@ public struct NutrientProfile: Equatable {
         NutrientProfile(values: values.mapValues { $0 * factor }, unknown: unknown)
     }
 
-    /// A food's own values: what it has is known, the rest unknown.
+    /// A food's own values: what it has is known, the rest unknown. Entering `vitamin_d3` counts as knowing its Vitamin D.
     static func of(_ known: [Nutrient: Double]) -> NutrientProfile {
-        NutrientProfile(values: known, unknown: Set(Nutrient.allCases).subtracting(known.keys))
+        var missing = Set(Nutrient.allCases).subtracting(known.keys)
+        if known[.vitaminD3] != nil { missing.remove(.vitaminD) }
+        return NutrientProfile(values: known, unknown: missing)
     }
 }
 
@@ -154,6 +198,34 @@ public struct DailyTargetRow: Equatable {
 
     public var share: Double? { amount.map { $0 / target } }
     public var isMet: Bool { (amount ?? 0) >= target }
+
+    public var formattedProgress: String {
+        let current = amount ?? 0
+        if nutrient == .vitaminD {
+            let iu = Int((current * NutrientProfile.vitaminDIUPerMcg).rounded())
+            let targetIU = Int((target * NutrientProfile.vitaminDIUPerMcg).rounded())
+            return "\(Self.clean(current)) mcg (\(Self.groupedInt(iu)) IU) / \(Self.clean(target)) mcg (\(Self.groupedInt(targetIU)) IU)"
+        }
+        if let range = nutrient.recommendedRange {
+            return "\(Self.clean(current)) / \(Self.clean(range.lowerBound))–\(Self.clean(range.upperBound)) \(nutrient.unit)"
+        }
+        return "\(Self.clean(current)) / \(Self.clean(target)) \(nutrient.unit)"
+    }
+
+    private static func clean(_ v: Double) -> String {
+        let r = (v * 10).rounded() / 10
+        return r == r.rounded() ? String(Int(r)) : String(format: "%.1f", r)
+    }
+
+    private static func groupedInt(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSeparator = ","
+        formatter.maximumFractionDigits = 0
+        formatter.locale = Locale(identifier: "en_US")
+        return formatter.string(from: NSNumber(value: value)) ?? String(value)
+    }
 }
 
 public enum DailyTargetReport {
@@ -161,8 +233,9 @@ public enum DailyTargetReport {
     public static func rows(_ profile: NutrientProfile) -> [DailyTargetRow] {
         Nutrient.allCases.compactMap { nutrient in
             nutrient.dailyTarget.map { target in
-                DailyTargetRow(nutrient: nutrient, amount: profile.unknown.contains(nutrient) && (profile[nutrient] ?? 0) < target ? nil : (profile[nutrient] ?? 0),
-                               target: target)
+                let val = profile.effectiveAmount(of: nutrient) ?? 0
+                let isUnknown = profile.unknown.contains(nutrient) && val < target
+                return DailyTargetRow(nutrient: nutrient, amount: isUnknown ? nil : val, target: target)
             }
         }
     }
@@ -171,14 +244,14 @@ public enum DailyTargetReport {
     public static func dailyRows(_ profile: NutrientProfile) -> [DailyTargetRow] {
         Nutrient.allCases.compactMap { nutrient in
             guard nutrient.group != .aminoAcids, let target = nutrient.dailyTarget else { return nil }
-            return DailyTargetRow(nutrient: nutrient, amount: profile[nutrient] ?? 0, target: target)
+            return DailyTargetRow(nutrient: nutrient, amount: profile.effectiveAmount(of: nutrient) ?? 0, target: target)
         }
     }
 }
 
 extension Nutrient {
-    /// Vitamins A, D, E and K are stored in the body, so too much builds up rather than leaving in urine.
-    public var isFatSoluble: Bool { [.vitaminA, .vitaminD, .vitaminE, .vitaminK].contains(self) }
+    /// Vitamins A, D, D3, E and K are stored in the body, so too much builds up rather than leaving in urine.
+    public var isFatSoluble: Bool { [.vitaminA, .vitaminD, .vitaminD3, .vitaminE, .vitaminK].contains(self) }
 
     /// Daily upper limits as the vault states them, in `unit`. Nil where none is given or the vault gives two
     /// different values (see `upperLimitNote`); those are settled with bloodwork in Blood Labs.
@@ -186,6 +259,7 @@ extension Nutrient {
         switch self {
         case .vitaminA: return 3000
         case .vitaminD: return 100
+        case .vitaminD3: return 4000
         case .vitaminE: return 1000
         case .vitaminC: return 2000
         case .b3: return 35
@@ -208,6 +282,7 @@ extension Nutrient {
         case .iron: return "45 mg from supplements"
         case .folate: return "1,000 mcg of folic acid"
         case .vitaminA: return "3,000 mcg of preformed vitamin A"
+        case .vitaminD, .vitaminD3: return "100 mcg (4,000 IU) combined Vitamin D + D3"
         default: return nil
         }
     }

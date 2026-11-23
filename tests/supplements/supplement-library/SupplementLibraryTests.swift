@@ -210,4 +210,22 @@ final class SupplementLibraryTests: XCTestCase {
         XCTAssertEqual(soloStrict.counts[1] ?? 0, 0)
         XCTAssertTrue(soloStrict.breachedNutrients.isEmpty)
     }
+
+    func testFunctionalCompoundGramsSumAcrossBlendsAndRenamedSupplementsWithoutDoubleCounting() throws {
+        let gainer = try FoodLibrary(db).add(FoodDraft(name: "Post-Workout Blend", kind: .food, unit: "g", baseQuantity: 100,
+                                                       protein: 30, carbs: 50, nutrients: [.creatine: 3.0]))
+        let unnamedTub = try FoodLibrary(db).add(FoodDraft(name: "ASES White Tub", kind: .supplement, unit: "g", baseQuantity: 1,
+                                                           nutrients: [.creatine: 1.0]))
+        let plans = DietPlanService(db)
+        try plans.addItem(foodID: gainer, quantity: 100, meal: "Brunch", from: date("2026-11-20"))
+        try plans.addItem(foodID: unnamedTub, quantity: 2, meal: "Dinner", from: date("2026-11-20"))
+
+        let cleanInsights = try SupplementCheckRule(library: library).evaluate(on: date("2026-11-20"), db: db)
+        XCTAssertTrue(cleanInsights.isEmpty, "3 g from gainer + 2 g from renamed tub = 5 g within 3-5 g")
+
+        try plans.changeItem(meal: "Dinner", foodID: unnamedTub, from: date("2026-11-20"), quantity: 6, cycle: .daily)
+        let overInsights = try SupplementCheckRule(library: library).evaluate(on: date("2026-11-20"), db: db)
+        let check = try XCTUnwrap(overInsights.first { $0.ruleID == "supplement-checks" })
+        XCTAssertTrue(check.detail.contains("9 g is above 3-5 g"), check.detail)
+    }
 }

@@ -35,3 +35,14 @@ Feature: More nutrients per food
     Then leucine is 4.0 of 2.9 g, met
     And iron is 9 of 18 mg, 50 percent
     And vitamin D is unknown rather than 0
+
+  Scenario: Vitamin D3 in IU combines with Vitamin D in mcg without double counting and formats both units
+    Given "Becadexamine" has 10 mcg of vitamin D per unit
+    And "D3 5000IU capsule" has 5000 IU of vitamin D3 per unit
+    And "D3 6000IU spray" has 12000 IU of vitamin D3 per ml and 0.5 ml is taken
+    When all three are eaten
+    Then total vitamin D is 285 mcg and 11400 IU against the 20 mcg (800 IU) daily target
+
+  Scenario: Functional compounds track exact grams of creatine, glycine, and psyllium husk per food or supplement
+    When I save "Post-workout gainer" per 100 g with 3 g creatine monohydrate, 2 g glycine, and 5 g psyllium husk
+    Then 100 g of "Post-workout gainer" provides 3 g creatine, 2 g glycine, and 5 g psyllium husk in the Compounds group

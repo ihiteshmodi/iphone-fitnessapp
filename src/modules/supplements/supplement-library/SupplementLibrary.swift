@@ -129,6 +129,12 @@ public struct SupplementCheckRule: SetupRule {
         self.labs = labs
     }
 
+    private static let compoundEntries: [(nutrient: Nutrient, entryID: String)] = [
+        (.creatine, "creatine"),
+        (.glycine, "glycine"),
+        (.psyllium, "psyllium"),
+    ]
+
     public func evaluate(on day: ISODate, db: Database) throws -> [Insight] {
         guard let plan = try DietPlanService(db).plan(inForceOn: day) else { return [] }
         let book = try FoodLibrary(db).book()
@@ -137,7 +143,34 @@ public struct SupplementCheckRule: SetupRule {
         var testFirst: [String] = []
         var testedEntries: Set<String> = []
         let lookup = try labs.map { LabTestLookup(catalogue: $0, draws: LabDrawService(db, catalogue: $0), sex: try LabSettings(db).load().sex) }
-        for taken in Self.dailySupplements(plan.items, book: book) {
+        let takenSupplements = Self.dailySupplements(plan.items, book: book)
+
+        let plannedProfile = try plan.items.reduce(NutrientProfile.empty) { acc, item in
+            try acc + book.profile(of: item.foodID, quantity: item.quantity)
+        }
+        var handledCompoundEntryIDs: Set<String> = []
+        for (compound, entryID) in Self.compoundEntries {
+            let fromFields = plannedProfile[compound] ?? 0
+            guard fromFields > 0 else { continue }
+            handledCompoundEntryIDs.insert(entryID)
+            let legacyExtra = takenSupplements.reduce(0.0) { sum, taken in
+                guard taken.food.draft.nutrients[compound] == nil,
+                      library.match(taken.food.name)?.id == entryID,
+                      taken.food.unit == compound.unit else { return sum }
+                return sum + taken.amount
+            }
+            let total = fromFields + legacyExtra
+            let entry = library.entries.first { $0.id == entryID }
+            let low = entry?.doseMin ?? compound.recommendedRange?.lowerBound
+            let high = entry?.doseMax ?? compound.recommendedRange?.upperBound
+            if let low, let high {
+                let text = "\(compound.title) \(Self.number(total)) \(compound.unit)"
+                if total > high { problems.append("\(text) is above \(Self.number(low))-\(Self.number(high)) \(compound.unit)") }
+                if total < low { problems.append("\(text) is below \(Self.number(low))-\(Self.number(high)) \(compound.unit)") }
+            }
+        }
+
+        for taken in takenSupplements {
             let food = taken.food
             guard let entry = library.match(food.name) else { continue }
             if entry.verdict == .notRecommended {
@@ -145,7 +178,8 @@ public struct SupplementCheckRule: SetupRule {
                 reasons.append("\(entry.name): \(entry.why)")
                 continue
             }
-            if let unit = entry.doseUnit, unit == food.unit, let low = entry.doseMin, let high = entry.doseMax {
+            if !handledCompoundEntryIDs.contains(entry.id),
+               let unit = entry.doseUnit, unit == food.unit, let low = entry.doseMin, let high = entry.doseMax {
                 let amount = taken.amount
                 let text = "\(food.name) \(Self.number(amount)) \(unit)"
                 if amount > high { problems.append("\(text) is above \(Self.number(low))-\(Self.number(high)) \(unit)") }
@@ -305,10 +339,14 @@ public enum MultivitaminWhatIf {
         Nutrient.allCases.filter { $0.group == .vitamins || $0.group == .minerals }
     }
 
+    private static func profileAmount(_ profile: NutrientProfile, of nutrient: Nutrient) -> Double {
+        nutrient == .vitaminD ? profile.totalVitaminDMcg : (profile[nutrient] ?? 0)
+    }
+
     public static func rows(perTablet: NutrientProfile, tablets: Int, rest: NutrientProfile = .empty) -> [Row] {
         allVitaminAndMineralNutrients.map { nutrient in
-            let tab = (perTablet[nutrient] ?? 0) * Double(tablets)
-            let food = rest[nutrient] ?? 0
+            let tab = profileAmount(perTablet, of: nutrient) * Double(tablets)
+            let food = profileAmount(rest, of: nutrient)
             return Row(nutrient: nutrient, tabletAmount: tab, foodAmount: food, amount: tab + food,
                        target: nutrient.dailyTarget, upperLimit: nutrient.upperLimit)
         }
@@ -319,9 +357,9 @@ public enum MultivitaminWhatIf {
         allVitaminAndMineralNutrients.map { nutrient in
             let tab = options.reduce(0.0) { sum, option in
                 let count = max(counts[option.id] ?? 0, 0)
-                return sum + (option.perUnit[nutrient] ?? 0) * Double(count)
+                return sum + profileAmount(option.perUnit, of: nutrient) * Double(count)
             }
-            let food = mode == .withTodaysFood ? (foodRest[nutrient] ?? 0) : 0
+            let food = mode == .withTodaysFood ? profileAmount(foodRest, of: nutrient) : 0
             return Row(nutrient: nutrient, tabletAmount: tab, foodAmount: food, amount: tab + food,
                        target: nutrient.dailyTarget, upperLimit: nutrient.upperLimit)
         }
