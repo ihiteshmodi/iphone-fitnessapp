@@ -117,8 +117,13 @@ Screenshots of the real app.
 - **Sweaty activity (More → Tools):** for a hike or long sweaty session, how much Himalayan salt and potassium chloride to put in the water you carry and how often to sip, from the vault's per-hour numbers. Your daily workout mix is left as it is.
 - **Meal Profile (GL & Amino Acids) & Daily targets:** each real food meal (*Brunch*, *Dinner*) shows a **Meal Profile** sheet with total Meal Glycemic Load (`GL = Σ GI × Net Carbs / 100`, Low/Medium/High) and per-meal Amino Acids (`Leucine 2.9 g`, `Isoleucine 1.3 g`, `Histidine 1.0 g`, etc.), plus descending food contributor `%` drill-downs when you tap GL or any amino acid. Whole-day *Daily targets* tracks fiber, vitamins, minerals and omega-3/6 with `0 / target` for absent nutrients.
 
+**WHOOP Band & Telemetry Substrate** (More → Tools → WHOOP Band)
+- **Direct BLE transport:** connects natively to WHOOP 4.0 (Harvard), WHOOP 5.0, and WHOOP MG (Maverick) over CoreBluetooth with state restoration (`com.openwhoop.ble.central`), zero-duty `StandingConnect` auto-reconnect, 16-bit `FD4B` + 128-bit service-UUID scanning, Gen5 `0x78` R22 8-flag unlock, automatic clock-drift correction, and bond/radio fault isolation.
+- **Byte-exact decoders & atomic pre-ACK durability:** verifies CRC-8/CRC-16/CRC-32 wire frames, decodes Gen4 `R24`/`v12` & `R10` and Gen5/MG `v18` 1 Hz records (including signed skin temperature, `-5000` sentinel handling, dynamic acceleration, sleep states, and subsecond `beat_ts_ms` RR reconstruction), archives undecodable/future-firmware records losslessly by SHA-1, and commits every burst under `PRAGMA synchronous = FULL` inside a single `BEGIN IMMEDIATE ... COMMIT` transaction before transmitting `0x17` flash-trim ACK (or a 2-zero-byte Gen5 negative ACK on packet loss).
+- **Dual-database architecture (`fitness.sqlite` + `whoop.sqlite`):** stores high-volume 1 Hz / RR telemetry in a dedicated `whoop.sqlite` file compatible with OpenStrap `.db` exports, with separate 1-tap Load / Import / Export controls in **More** and **WHOOP Band** so weekly workout/diet/labs backups stay fast and lightweight.
+
 **Data**
-- **One SQLite file** on the phone. Export it, restore it, or import another one. Older files are upgraded automatically.
+- **Two offline SQLite files** on the phone: `fitness.sqlite` (workouts, body, diet, supplements, bloodwork, genetics) and optional `whoop.sqlite` (1 Hz & RR band telemetry, compatible with OpenStrap `.db` exports). Export, restore, or import either independently. Older files are upgraded automatically.
 
 ## Quick Start
 

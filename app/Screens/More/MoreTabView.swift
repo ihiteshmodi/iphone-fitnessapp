@@ -4,11 +4,14 @@ import SwiftUI
 struct MoreTabView: View {
     @EnvironmentObject private var services: Services
     @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var whoop: WhoopBLEManager
     @StateObject private var model = MoreViewModel()
 
     @State private var shareItem: MoreShareItem?
     @State private var isImporterPresented = false
+    @State private var isWhoopImporterPresented = false
     @State private var importedNotice = false
+    @State private var whoopImportedNotice = false
     @State private var fileToRestore: URL?
     @State private var errorMessage: String?
 
@@ -21,6 +24,7 @@ struct MoreTabView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityAddTraits(.isHeader)
                     backupCard
+                    whoopBackupCard
                     BreakModeCard(services: services, onChange: { session.didChange() })
                         .id(ObjectIdentifier(services))
                     deloadCard
@@ -41,6 +45,7 @@ struct MoreTabView: View {
         }
         .sheet(item: $shareItem) { item in ShareSheet(items: [item.url]) }
         .dataFileImporter(isPresented: $isImporterPresented, errorMessage: $errorMessage) { importedNotice = true }
+        .whoopFileImporter(isPresented: $isWhoopImporterPresented, errorMessage: $errorMessage) { whoopImportedNotice = true }
         .errorAlert($errorMessage)
         .errorAlert($model.errorMessage)
         .confirmationDialog("Replace your data with this file?", isPresented: Binding(get: { fileToRestore != nil }, set: { if !$0 { fileToRestore = nil } }),
@@ -54,6 +59,11 @@ struct MoreTabView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Your data was replaced. A safety copy of the previous database was kept.")
+        }
+        .alert("WHOOP database imported", isPresented: $whoopImportedNotice) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your OpenStrap / WHOOP telemetry substrate was loaded into whoop.sqlite.")
         }
     }
 
@@ -126,6 +136,51 @@ struct MoreTabView: View {
         }
     }
 
+    private var whoopBackupCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel("WHOOP Telemetry Database")
+            if let s = whoop.substrateSummary {
+                Text("\(Format.grouped(Double(s.oneHzCount))) 1 Hz rows · \(Format.grouped(Double(s.rrCount))) RR beats")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Theme.text)
+                    .accessibilityIdentifier("more-whoop-summary")
+            } else {
+                Text("Separate whoop.sqlite substrate (keeps fitness.sqlite fast & lightweight).")
+                    .font(.system(size: 13))
+                    .foregroundColor(Theme.muted)
+                    .accessibilityIdentifier("more-whoop-empty")
+            }
+            if whoop.hasBundledWhoopDatabase && !whoop.hasWhoopDatabase {
+                Button("Load bundled OpenStrap data") {
+                    do {
+                        try whoop.loadBundledWhoopData()
+                        whoopImportedNotice = true
+                    } catch {
+                        errorMessage = MoreErrorText.message(for: error)
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .accessibilityIdentifier("more-load-bundled-whoop-button")
+            }
+            if whoop.hasWhoopDatabase {
+                Button("Export WHOOP database (.sqlite)") {
+                    do {
+                        shareItem = MoreShareItem(url: try whoop.exportWhoopDatabase())
+                    } catch {
+                        errorMessage = MoreErrorText.message(for: error)
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .accessibilityIdentifier("more-export-whoop-button")
+            }
+            Button("Import WHOOP database (.db / .sqlite)") { isWhoopImporterPresented = true }
+                .buttonStyle(PrimaryButtonStyle(ghost: true))
+                .accessibilityIdentifier("more-import-whoop-button")
+        }
+        .card()
+        .onAppear { whoop.refreshSummaryAndFiles() }
+    }
+
     // MARK: Tools
 
     private func exportDietReview() {
@@ -171,6 +226,15 @@ struct MoreTabView: View {
             .buttonStyle(.plain)
             .padding(.top, 4)
             .accessibilityIdentifier("sweaty-activity-row")
+            NavigationLink { WhoopBandView() } label: {
+                MoreRow(title: "WHOOP Band", subtitle: "WHOOP 4.0 / 5.0 / MG BLE sync, live heart rate, and whoop.sqlite substrate") {
+                    Image(systemName: "chevron.right").foregroundColor(Theme.muted)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityIdentifier("whoop-band-row")
         }
         .card()
     }

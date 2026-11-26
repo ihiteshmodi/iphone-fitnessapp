@@ -25,6 +25,7 @@ final class AppSession: ObservableObject {
     @Published private(set) var folderListing: [String] = []
     private(set) var folderPath = ""
     private(set) var services: Services?
+    let whoop: WhoopBLEManager
 
     let clock: AppClock = SystemClock()
     private var fileService: DatabaseFileService?
@@ -33,13 +34,16 @@ final class AppSession: ObservableObject {
 
     init() {
         lastExport = UserDefaults.standard.string(forKey: Self.lastExportKey).flatMap { ISODate($0) }
+        var resolvedLocation: AppDatabaseLocation?
         do {
             let location = try AppDatabaseLocation.documents()
+            resolvedLocation = location
             folderPath = location.directory.path
             fileService = DatabaseFileService(location: location)
         } catch {
             phase = .failed("Cannot create the app data folder: \(error.localizedDescription)")
         }
+        whoop = WhoopBLEManager(location: resolvedLocation, clock: clock)
     }
 
     func start() {
@@ -47,6 +51,9 @@ final class AppSession: ObservableObject {
         // Simulator tests pass a database path on the command line; ignored in normal use.
         if let path = UserDefaults.standard.string(forKey: "UITestImportPath") {
             try? fileService.importDatabase(from: URL(fileURLWithPath: path), clock: clock)
+        }
+        if let whoopPath = UserDefaults.standard.string(forKey: "UITestWhoopImportPath") {
+            try? whoop.importWhoopDatabase(from: URL(fileURLWithPath: whoopPath))
         }
         open()
     }

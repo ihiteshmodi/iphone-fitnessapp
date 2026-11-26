@@ -1,3 +1,4 @@
+import BackgroundTasks
 import SwiftUI
 import UIKit
 
@@ -25,8 +26,15 @@ struct FitnessApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(session)
+                .environmentObject(session.whoop)
                 .preferredColorScheme(.dark)
                 .tint(Theme.green)
+        }
+        .backgroundTask(.appRefresh(WhoopBLEManager.bgProcessingID)) {
+            await MainActor.run {
+                session.whoop.reconnectSavedBand()
+                session.whoop.sendBackgroundHighFreqPrompt()
+            }
         }
     }
 }

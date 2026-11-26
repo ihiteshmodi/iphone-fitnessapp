@@ -31,6 +31,17 @@ public struct WhoopGattProfile: Equatable, Sendable {
         events: "fd4b0004-cce1-4033-93ce-002d5875f58a",
         data: "fd4b0005-cce1-4033-93ce-002d5875f58a",
         memfault: "fd4b0007-cce1-4033-93ce-002d5875f58a")
+
+    public static let maverick = WhoopGattProfile(
+        service: "a7c10001-f166-4c36-9f61-547f9a0d0173",
+        advertisedServiceShort: "FD4B",
+        cmdTo: "a7c10002-f166-4c36-9f61-547f9a0d0173",
+        cmdFrom: "a7c10003-f166-4c36-9f61-547f9a0d0173",
+        events: "a7c10004-f166-4c36-9f61-547f9a0d0173",
+        data: "a7c10005-f166-4c36-9f61-547f9a0d0173",
+        memfault: "a7c10007-f166-4c36-9f61-547f9a0d0173")
+
+    public static let whoopAdvService16Bit = "FD4B"
 }
 
 public enum WhoopBandProfile: String, Codable, Equatable, Sendable {

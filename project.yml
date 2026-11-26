@@ -51,6 +51,15 @@ targets:
           LABS="${SRCROOT}/output/labs-catalogue.json"
           LABS_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/labs-catalogue.json"
           if [ -f "$LABS" ]; then cp -f "$LABS" "$LABS_DEST"; else rm -f "$LABS_DEST"; fi
+          # Optional WHOOP / OpenStrap telemetry substrate (personal data, git-ignored; offered in WHOOP Band & More).
+          WHOOP_SEED="${SRCROOT}/output/whoop.sqlite"
+          WHOOP_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/whoop.sqlite"
+          if [ -f "$WHOOP_SEED" ]; then
+            cp -f "$WHOOP_SEED" "$WHOOP_DEST"
+            echo "Bundled output/whoop.sqlite"
+          else
+            rm -f "$WHOOP_DEST"
+          fi
           # Ensure no stale lab-history.csv remains in the app bundle (personal lab data lives in fitness.sqlite).
           rm -f "${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/lab-history.csv"
     dependencies:
@@ -65,6 +74,13 @@ targets:
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         ITSAppUsesNonExemptEncryption: false
+        NSBluetoothAlwaysUsageDescription: "Fitness connects directly to your WHOOP 4.0, 5.0, or MG band over Bluetooth to sync 1 Hz heart rate, RR intervals, SpO2, skin temperature, and sleep telemetry locally onto your phone."
+        UIBackgroundModes:
+          - bluetooth-central
+          - processing
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.hitesh.fitnessapp.whoop.backfill
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hitesh.fitnessapp
