@@ -5,6 +5,14 @@ public enum BundledReferenceSync {
     private static let presetsSigKey = "bundled_presets_sig"
     private static let nutrientsSigKey = "bundled_nutrients_sig"
 
+    /// Preloaded reference multivitamins created as 1-tablet supplements whenever present in the bundled CSV.
+    public static let referenceMultivitaminNames: [String] = [
+        "Centrum Men Multivitamin",
+        "MuscleBlaze Biozyme 5 in 1 Multivitamin",
+        "MuscleBlaze MB-Vite Daily Multivitamin",
+        "A to Z Multivitamin",
+    ]
+
     public static func sync(db: Database, presetsData: Data?, nutrientsCSV: String?) throws {
         if let presetsData {
             let sig = signature(of: presetsData)
@@ -16,6 +24,7 @@ public enum BundledReferenceSync {
             }
         }
         if let nutrientsCSV {
+            try ensureReferenceMultivitamins(in: nutrientsCSV, db: db)
             let sig = signature(of: Data(nutrientsCSV.utf8))
             let storedSig = try setting(db, key: nutrientsSigKey)
             if storedSig != sig {
@@ -23,6 +32,21 @@ public enum BundledReferenceSync {
                 try setSetting(db, key: nutrientsSigKey, value: sig)
             } else {
                 _ = try NutrientImporter(db).apply(nutrientsCSV, overwriteExisting: false)
+            }
+        }
+    }
+
+    private static func ensureReferenceMultivitamins(in csv: String, db: Database) throws {
+        var namesInCSV: Set<String> = []
+        for line in csv.split(whereSeparator: \.isNewline).dropFirst() {
+            if let comma = line.firstIndex(of: ",") {
+                namesInCSV.insert(line[..<comma].trimmingCharacters(in: .whitespaces))
+            }
+        }
+        let library = FoodLibrary(db)
+        for name in referenceMultivitaminNames where namesInCSV.contains(name) {
+            if try library.food(named: name) == nil {
+                _ = try library.add(FoodDraft(name: name, kind: .supplement, unit: "unit", baseQuantity: 1))
             }
         }
     }

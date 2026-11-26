@@ -51,7 +51,7 @@ struct SupplementsView: View {
                     .foregroundColor(Theme.green)
                     .accessibilityIdentifier("add-multivitamin-button")
             }
-            Text("Compare every vitamin & mineral with 0 / target for gaps, combine multiple multivitamins (Becadexamine, A to Z, Supradyn), and auto-pick the safest high-coverage stack.")
+            Text("Compare every vitamin & mineral with 0 / target for gaps, combine multiple multivitamins (Becadexamine, Centrum Men, Biozyme 5 in 1, MB-Vite, A to Z), and auto-pick the safest high-coverage stack.")
                 .font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
             if let primary = multivitamins.first {
                 NavigationLink {

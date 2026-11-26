@@ -58,5 +58,16 @@ final class RealOwnerDatabaseMigrationTests: XCTestCase {
         let psyllium = try XCTUnwrap(try foods.food(named: "Psyllium Husk - ASES"))
         XCTAssertEqual(psyllium.draft.nutrients[.psyllium], 1.0)
         XCTAssertEqual(psyllium.draft.fiber, 0.85, accuracy: 1e-6)
+
+        for mviName in [
+            "Becadexamine",
+            "Centrum Men Multivitamin",
+            "MuscleBlaze Biozyme 5 in 1 Multivitamin",
+            "MuscleBlaze MB-Vite Daily Multivitamin",
+            "A to Z Multivitamin",
+        ] {
+            let mvi = try XCTUnwrap(try foods.food(named: mviName), "Missing multivitamin \(mviName)")
+            XCTAssertTrue(MultivitaminWhatIf.isMultivitamin(mvi.draft), "\(mviName) should be recognized as a multivitamin")
+        }
     }
 }

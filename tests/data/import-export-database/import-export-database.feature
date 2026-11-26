@@ -57,3 +57,8 @@ Feature: Import and export the database
     When the app opens a database containing matching foods
     Then coach presets and food nutrients/GIs are populated automatically without manual buttons
     And reopening with the same bundled CSV preserves a user's manual food edit while filling newly added foods
+
+  Scenario: Bundled reference multivitamins are created as supplements with brand-claim nutrients without altering active meal plans
+    Given output/nutrient-values.csv contains Centrum Men Multivitamin, MuscleBlaze Biozyme 5 in 1 Multivitamin, MuscleBlaze MB-Vite Daily Multivitamin, and A to Z Multivitamin
+    When BundledReferenceSync runs on a database
+    Then all four multivitamins exist as supplement foods recognized by MultivitaminWhatIf with exact Brand-Claim values and zero active diet-plan insertions
