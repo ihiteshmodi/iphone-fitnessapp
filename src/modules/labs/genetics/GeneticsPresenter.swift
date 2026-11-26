@@ -83,7 +83,8 @@ public enum GeneticsPresenter {
 
         let draws = LabDrawService(db, catalogue: catalogue)
         let allDraws = try draws.draws()
-        let latestResults = try allDraws.first.map { try draws.results(inDraw: $0.id) } ?? []
+        let (latestByMarker, _, _) = try draws.latestResultsSnapshot()
+        let latestResults = Array(latestByMarker.values)
         let findings = GeneticsModifierEvaluator.evaluateInsights(
             on: today, db: db, genotypes: genotypes, preferences: prefs,
             latestResults: latestResults, latestDraw: allDraws.first?.draft)

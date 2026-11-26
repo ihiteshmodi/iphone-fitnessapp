@@ -54,6 +54,14 @@ public struct LabDiscordanceAlert: Equatable, Identifiable {
     public let id: String
     public let title: String
     public let detail: String
+    public let markerIDs: [String]
+
+    public init(id: String, title: String, detail: String, markerIDs: [String] = []) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.markerIDs = markerIDs
+    }
 }
 
 public enum LabPatternEvaluator {
@@ -63,17 +71,26 @@ public enum LabPatternEvaluator {
         let drawDraft = try draws.draws().first { $0.id == drawID }?.draft
         guard let drawDate = allResults.first?.date ?? drawDraft?.date else { return [] }
         let byID = Dictionary(uniqueKeysWithValues: allResults.map { ($0.markerID, $0) })
+        let draftsByID = drawDraft.map { [drawID: $0] } ?? [:]
+        return evaluateLatest(resultsByMarker: byID, drawsByID: draftsByID, fallbackDate: drawDate,
+                              catalogue: catalogue, preferences: preferences, context: context)
+    }
 
+    public static func evaluateLatest(resultsByMarker byID: [String: LabResult], drawsByID: [Int: LabDrawDraft],
+                                      fallbackDate: ISODate?, catalogue: LabCatalogue,
+                                      preferences: LabPreferences, context: LabNonBloodContext? = nil) -> [LabPatternMatch] {
+        guard let drawDate = byID.values.map(\.date).max() ?? fallbackDate else { return [] }
         var out: [LabPatternMatch] = []
         for pattern in catalogue.patterns {
             guard let engine = pattern.engine else { continue }
-            guard matchesPrimarySignature(engine.primarySignature, results: byID, catalogue: catalogue, preferences: preferences, draw: drawDraft) else {
+            guard matchesPrimarySignature(engine.primarySignature, results: byID, drawsByID: drawsByID,
+                                          catalogue: catalogue, preferences: preferences) else {
                 continue
             }
             let matchedPhenos = engine.phenotypes.filter { pheno in
                 !pheno.rules.isEmpty && pheno.rules.allSatisfy { rule in
                     matchesConditionText(target: rule.target, text: rule.condition, scale: rule.scaleFactor,
-                                         results: byID, catalogue: catalogue, preferences: preferences, draw: drawDraft)
+                                         results: byID, drawsByID: drawsByID, catalogue: catalogue, preferences: preferences)
                 }
             }
             let stage = engine.progressionStaging.first
@@ -93,6 +110,39 @@ public enum LabPatternEvaluator {
         return out
     }
 
+    public static func evaluateSimplePatterns(resultsByMarker sameDraw: [String: LabResult], drawsByID: [Int: LabDrawDraft],
+                                              catalogue: LabCatalogue, preferences: LabPreferences) -> [LabSimplePatternMatch] {
+        let sex = preferences.sex
+        return catalogue.patterns.filter { $0.computable != false && $0.engine == nil }.compactMap { pattern in
+            guard let conditions = pattern.conditions, !conditions.isEmpty else { return nil }
+            let applicable = conditions.filter { sex.allows(sex: $0.sex) }
+            let held = applicable.filter { holdsCondition($0, sameDraw, drawsByID: drawsByID, catalogue: catalogue, preferences: preferences) }
+            let needed: Int
+            switch pattern.needed ?? .all {
+            case .all: needed = applicable.count
+            case .any: needed = 1
+            case .count(let n): needed = n
+            }
+            guard !applicable.isEmpty, held.count >= needed else { return nil }
+            var ids: [String] = []
+            for m in (pattern.markers ?? []) + applicable.map(\.marker) where !ids.contains(m) { ids.append(m) }
+            let newest = ids.compactMap { sameDraw[$0]?.date }.max() ?? ISODate("2026-01-01")!
+            let contrib = ids.compactMap { id -> String? in
+                guard let res = sameDraw[id] else { return nil }
+                let mName = catalogue.marker(id)?.name ?? id
+                let valText = res.textValue ?? "\(LabInsightsRule.number(res.value))\(res.unit.isEmpty ? "" : " \(res.unit)")"
+                return "\(mName) \(valText) (\(res.date.dayMonthYear))"
+            }.joined(separator: " · ")
+            let baseDetail = ([pattern.meaning] + (pattern.whatToDo ?? []) + [pattern.repeatText]).compactMap { $0 }.joined(separator: " ")
+            let fullDetail = pattern.doctor.map { "\(baseDetail) \($0)" } ?? baseDetail
+            let isUrgentDoctor = pattern.doctor != nil && (pattern.id == "pancytopenia" || pattern.id == "ketoacidosis-signal"
+                || pattern.doctor?.lowercased().contains("urgent") == true)
+            return LabSimplePatternMatch(id: pattern.id, name: pattern.name, markerIDs: ids,
+                                         contributingSummary: contrib, detail: fullDetail,
+                                         isUrgentDoctor: isUrgentDoctor, newestDate: newest, source: pattern.source)
+        }
+    }
+
     public static func discordances(in results: [LabResult], catalogue: LabCatalogue, preferences: LabPreferences) -> [LabDiscordanceAlert] {
         let byID = Dictionary(uniqueKeysWithValues: results.map { ($0.markerID, $0) })
         func val(_ id: String) -> Double? {
@@ -105,7 +155,8 @@ public enum LabPatternEvaluator {
             alerts.append(LabDiscordanceAlert(
                 id: "discordance-apob-ldl",
                 title: "ApoB and LDL-C disagree",
-                detail: "LDL-C (\(LabInsightsRule.number(ldl)) mg/dL) looks normal, while ApoB (\(LabInsightsRule.number(apob)) mg/dL) shows elevated atherogenic particle count — guide risk by ApoB."))
+                detail: "LDL-C (\(LabInsightsRule.number(ldl)) mg/dL) looks normal, while ApoB (\(LabInsightsRule.number(apob)) mg/dL) shows elevated atherogenic particle count — guide risk by ApoB.",
+                markerIDs: ["ldl-c", "apob"]))
         }
         if let cr = val("creatinine"), let cys = val("cystatin-c"), let crMarker = catalogue.marker("creatinine") {
             let crStatus = LabReader.read(result: byID["creatinine"]!, marker: crMarker, preferences: preferences).status
@@ -113,12 +164,14 @@ public enum LabPatternEvaluator {
                 alerts.append(LabDiscordanceAlert(
                     id: "discordance-cr-cystatin-muscle",
                     title: "Elevated creatinine with optimal Cystatin C",
-                    detail: "Creatinine (\(LabInsightsRule.number(cr))) is above optimal while Cystatin C (\(LabInsightsRule.number(cys)) mg/L) is clean — points to lean muscle mass or creatine intake rather than reduced kidney filtration."))
+                    detail: "Creatinine (\(LabInsightsRule.number(cr))) is above optimal while Cystatin C (\(LabInsightsRule.number(cys)) mg/L) is clean — points to lean muscle mass or creatine intake rather than reduced kidney filtration.",
+                    markerIDs: ["creatinine", "cystatin-c"]))
             } else if crStatus == .optimal && cys > 1.0 {
                 alerts.append(LabDiscordanceAlert(
                     id: "discordance-cr-cystatin-masked",
                     title: "Normal creatinine masking elevated Cystatin C",
-                    detail: "Cystatin C (\(LabInsightsRule.number(cys)) mg/L) signals reduced kidney filtration that serum creatinine missed."))
+                    detail: "Cystatin C (\(LabInsightsRule.number(cys)) mg/L) signals reduced kidney filtration that serum creatinine missed.",
+                    markerIDs: ["creatinine", "cystatin-c"]))
             }
         }
         if preferences.sex == .male, let tt = val("total-testosterone"), let shbg = val("shbg"), let ft = val("free-testosterone"),
@@ -126,33 +179,77 @@ public enum LabPatternEvaluator {
             alerts.append(LabDiscordanceAlert(
                 id: "discordance-shbg-free-t",
                 title: "High SHBG masking low Free Testosterone",
-                detail: "Total Testosterone (\(LabInsightsRule.number(tt)) ng/dL) sits in range, but elevated SHBG (\(LabInsightsRule.number(shbg)) nmol/L) leaves bioavailable Free Testosterone low (\(LabInsightsRule.number(ft)) pg/mL)."))
+                detail: "Total Testosterone (\(LabInsightsRule.number(tt)) ng/dL) sits in range, but elevated SHBG (\(LabInsightsRule.number(shbg)) nmol/L) leaves bioavailable Free Testosterone low (\(LabInsightsRule.number(ft)) pg/mL).",
+                markerIDs: ["total-testosterone", "shbg", "free-testosterone"]))
         }
         if let a1c = val("hba1c"), a1c < 5.5,
            (val("fasting-insulin").map { $0 >= 8 } ?? false) || (val("homa-ir").map { $0 >= 1.5 } ?? false) {
             alerts.append(LabDiscordanceAlert(
                 id: "discordance-a1c-insulin",
                 title: "Normal HbA1c masking rising insulin resistance",
-                detail: "HbA1c (\(LabInsightsRule.number(a1c))%) is still normal because elevated insulin is compensating — act on fasting insulin / HOMA-IR early."))
+                detail: "HbA1c (\(LabInsightsRule.number(a1c))%) is still normal because elevated insulin is compensating — act on fasting insulin / HOMA-IR early.",
+                markerIDs: ["hba1c", "fasting-insulin", "homa-ir"]))
         }
         if let ferr = val("ferritin"), let tsat = val("tsat"), let crp = val("hs-crp"),
            ferr >= 70, tsat < 20, crp >= 1.5 {
             alerts.append(LabDiscordanceAlert(
                 id: "discordance-ferritin-inflammation",
                 title: "Inflammation inflating ferritin while iron saturation is low",
-                detail: "hs-CRP (\(LabInsightsRule.number(crp)) mg/L) is elevating ferritin (\(LabInsightsRule.number(ferr)) ng/mL) as an acute-phase reactant while TSAT (\(LabInsightsRule.number(tsat))%) indicates iron deficiency."))
+                detail: "hs-CRP (\(LabInsightsRule.number(crp)) mg/L) is elevating ferritin (\(LabInsightsRule.number(ferr)) ng/mL) as an acute-phase reactant while TSAT (\(LabInsightsRule.number(tsat))%) indicates iron deficiency.",
+                markerIDs: ["ferritin", "tsat", "hs-crp"]))
         }
         return alerts
     }
 
     // MARK: - Private Signature Matching
 
+    private static func holdsCondition(_ condition: LabCondition, _ sameDraw: [String: LabResult],
+                                       drawsByID: [Int: LabDrawDraft], catalogue: LabCatalogue,
+                                       preferences: LabPreferences) -> Bool {
+        guard let result = sameDraw[condition.marker], let marker = catalogue.marker(condition.marker) else { return false }
+        if let raw = condition.value {
+            guard let value = result.defaultValue ?? (marker.isUnitlessRatio ? result.value : nil) else { return false }
+            let limit: Double
+            if let unit = condition.unit {
+                guard let conv = marker.toDefault(raw, unit: unit) else { return false }
+                limit = conv
+            } else {
+                limit = raw
+            }
+            switch condition.op {
+            case ">": return value > limit
+            case ">=": return value >= limit
+            case "<": return value < limit
+            case "<=": return value <= limit
+            default: return false
+            }
+        }
+        let reading = LabReader.read(result: result, marker: marker, preferences: preferences, draw: drawsByID[result.drawID])
+        switch condition.op {
+        case "high", "positive":
+            return reading.status == .high
+        case "low", "suppressed":
+            return reading.status == .low
+        case "veryLow":
+            return reading.status == .low && (reading.tier == .criticalLow || reading.tier == .suboptimalLow)
+        case "normal", "optimal":
+            return reading.status == .optimal || reading.status == .disputed
+        case "lowNormal", "lowOrLowNormal", "lowerThird":
+            return reading.status == .low || reading.tier == .watchLow
+        case "abnormal":
+            return reading.status == .low || reading.status == .high
+        default:
+            return false
+        }
+    }
+
     private static func matchesPrimarySignature(_ sig: LabPrimarySignature, results: [String: LabResult],
-                                                catalogue: LabCatalogue, preferences: LabPreferences, draw: LabDrawDraft?) -> Bool {
+                                                drawsByID: [Int: LabDrawDraft], catalogue: LabCatalogue,
+                                                preferences: LabPreferences) -> Bool {
         guard !sig.conditions.isEmpty else { return false }
         let matched = sig.conditions.filter { cond in
             matchesConditionText(target: cond.target, text: cond.state, scale: cond.scaleFactor,
-                                 results: results, catalogue: catalogue, preferences: preferences, draw: draw)
+                                 results: results, drawsByID: drawsByID, catalogue: catalogue, preferences: preferences)
         }.count
         switch sig.operator.uppercased() {
         case "OR":
@@ -165,10 +262,11 @@ public enum LabPatternEvaluator {
     }
 
     private static func matchesConditionText(target: String?, text: String, scale: Double, results: [String: LabResult],
-                                             catalogue: LabCatalogue, preferences: LabPreferences, draw: LabDrawDraft?) -> Bool {
+                                             drawsByID: [Int: LabDrawDraft], catalogue: LabCatalogue,
+                                             preferences: LabPreferences) -> Bool {
         guard let target, let res = results[target], let marker = catalogue.marker(target) else { return false }
         let val = res.defaultValue ?? res.value
-        let reading = LabReader.read(result: res, marker: marker, preferences: preferences, draw: draw)
+        let reading = LabReader.read(result: res, marker: marker, preferences: preferences, draw: drawsByID[res.drawID])
         let lowText = text.lowercased()
 
         // Explicit numeric comparisons first (< N, <= N, > N, >= N, A - B)

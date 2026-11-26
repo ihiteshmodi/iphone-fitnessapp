@@ -23,3 +23,14 @@ Feature: Bloodwork dashboard
   Scenario: With no complete draw, the closest one is shown
     Given a 3 May draw with every PhenoAge input but hs-CRP, and a newer 1 Oct draw with only glucose
     Then the card names the 3 May draw and says only hs-CRP is missing
+
+  Scenario: Tested markers dashboard uses strictly the latest value per marker across split draws and ignores superseded values
+    Given Draw 1 (2025-09-27) had MPV 7.2 fL and Platelets 140000 per uL
+    And Draw 2 (2026-05-03) updated MPV to 8.8 fL and Platelets to 203000 per uL
+    And Draw 3 (2026-10-02, Lab A) logged Total Testosterone 445 ng/dL and Free Testosterone 10.5 pg/mL
+    And Draw 4 (2026-10-02, Lab B) logged SHBG 58 nmol/L
+    When the latest-per-marker snapshot and dashboard build
+    Then older Draw 1 MPV/Platelets are ignored so "Low MPV + low platelets" does NOT fire
+    And MPV + Platelets reports a clean companion check using the 2026-05-03 values
+    And "High SHBG masking low Free Testosterone" fires across split Draws 3 and 4
+    And every tested marker row carries its Core flag, exact range classification, latest date, and linked interpretations

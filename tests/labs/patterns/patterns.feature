@@ -18,7 +18,8 @@ Feature: Multi-marker ratios, clinical composites, discordance alerts, and 6 pat
     When discordances are evaluated for that draw
     Then all three masking/discordance alerts are returned
 
-  Scenario: Qualitative pattern operators ("high", "normal", "low") fire on the same draw and never mix across old draws
-    Given Draw 1 in 2025 had high CK and Draw 2 in 2026 has high AST and optimal ALT without CK
+  Scenario: Cross-marker rules combine the latest value of each marker across split draws while ignoring older superseded values
+    Given Draw 1 in 2025 had CK 420 U/L, Draw 2 in May 2026 had CK 110 U/L, and Draw 3 in Nov 2026 had AST 44 U/L and ALT 19 U/L
     When LabInsightsRule evaluates patterns
-    Then "Muscle, not liver" does NOT fire from mixed 2025+2026 draws, and fires once CK is also high in the same 2026 draw
+    Then "Muscle, not liver" does NOT fire because latest CK is 110 U/L (superseding 2025 CK 420)
+    And when a newer Draw 4 logs CK 380 U/L alone, "Muscle, not liver" fires by combining latest CK (Draw 4) with latest AST and ALT (Draw 3)

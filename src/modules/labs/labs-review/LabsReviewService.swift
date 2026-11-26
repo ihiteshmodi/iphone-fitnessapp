@@ -63,26 +63,25 @@ public struct LabsReviewService {
         }
 
         let allDraws = try draws.draws()
-        var newestResults: [LabResult] = []
-        if let newest = allDraws.first {
-            newestResults = try draws.results(inDraw: newest.id)
-            let ctx = try? LabNonBloodContext.load(from: db, on: newest.draft.date)
-            let patterns = try LabPatternEvaluator.evaluate(drawID: newest.id, draws: draws, catalogue: catalogue, preferences: preferences, context: ctx)
-            if !patterns.isEmpty {
-                lines.append("# Active multi-marker patterns")
-                for pat in patterns {
-                    let phenos = pat.matchedPhenotypes.map(\.name).joined(separator: ", ")
-                    lines.append("- \(pat.name)\(phenos.isEmpty ? "" : " (\(phenos))")")
-                    for guardLine in pat.interventions.whatNotToDo.prefix(2) { lines.append("  - Guardrail: \(guardLine)") }
-                }
-                lines.append("")
+        let snapshot = try LabLatestSnapshot.build(catalogue: catalogue, db: db, draws: draws,
+                                                   preferences: preferences, genotypes: genotypes)
+        let newestResults = snapshot.testedRows.map(\.result)
+        if !snapshot.activePatterns.isEmpty || !snapshot.simplePatterns.isEmpty {
+            lines.append("# Active multi-marker patterns")
+            for pat in snapshot.activePatterns {
+                let phenos = pat.matchedPhenotypes.map(\.name).joined(separator: ", ")
+                lines.append("- \(pat.name)\(phenos.isEmpty ? "" : " (\(phenos))")")
+                for guardLine in pat.interventions.whatNotToDo.prefix(2) { lines.append("  - Guardrail: \(guardLine)") }
             }
-            let discordances = LabPatternEvaluator.discordances(in: newestResults, catalogue: catalogue, preferences: preferences)
-            if !discordances.isEmpty {
-                lines.append("# Cross-marker discordances")
-                for d in discordances { lines.append("- \(d.title): \(d.detail)") }
-                lines.append("")
+            for simple in snapshot.simplePatterns {
+                lines.append("- \(simple.name) [\(simple.contributingSummary)]: \(simple.detail)")
             }
+            lines.append("")
+        }
+        if !snapshot.discordances.isEmpty {
+            lines.append("# Cross-marker discordances")
+            for d in snapshot.discordances { lines.append("- \(d.title): \(d.detail)") }
+            lines.append("")
         }
 
         if !genotypes.isEmpty {

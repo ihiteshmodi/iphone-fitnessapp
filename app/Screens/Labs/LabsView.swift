@@ -10,6 +10,7 @@ final class LabsModel: ObservableObject {
     @Published private(set) var validityCounts: [Int: Int] = [:]
     @Published private(set) var doctorItems: [Insight] = []
     @Published private(set) var activePatterns: [LabPatternMatch] = []
+    @Published private(set) var simplePatterns: [LabSimplePatternMatch] = []
     @Published private(set) var discordances: [LabDiscordanceAlert] = []
     @Published private(set) var genotypes: [GenotypeEntry] = []
     @Published private(set) var coreSummary: CoreBloodworkSummary?
@@ -55,17 +56,9 @@ final class LabsModel: ObservableObject {
             doctorItems = try services.insights.labs(on: today).filter {
                 $0.severity == .fix && ($0.ruleID.hasPrefix("lab-doctor") || $0.ruleID.hasPrefix("lab-gene"))
             }
-
-            if let newest = draws.first {
-                let newestResults = try draw.results(inDraw: newest.id)
-                let ctx = try? LabNonBloodContext.load(from: services.db, on: newest.draft.date)
-                activePatterns = try LabPatternEvaluator.evaluate(drawID: newest.id, draws: draw, catalogue: catalogue,
-                                                                  preferences: prefs, context: ctx)
-                discordances = LabPatternEvaluator.discordances(in: newestResults, catalogue: catalogue, preferences: prefs)
-            } else {
-                activePatterns = []
-                discordances = []
-            }
+            activePatterns = dashboard?.snapshot.activePatterns ?? []
+            simplePatterns = dashboard?.snapshot.simplePatterns ?? []
+            discordances = dashboard?.snapshot.discordances ?? []
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -137,7 +130,7 @@ struct LabsView: View {
                 }
                 actions
                 if !model.activePatterns.isEmpty { activePatternsSection }
-                if !model.discordances.isEmpty { discordancesSection }
+                if !model.discordances.isEmpty || !model.simplePatterns.isEmpty { discordancesSection }
                 if let dashboard = model.dashboard {
                     biologicalAgeCard(dashboard.biologicalAge, from: dashboard.biologicalAgeDraw)
                     if !dashboard.systems.isEmpty { systemsSection(dashboard.systems) }
@@ -231,11 +224,20 @@ struct LabsView: View {
 
     private var discordancesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("Cross-marker checks")
+            SectionLabel("Cross-marker checks (latest values)")
             ForEach(model.discordances) { disc in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(disc.title).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.amber)
                     Text(disc.detail).font(.system(size: 12)).foregroundColor(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            ForEach(model.simplePatterns) { item in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.name).font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(item.isUrgentDoctor ? Theme.red : Theme.amber)
+                    Text("\(item.contributingSummary) — \(item.detail)")
+                        .font(.system(size: 12)).foregroundColor(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -274,10 +276,24 @@ struct LabsView: View {
     }
 
     private var actions: some View {
-        VStack(spacing: 8) {
+        let testedCount = model.dashboard?.snapshot.testedRows.count ?? 0
+        return VStack(spacing: 8) {
             Button("+ Add a draw") { addingDraw = true }
                 .buttonStyle(PrimaryButtonStyle())
                 .accessibilityIdentifier("labs-add-draw")
+            NavigationLink {
+                BloodworkDashboardView(model: model)
+            } label: {
+                HStack {
+                    Image(systemName: "chart.bar.doc.horizontal")
+                    Text(testedCount > 0 ? "Dashboard · \(testedCount) tested markers & interpretations" : "Dashboard · tested markers & interpretations")
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.system(size: 12))
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle(ghost: true))
+            .font(.system(size: 13, weight: .semibold))
+            .accessibilityIdentifier("labs-open-dashboard")
             HStack(spacing: 8) {
                 NavigationLink("Plan draw") {
                     PlanDrawView(catalogue: model.catalogue, draws: model.draw, sex: model.sex,

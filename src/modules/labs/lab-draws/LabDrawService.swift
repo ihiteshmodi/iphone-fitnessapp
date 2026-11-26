@@ -265,6 +265,23 @@ public final class LabDrawService {
         return stored + LabCalculator(catalogue: catalogue).calculate(from: stored)
     }
 
+    /// Strictly the newest logged result per marker across all draws (plus derived formulas when inputs span split draws).
+    public func latestResultsSnapshot() throws -> (byMarker: [String: LabResult], drawsByID: [Int: LabDrawDraft], newestDate: ISODate?) {
+        let allDraws = try draws()
+        let drawsByID = Dictionary(uniqueKeysWithValues: allDraws.map { ($0.id, $0.draft) })
+        var latest: [String: LabResult] = [:]
+        for item in allDraws {
+            for res in try results(inDraw: item.id) where latest[res.markerID] == nil {
+                latest[res.markerID] = res
+            }
+        }
+        let calculated = LabCalculator(catalogue: catalogue).calculate(from: Array(latest.values))
+        for calc in calculated where latest[calc.markerID] == nil {
+            latest[calc.markerID] = calc
+        }
+        return (latest, drawsByID, allDraws.first?.draft.date)
+    }
+
     private func results(where clause: String, _ params: [SQLValue]) throws -> [LabResult] {
         try db.query("""
             SELECT r.*, d.draw_date FROM lab_results r JOIN lab_draws d ON d.id = r.draw_id

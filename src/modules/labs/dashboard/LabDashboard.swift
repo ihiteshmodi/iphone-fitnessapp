@@ -35,6 +35,221 @@ public struct MarkerSeries: Equatable {
     public let points: [TrendPoint]
 }
 
+public enum LabRangeClassification: String, Equatable {
+    case optimal
+    case withinLabBelowOptimal
+    case withinLabAboveOptimal
+    case belowLabRange
+    case aboveLabRange
+    case low
+    case high
+    case disputed
+    case withinLabNoOptimal
+    case recorded
+
+    public var title: String {
+        switch self {
+        case .optimal: return "Optimal"
+        case .withinLabBelowOptimal: return "In lab range · below optimal"
+        case .withinLabAboveOptimal: return "In lab range · above optimal"
+        case .belowLabRange: return "Low · below lab range"
+        case .aboveLabRange: return "High · above lab range"
+        case .low: return "Low"
+        case .high: return "High"
+        case .disputed: return "Disputed zone"
+        case .withinLabNoOptimal: return "Within lab range"
+        case .recorded: return "Recorded"
+        }
+    }
+}
+
+public struct LabSimplePatternMatch: Equatable, Identifiable {
+    public let id: String
+    public let name: String
+    public let markerIDs: [String]
+    public let contributingSummary: String
+    public let detail: String
+    public let isUrgentDoctor: Bool
+    public let newestDate: ISODate
+    public let source: String?
+
+    public init(id: String, name: String, markerIDs: [String], contributingSummary: String, detail: String,
+                isUrgentDoctor: Bool, newestDate: ISODate, source: String? = nil) {
+        self.id = id
+        self.name = name
+        self.markerIDs = markerIDs
+        self.contributingSummary = contributingSummary
+        self.detail = detail
+        self.isUrgentDoctor = isUrgentDoctor
+        self.newestDate = newestDate
+        self.source = source
+    }
+}
+
+public struct LabCompanionCheckSummary: Equatable, Identifiable {
+    public let id: String
+    public let title: String
+    public let markerIDs: [String]
+    public let summary: String
+}
+
+public struct LabTestedMarkerRow: Equatable, Identifiable {
+    public var id: String { marker.id }
+    public let marker: LabMarker
+    public let result: LabResult
+    public let labName: String?
+    public let isCore: Bool
+    public let reading: LabReading
+    public let rangeClassification: LabRangeClassification
+    public let interpretations: [String]
+}
+
+public struct LabLatestSnapshot: Equatable {
+    public let testedRows: [LabTestedMarkerRow]
+    public let activePatterns: [LabPatternMatch]
+    public let simplePatterns: [LabSimplePatternMatch]
+    public let discordances: [LabDiscordanceAlert]
+    public let epistaticMatches: [LabGeneticEpistaticMatch]
+    public let cleanCompanionChecks: [LabCompanionCheckSummary]
+
+    public static let empty = LabLatestSnapshot(testedRows: [], activePatterns: [], simplePatterns: [],
+                                                discordances: [], epistaticMatches: [], cleanCompanionChecks: [])
+
+    private static let companionGroups: [(id: String, title: String, markers: [String])] = [
+        ("mpv-platelets", "MPV + Platelets check", ["mpv", "platelets"]),
+        ("sex-hormones-shbg", "Total T + Free T + SHBG check", ["total-testosterone", "free-testosterone", "shbg"]),
+        ("iron-storage-sat", "Ferritin + Iron + TSAT check", ["ferritin", "tsat"]),
+        ("thyroid-axis", "TSH + Free T4 + Free T3 check", ["tsh", "free-t4", "free-t3"]),
+        ("lipids-apob", "LDL-C + ApoB particle check", ["ldl-c", "apob"]),
+        ("kidney-filtration", "Creatinine + eGFR / Cystatin C check", ["creatinine", "egfr"]),
+        ("glycemic-pair", "Fasting Glucose + HbA1c check", ["glucose", "hba1c"]),
+        ("liver-transaminases", "AST + ALT transaminase check", ["ast", "alt"]),
+        ("vitamin-d-calcium", "25-OH Vitamin D + Calcium check", ["vitamin-d", "calcium"]),
+        ("b12-methylation", "B12 + Homocysteine / MMA check", ["b12", "homocysteine"]),
+    ]
+
+    public static func build(catalogue: LabCatalogue, db: Database, draws: LabDrawService,
+                             preferences: LabPreferences, genotypes: [GenotypeEntry]) throws -> LabLatestSnapshot {
+        let (byMarker, drawsByID, newestDate) = try draws.latestResultsSnapshot()
+        guard !byMarker.isEmpty else { return .empty }
+
+        let latestValues = Array(byMarker.values)
+        let ctx = newestDate.flatMap { try? LabNonBloodContext.load(from: db, on: $0) }
+        let activePatterns = LabPatternEvaluator.evaluateLatest(
+            resultsByMarker: byMarker, drawsByID: drawsByID, fallbackDate: newestDate,
+            catalogue: catalogue, preferences: preferences, context: ctx)
+        let simplePatterns = LabPatternEvaluator.evaluateSimplePatterns(
+            resultsByMarker: byMarker, drawsByID: drawsByID, catalogue: catalogue, preferences: preferences)
+        let discordances = LabPatternEvaluator.discordances(in: latestValues, catalogue: catalogue, preferences: preferences)
+        let epistatic = GeneticsModifierEvaluator.evaluateEpistaticGrid(results: latestValues, genotypes: genotypes, preferences: preferences)
+
+        var flaggedMarkerIDs: Set<String> = []
+        for s in simplePatterns { flaggedMarkerIDs.formUnion(s.markerIDs) }
+        for d in discordances { flaggedMarkerIDs.formUnion(d.markerIDs) }
+        for pat in activePatterns {
+            if let req = catalogue.patterns.first(where: { $0.engine?.slug == pat.id })?.engine?.markersRequired {
+                flaggedMarkerIDs.formUnion(req)
+            }
+        }
+
+        var cleanChecks: [LabCompanionCheckSummary] = []
+        for group in companionGroups {
+            let present = group.markers.filter { byMarker[$0] != nil }
+            guard present.count == group.markers.count else { continue }
+            guard flaggedMarkerIDs.isDisjoint(with: present) else { continue }
+            let parts = present.compactMap { mid -> String? in
+                guard let res = byMarker[mid] else { return nil }
+                let mName = catalogue.marker(mid)?.name ?? mid
+                let valText = res.textValue ?? "\(LabInsightsRule.number(res.value))\(res.unit.isEmpty ? "" : " \(res.unit)")"
+                return "\(mName) \(valText) (\(res.date.dayMonthYear))"
+            }
+            cleanChecks.append(LabCompanionCheckSummary(
+                id: group.id,
+                title: "\(group.title): Clear",
+                markerIDs: present,
+                summary: "Checked \(parts.joined(separator: " + ")): no cross-marker discordance or red-flag pattern triggered."))
+        }
+
+        let visibleMarkers = catalogue.visibleMarkers(for: preferences.sex)
+        let rows: [LabTestedMarkerRow] = visibleMarkers.compactMap { marker in
+            guard let res = byMarker[marker.id] else { return nil }
+            let draft = drawsByID[res.drawID]
+            let reading = LabReader.read(result: res, marker: marker, preferences: preferences, draw: draft, genotypes: genotypes)
+            let classification = classify(result: res, marker: marker, reading: reading, sex: preferences.sex)
+            let isCore = CoreBloodworkGuide.isCoreMarker(marker.id, catalogue: catalogue, sex: preferences.sex)
+
+            var notes: [String] = []
+            notes += reading.doctorLines.map { "\($0.urgency.title): \($0.text)" }
+            notes += reading.geneticNotes
+            for d in discordances where d.markerIDs.contains(marker.id) {
+                notes.append("\(d.title): \(d.detail)")
+            }
+            for s in simplePatterns where s.markerIDs.contains(marker.id) {
+                notes.append("\(s.name): \(s.detail)")
+            }
+            for pat in activePatterns {
+                let req = catalogue.patterns.first(where: { $0.engine?.slug == pat.id })?.engine?.markersRequired ?? []
+                if req.contains(marker.id) {
+                    let phenos = pat.matchedPhenotypes.map(\.name).joined(separator: ", ")
+                    notes.append("Pattern: \(pat.name)\(phenos.isEmpty ? "" : " (\(phenos))")")
+                }
+            }
+            if notes.isEmpty {
+                for clean in cleanChecks where clean.markerIDs.contains(marker.id) {
+                    notes.append(clean.title)
+                }
+            }
+            return LabTestedMarkerRow(marker: marker, result: res, labName: draft?.lab, isCore: isCore,
+                                      reading: reading, rangeClassification: classification, interpretations: notes)
+        }
+
+        return LabLatestSnapshot(testedRows: rows, activePatterns: activePatterns, simplePatterns: simplePatterns,
+                                 discordances: discordances, epistaticMatches: epistatic, cleanCompanionChecks: cleanChecks)
+    }
+
+    private static func classify(result: LabResult, marker: LabMarker, reading: LabReading, sex: LabSex) -> LabRangeClassification {
+        let val = reading.value ?? result.defaultValue
+        let labBands = marker.visibleBands(for: sex).filter { $0.kind == "lab" && $0.condition == nil }
+        let toDef = { (bound: Double?, unit: String?) -> Double? in
+            guard let bound else { return nil }
+            if let unit { return marker.toDefault(bound, unit: unit) }
+            return marker.isUnitlessRatio ? bound : nil
+        }
+        let stdLow: Double? = reading.activeStratum?.standardLow
+            ?? labBands.compactMap { toDef($0.low, $0.unit) }.min()
+            ?? result.labLow.flatMap { marker.toDefault($0, unit: result.unit) ?? $0 }
+        let stdHigh: Double? = reading.activeStratum?.standardHigh
+            ?? labBands.compactMap { toDef($0.high, $0.unit) }.max()
+            ?? result.labHigh.flatMap { marker.toDefault($0, unit: result.unit) ?? $0 }
+
+        switch reading.status {
+        case .optimal:
+            return .optimal
+        case .disputed:
+            return .disputed
+        case .low:
+            if let val, let stdLow {
+                return val >= stdLow ? .withinLabBelowOptimal : .belowLabRange
+            }
+            return .low
+        case .high:
+            if let val, let stdHigh {
+                return val <= stdHigh ? .withinLabAboveOptimal : .aboveLabRange
+            }
+            return .high
+        case .noOptimalBand:
+            if let val {
+                if let stdLow, val < stdLow { return .belowLabRange }
+                if let stdHigh, val > stdHigh { return .aboveLabRange }
+                if stdLow != nil || stdHigh != nil { return .withinLabNoOptimal }
+            }
+            return .recorded
+        case .notComparable:
+            return .recorded
+        }
+    }
+}
+
 /// The bloodwork dashboard: one tile per chapter, the heart-risk markers, hormones over time and biological age.
 public struct LabDashboard {
     public static let heartMarkers = ["apob", "lpa", "hs-crp", "blood-pressure", "cac-score"]
@@ -46,6 +261,7 @@ public struct LabDashboard {
     public let biologicalAge: PhenoAgeOutcome?
     /// The draw biological age was worked out from, or the one closest to complete.
     public let biologicalAgeDraw: ISODate?
+    public let snapshot: LabLatestSnapshot
 
     public static func build(catalogue: LabCatalogue, db: Database, today: ISODate) throws -> LabDashboard {
         let preferences = try LabSettings(db).load()
@@ -90,7 +306,10 @@ public struct LabDashboard {
         let hormones = hormoneMarkers.compactMap(catalogue.marker).filter { history[$0.id] != nil }
             .map { MarkerSeries(marker: $0, points: series($0, history)) }
         let age = try biologicalAge(draws: draws, birthDate: preferences.birthDate)
-        return LabDashboard(systems: systems, heart: heart, hormones: hormones, biologicalAge: age?.outcome, biologicalAgeDraw: age?.date)
+        let snapshot = try LabLatestSnapshot.build(catalogue: catalogue, db: db, draws: draws,
+                                                   preferences: preferences, genotypes: genotypes)
+        return LabDashboard(systems: systems, heart: heart, hormones: hormones, biologicalAge: age?.outcome,
+                            biologicalAgeDraw: age?.date, snapshot: snapshot)
     }
 
     private static func series(_ marker: LabMarker, _ history: [String: [LabResult]]) -> [TrendPoint] {

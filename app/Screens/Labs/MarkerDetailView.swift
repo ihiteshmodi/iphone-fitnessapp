@@ -202,11 +202,28 @@ struct MarkerDetailView: View {
         let drawsByID = Dictionary(uniqueKeysWithValues: model.draws.map { ($0.id, $0.draft) })
         return LabLongitudinalTracker.summarize(marker: marker, history: history, drawsByID: drawsByID)
     }
+    private var markerCrossChecks: [(title: String, detail: String, isClean: Bool)] {
+        guard let snap = model.dashboard?.snapshot else { return [] }
+        var out: [(String, String, Bool)] = []
+        for d in snap.discordances where d.markerIDs.contains(marker.id) {
+            out.append((d.title, d.detail, false))
+        }
+        for s in snap.simplePatterns where s.markerIDs.contains(marker.id) {
+            out.append((s.name, "\(s.contributingSummary) — \(s.detail)", false))
+        }
+        for clean in snap.cleanCompanionChecks where clean.markerIDs.contains(marker.id) {
+            out.append((clean.title, clean.summary, true))
+        }
+        return out
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 header
+                if !markerCrossChecks.isEmpty {
+                    crossChecksCard
+                }
                 if let notes = reading?.geneticNotes, !notes.isEmpty {
                     listCard("Active genetic modifiers", notes)
                 }
@@ -358,6 +375,26 @@ struct MarkerDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+    }
+
+    private var crossChecksCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel("Combined & companion checks (latest values)")
+            ForEach(Array(markerCrossChecks.enumerated()), id: \.offset) { _, check in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(check.isClean ? "✓ \(check.title)" : "• \(check.title)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(check.isClean ? Theme.green : Theme.amber)
+                    Text(check.detail)
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityIdentifier("labs-marker-cross-checks")
     }
 
     private func longitudinalCard(_ summary: LabLongitudinalSummary) -> some View {

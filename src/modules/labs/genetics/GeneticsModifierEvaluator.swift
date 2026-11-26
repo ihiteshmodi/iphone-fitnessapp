@@ -284,6 +284,7 @@ public enum GeneticsModifierEvaluator {
                                         latestDraw: LabDrawDraft?) -> [Insight] {
         guard !genotypes.isEmpty else { return [] }
         let diet = DietSnapshot.load(from: db, on: today)
+        let byResult = Dictionary(uniqueKeysWithValues: latestResults.map { ($0.markerID, $0) })
         let byMarker = Dictionary(uniqueKeysWithValues: latestResults.map { ($0.markerID, $0.defaultValue ?? $0.value) })
         let drawDay = latestDraw?.date
         var out: [Insight] = []
@@ -341,7 +342,7 @@ public enum GeneticsModifierEvaluator {
 
             // 3. Category 2 — Marker Shifts (FUT2 missing MMA reminder, LCT dairy collision)
             if entry.gene.actionCategory == .markerShift {
-                if gid == "fut2", byMarker["b12"] != nil, byMarker["mma"] == nil {
+                if gid == "fut2", let b12Res = byResult["b12"], (byResult["mma"] == nil || byResult["mma"]!.date < b12Res.date) {
                     out.append(Insight(
                         ruleID: "lab-gene-shift-fut2", kind: .labs, severity: .improve,
                         title: "FUT2 non-secretor: pair Serum B12 with MMA",

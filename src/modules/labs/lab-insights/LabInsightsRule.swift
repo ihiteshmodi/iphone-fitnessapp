@@ -43,27 +43,33 @@ private struct Evaluation {
             let sameDraw = (try? draws.results(inDraw: result.drawID)) ?? []
             items += readingItems(marker, result, preferences: prefs, draw: drawDraft, sameDrawResults: sameDraw, genotypes: genotypes)
         }
-        var newestResults: [LabResult] = []
-        if let newestDraw = allDraws.first {
-            let sameDrawResults = try draws.results(inDraw: newestDraw.id)
-            newestResults = sameDrawResults
-            let sameDrawMap = Dictionary(uniqueKeysWithValues: sameDrawResults.map { ($0.markerID, $0) })
-            if let cytopenia = multilineageCytopeniaItem(sameDrawMap, preferences: prefs, draw: newestDraw.draft) {
+        let (latestByMarker, drawsByID, newestDate) = try draws.latestResultsSnapshot()
+        let newestResults = Array(latestByMarker.values)
+        if !latestByMarker.isEmpty, let refDate = newestDate {
+            let latestDraft = allDraws.first?.draft ?? LabDrawDraft(date: refDate)
+            if let cytopenia = multilineageCytopeniaItem(latestByMarker, drawsByID: drawsByID, preferences: prefs, fallbackDate: refDate) {
                 items.append(cytopenia)
             }
-            items += patternItems(sameDrawMap, preferences: prefs, draw: newestDraw.draft)
-            let ctx = try? LabNonBloodContext.load(from: db, on: newestDraw.draft.date)
-            for match in try LabPatternEvaluator.evaluate(drawID: newestDraw.id, draws: draws, catalogue: catalogue, preferences: prefs, context: ctx) {
+            for simple in LabPatternEvaluator.evaluateSimplePatterns(resultsByMarker: latestByMarker, drawsByID: drawsByID,
+                                                                     catalogue: catalogue, preferences: prefs) {
+                items.append(Insight(ruleID: simple.isUrgentDoctor ? "lab-doctor-pattern-\(simple.id)" : "lab-pattern-\(simple.id)",
+                                     kind: .labs, severity: simple.isUrgentDoctor ? .fix : .improve, title: simple.name,
+                                     detail: simple.detail, why: simple.source.map { "Vault \($0)" } ?? "Vault pattern", day: simple.newestDate))
+            }
+            let ctx = try? LabNonBloodContext.load(from: db, on: refDate)
+            for match in LabPatternEvaluator.evaluateLatest(resultsByMarker: latestByMarker, drawsByID: drawsByID, fallbackDate: refDate,
+                                                            catalogue: catalogue, preferences: prefs, context: ctx) {
                 let phenoNames = match.matchedPhenotypes.map(\.name)
                 let header = phenoNames.isEmpty ? match.name : "\(match.name) (\(phenoNames.joined(separator: ", ")))"
                 let bullets = match.contextNotes + match.interventions.tier1Foundations.prefix(3)
                 items.append(Insight(ruleID: "lab-engine-\(match.id)", kind: .labs, severity: .improve, title: header,
-                                     detail: LabInsightsRule.lines("Pattern matched on \(match.drawDate.dayMonthYear).", Array(bullets)),
+                                     detail: LabInsightsRule.lines("Pattern matched across latest markers (\(match.drawDate.dayMonthYear)).", Array(bullets)),
                                      why: "Clinical pattern engine", day: match.drawDate))
             }
-            for disc in LabPatternEvaluator.discordances(in: sameDrawResults, catalogue: catalogue, preferences: prefs) {
+            for disc in LabPatternEvaluator.discordances(in: newestResults, catalogue: catalogue, preferences: prefs) {
+                let dDay = disc.markerIDs.compactMap { latestByMarker[$0]?.date }.max() ?? latestDraft.date
                 items.append(Insight(ruleID: "lab-\(disc.id)", kind: .labs, severity: .improve, title: disc.title,
-                                     detail: disc.detail, why: "Cross-marker discordance rule", day: newestDraw.draft.date))
+                                     detail: disc.detail, why: "Cross-marker discordance rule", day: dDay))
             }
         }
         items += genotypes.compactMap { entry in
@@ -154,90 +160,32 @@ private struct Evaluation {
         return lines
     }
 
-    private func multilineageCytopeniaItem(_ sameDraw: [String: LabResult], preferences: LabPreferences, draw: LabDrawDraft) -> Insight? {
+    private func multilineageCytopeniaItem(_ sameDraw: [String: LabResult], drawsByID: [Int: LabDrawDraft],
+                                           preferences: LabPreferences, fallbackDate: ISODate) -> Insight? {
         guard !catalogue.patterns.contains(where: { $0.id == "pancytopenia" && $0.computable != false }) else { return nil }
         let redResult = sameDraw["hemoglobin"] ?? sameDraw["rbc"]
         guard let red = redResult, let redMarker = catalogue.marker(red.markerID),
               let wbc = sameDraw["wbc"], let wbcMarker = catalogue.marker("wbc"),
               let plt = sameDraw["platelets"], let pltMarker = catalogue.marker("platelets") else { return nil }
         let isBelowLab: (LabResult, LabMarker) -> Bool = { res, m in
-            let r = LabReader.read(result: res, marker: m, preferences: preferences, draw: draw)
+            let r = LabReader.read(result: res, marker: m, preferences: preferences, draw: drawsByID[res.drawID])
             if let stdLow = r.activeStratum?.standardLow { return (res.defaultValue ?? res.value) < stdLow }
             if let labLow = m.visibleBands(for: sex).first(where: { $0.kind == "lab" })?.low { return (res.defaultValue ?? res.value) < labLow }
             return r.status == .low
         }
         guard isBelowLab(red, redMarker), isBelowLab(wbc, wbcMarker), isBelowLab(plt, pltMarker) else { return nil }
+        let newest = [red.date, wbc.date, plt.date].max() ?? fallbackDate
         return Insight(
             ruleID: "lab-doctor-multilineage-cytopenia",
             kind: .labs,
             severity: .fix,
             title: "Within a few days: All three blood cell lines low",
             detail: LabInsightsRule.lines(
-                "Concurrent low red cells/hemoglobin, WBC, and platelets on \(draw.date.dayMonthYear).",
+                "Concurrent low red cells/hemoglobin, WBC, and platelets (latest \(newest.dayMonthYear)).",
                 ["Prompt physician evaluation within a few days (same-day ER if fever, bleeding, or severe fatigue).",
                  "Specialists: Hematology"]),
             why: "Global red-flag hematology threshold",
-            day: draw.date)
-    }
-
-    private func patternItems(_ sameDraw: [String: LabResult], preferences: LabPreferences, draw: LabDrawDraft) -> [Insight] {
-        catalogue.patterns.filter { $0.computable != false && $0.engine == nil }.compactMap { pattern in
-            guard let conditions = pattern.conditions, !conditions.isEmpty else { return nil }
-            let applicable = conditions.filter { sex.allows(sex: $0.sex) }
-            let held = applicable.filter { holds($0, sameDraw, preferences: preferences, draw: draw) }
-            let needed: Int
-            switch pattern.needed ?? .all {
-            case .all: needed = applicable.count
-            case .any: needed = 1
-            case .count(let n): needed = n
-            }
-            guard !applicable.isEmpty, held.count >= needed else { return nil }
-            let newest = applicable.compactMap { sameDraw[$0.marker]?.date }.max()
-            let detail = ([pattern.meaning] + (pattern.whatToDo ?? []) + [pattern.repeatText]).compactMap { $0 }.joined(separator: " ")
-            let isUrgentDoctor = pattern.doctor != nil && (pattern.id == "pancytopenia" || pattern.id == "ketoacidosis-signal")
-            return Insight(ruleID: isUrgentDoctor ? "lab-doctor-pattern-\(pattern.id)" : "lab-pattern-\(pattern.id)",
-                           kind: .labs, severity: isUrgentDoctor ? .fix : .improve, title: pattern.name,
-                           detail: pattern.doctor.map { "\(detail) \($0)" } ?? detail,
-                           why: pattern.source.map { "Vault \($0)" } ?? "Vault pattern", day: newest)
-        }
-    }
-
-    private func holds(_ condition: LabCondition, _ sameDraw: [String: LabResult], preferences: LabPreferences, draw: LabDrawDraft) -> Bool {
-        guard let result = sameDraw[condition.marker], let marker = catalogue.marker(condition.marker) else { return false }
-        if let raw = condition.value {
-            guard let value = result.defaultValue ?? (marker.isUnitlessRatio ? result.value : nil) else { return false }
-            let limit: Double
-            if let unit = condition.unit {
-                guard let conv = marker.toDefault(raw, unit: unit) else { return false }
-                limit = conv
-            } else {
-                limit = raw
-            }
-            switch condition.op {
-            case ">": return value > limit
-            case ">=": return value >= limit
-            case "<": return value < limit
-            case "<=": return value <= limit
-            default: return false
-            }
-        }
-        let reading = LabReader.read(result: result, marker: marker, preferences: preferences, draw: draw)
-        switch condition.op {
-        case "high", "positive":
-            return reading.status == .high
-        case "low", "suppressed":
-            return reading.status == .low
-        case "veryLow":
-            return reading.status == .low && (reading.tier == .criticalLow || reading.tier == .suboptimalLow)
-        case "normal", "optimal":
-            return reading.status == .optimal || reading.status == .disputed
-        case "lowNormal", "lowOrLowNormal", "lowerThird":
-            return reading.status == .low || reading.tier == .watchLow
-        case "abnormal":
-            return reading.status == .low || reading.status == .high
-        default:
-            return false
-        }
+            day: newest)
     }
 
     private func shows(_ tag: String?) -> Bool { sex.allows(sex: nil, tag: tag, showDrugNotes: showDrugNotes) }

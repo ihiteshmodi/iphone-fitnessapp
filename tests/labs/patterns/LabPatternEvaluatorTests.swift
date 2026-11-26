@@ -183,18 +183,24 @@ final class LabPatternEvaluatorTests: XCTestCase {
         XCTAssertEqual(alerts.count, 3)
     }
 
-    func testQualitativeMiniPatternsFireOnSameDrawOnlyAndNeverMixOldDraws() throws {
-        let oldDraw = try draws.addDraw(LabDrawDraft(date: date("2025-01-10")))
-        try draws.addResult(drawID: oldDraw, markerID: "ck", value: 420, unit: "U/L")
+    func testCrossMarkerPatternsUseLatestPerMarkerAcrossSplitDrawsAndIgnoreSupersededValues() throws {
+        let draw2025 = try draws.addDraw(LabDrawDraft(date: date("2025-01-10")))
+        try draws.addResult(drawID: draw2025, markerID: "ck", value: 420, unit: "U/L")
 
-        let newDraw = try draws.addDraw(LabDrawDraft(date: date("2026-11-01")))
-        try draws.addResult(drawID: newDraw, markerID: "ast", value: 44, unit: "U/L")
-        try draws.addResult(drawID: newDraw, markerID: "alt", value: 19, unit: "U/L")
+        let drawMay = try draws.addDraw(LabDrawDraft(date: date("2026-05-03")))
+        try draws.addResult(drawID: drawMay, markerID: "ck", value: 110, unit: "U/L")
+
+        let drawNov = try draws.addDraw(LabDrawDraft(date: date("2026-11-01")))
+        try draws.addResult(drawID: drawNov, markerID: "ast", value: 44, unit: "U/L")
+        try draws.addResult(drawID: drawNov, markerID: "alt", value: 19, unit: "U/L")
 
         let insightsSvc = InsightService(db, daily: [], setup: [], labs: [LabInsightsRule(catalogue: catalogue, sex: .male)])
-        XCTAssertFalse(try insightsSvc.labs(on: date("2026-11-02")).contains { $0.title == "Muscle, not liver" })
+        XCTAssertFalse(try insightsSvc.labs(on: date("2026-11-02")).contains { $0.title == "Muscle, not liver" },
+                       "Superseded 2025 CK=420 must be ignored when May 2026 CK=110 is newer")
 
-        try draws.addResult(drawID: newDraw, markerID: "ck", value: 380, unit: "U/L")
-        XCTAssertTrue(try insightsSvc.labs(on: date("2026-11-02")).contains { $0.title == "Muscle, not liver" })
+        let splitCKDraw = try draws.addDraw(LabDrawDraft(date: date("2026-11-02")))
+        try draws.addResult(drawID: splitCKDraw, markerID: "ck", value: 380, unit: "U/L")
+        XCTAssertTrue(try insightsSvc.labs(on: date("2026-11-03")).contains { $0.title == "Muscle, not liver" },
+                      "Latest CK (Draw 4) combines with latest AST & ALT (Draw 3)")
     }
 }

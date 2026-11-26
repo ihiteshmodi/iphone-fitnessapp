@@ -88,4 +88,75 @@ final class DashboardTests: XCTestCase {
         XCTAssertEqual(board.biologicalAge, .missing([.hsCRP]))
         XCTAssertEqual(board.biologicalAgeDraw, date("2026-05-03"))
     }
+
+    func testLatestSnapshotCombinesSplitDrawsIgnoresSupersededValuesAndClassifiesTestedMarkers() throws {
+        let splitJSON = #"""
+        {
+          "markers": [
+            {"id": "mpv", "name": "MPV", "chapter": "CBC", "units": [{"unit": "fL", "default": true}],
+             "bands": [{"label": "Lab", "kind": "lab", "low": 7.5, "high": 11.5, "unit": "fL"},
+                       {"label": "Optimal", "kind": "optimal", "low": 8.5, "high": 11.0, "unit": "fL"}]},
+            {"id": "platelets", "name": "Platelets", "chapter": "CBC",
+             "units": [{"unit": "per µL", "default": true}, {"unit": "x10^3/uL", "toDefault": 1000}],
+             "bands": [{"label": "Lab", "kind": "lab", "low": 150000, "high": 400000, "unit": "per µL"},
+                       {"label": "Optimal", "kind": "optimal", "low": 175000, "high": 300000, "unit": "per µL"}]},
+            {"id": "total-testosterone", "name": "Total Testosterone", "chapter": "Hormones",
+             "units": [{"unit": "ng/dL", "default": true}],
+             "bands": [{"label": "Lab", "kind": "lab", "low": 264, "high": 916, "unit": "ng/dL"},
+                       {"label": "Optimal", "kind": "optimal", "low": 600, "high": 900, "unit": "ng/dL"}]},
+            {"id": "free-testosterone", "name": "Free Testosterone", "chapter": "Hormones",
+             "units": [{"unit": "pg/mL", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 12, "high": 25, "unit": "pg/mL"}]},
+            {"id": "shbg", "name": "SHBG", "chapter": "Hormones",
+             "units": [{"unit": "nmol/L", "default": true}],
+             "bands": [{"label": "Optimal", "kind": "optimal", "low": 20, "high": 45, "unit": "nmol/L"}]}
+          ],
+          "panels": [{"id": "core", "name": "Core", "markers": ["total-testosterone", "shbg"], "when": "first"}],
+          "patterns": [
+            {"id": "mpv-underproduction", "name": "Low MPV + low platelets (underproduction)", "computable": true, "needed": "all",
+             "markers": ["mpv", "platelets"],
+             "conditions": [{"marker": "mpv", "op": "<", "value": 7.5, "unit": "fL"},
+                            {"marker": "platelets", "op": "<", "value": 150000, "unit": "per µL"}],
+             "meaning": "Underproduction."}
+          ]
+        }
+        """#
+        let cat = try LabCatalogue(data: Data(splitJSON.utf8))
+        let localDraws = LabDrawService(db, catalogue: cat)
+
+        // Superseded 2025 draw with low MPV + low Platelets
+        let d1 = try localDraws.addDraw(LabDrawDraft(date: date("2025-09-27"), lab: "Vardhaman Jain Trust"))
+        try localDraws.addResult(drawID: d1, markerID: "mpv", value: 7.2, unit: "fL")
+        try localDraws.addResult(drawID: d1, markerID: "platelets", value: 140000, unit: "per µL")
+
+        // Newer 2026-05-03 draw with healthy MPV + Platelets
+        let d2 = try localDraws.addDraw(LabDrawDraft(date: date("2026-05-03"), lab: "Healthians Labs"))
+        try localDraws.addResult(drawID: d2, markerID: "mpv", value: 8.8, unit: "fL")
+        try localDraws.addResult(drawID: d2, markerID: "platelets", value: 203, unit: "x10^3/uL")
+
+        // Split same-day draws across two labs
+        let d3 = try localDraws.addDraw(LabDrawDraft(date: date("2026-10-02"), lab: "Orange Health Labs"))
+        try localDraws.addResult(drawID: d3, markerID: "total-testosterone", value: 445, unit: "ng/dL")
+        try localDraws.addResult(drawID: d3, markerID: "free-testosterone", value: 10.5, unit: "pg/mL")
+
+        let d4 = try localDraws.addDraw(LabDrawDraft(date: date("2026-10-02"), lab: "Thyrocare"))
+        try localDraws.addResult(drawID: d4, markerID: "shbg", value: 58, unit: "nmol/L")
+
+        let board = try LabDashboard.build(catalogue: cat, db: db, today: date("2026-11-26"))
+        let snap = board.snapshot
+
+        XCTAssertFalse(snap.simplePatterns.contains { $0.id == "mpv-underproduction" }, "Old superseded MPV/Platelets ignored")
+        XCTAssertTrue(snap.cleanCompanionChecks.contains { $0.markerIDs.contains("mpv") && $0.markerIDs.contains("platelets") })
+        XCTAssertTrue(snap.discordances.contains { $0.id == "discordance-shbg-free-t" }, "Split draws combine latest Total T, Free T, and SHBG")
+
+        let ttRow = try XCTUnwrap(snap.testedRows.first { $0.marker.id == "total-testosterone" })
+        XCTAssertTrue(ttRow.isCore)
+        XCTAssertEqual(ttRow.rangeClassification, .withinLabBelowOptimal)
+        XCTAssertTrue(ttRow.interpretations.contains { $0.contains("SHBG") })
+
+        let mpvRow = try XCTUnwrap(snap.testedRows.first { $0.marker.id == "mpv" })
+        XCTAssertFalse(mpvRow.isCore)
+        XCTAssertEqual(mpvRow.rangeClassification, .optimal)
+        XCTAssertEqual(mpvRow.result.date, date("2026-05-03"))
+    }
 }
