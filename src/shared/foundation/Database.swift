@@ -6,6 +6,7 @@ public enum SQLValue: Equatable {
     case int(Int64)
     case double(Double)
     case text(String)
+    case blob(Data)
 }
 
 extension SQLValue: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral, ExpressibleByNilLiteral {
@@ -17,6 +18,8 @@ extension SQLValue: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, Exp
     public static func optional(_ value: String?) -> SQLValue { value.map { .text($0) } ?? .null }
     public static func optional(_ value: Double?) -> SQLValue { value.map { .double($0) } ?? .null }
     public static func optional(_ value: Int?) -> SQLValue { value.map { .int(Int64($0)) } ?? .null }
+    public static func optional(_ value: Int64?) -> SQLValue { value.map { .int($0) } ?? .null }
+    public static func optional(_ value: Data?) -> SQLValue { value.map { .blob($0) } ?? .null }
 }
 
 public struct DatabaseError: Error, CustomStringConvertible, Equatable {
@@ -49,6 +52,19 @@ public struct Row {
 
     public func optionalText(_ name: String) -> String? {
         if case .text(let v) = columns[name] { return v }
+        return nil
+    }
+
+    public func optionalInt64(_ name: String) -> Int64? {
+        switch columns[name] {
+        case .int(let v): return v
+        case .double(let v): return Int64(v)
+        default: return nil
+        }
+    }
+
+    public func optionalBlob(_ name: String) -> Data? {
+        if case .blob(let d) = columns[name] { return d }
         return nil
     }
 }
@@ -128,6 +144,10 @@ public final class Database {
             case .int(let v): sqlite3_bind_int64(statement, position, v)
             case .double(let v): sqlite3_bind_double(statement, position, v)
             case .text(let v): sqlite3_bind_text(statement, position, v, -1, transient)
+            case .blob(let d):
+                d.withUnsafeBytes { rawBuf in
+                    _ = sqlite3_bind_blob(statement, position, rawBuf.baseAddress, Int32(d.count), transient)
+                }
             }
         }
 
@@ -143,6 +163,13 @@ public final class Database {
                     case SQLITE_INTEGER: columns[name] = .int(sqlite3_column_int64(statement, column))
                     case SQLITE_FLOAT: columns[name] = .double(sqlite3_column_double(statement, column))
                     case SQLITE_TEXT: columns[name] = .text(String(cString: sqlite3_column_text(statement, column)))
+                    case SQLITE_BLOB:
+                        let len = Int(sqlite3_column_bytes(statement, column))
+                        if len > 0, let ptr = sqlite3_column_blob(statement, column) {
+                            columns[name] = .blob(Data(bytes: ptr, count: len))
+                        } else {
+                            columns[name] = .blob(Data())
+                        }
                     default: columns[name] = .null
                     }
                 }
