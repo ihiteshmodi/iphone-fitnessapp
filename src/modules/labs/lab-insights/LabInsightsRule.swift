@@ -82,6 +82,20 @@ private struct Evaluation {
         items += GeneticsModifierEvaluator.evaluateInsights(
             on: today, db: db, genotypes: genotypes, preferences: prefs,
             latestResults: newestResults, latestDraw: allDraws.first?.draft)
+        for rev in GeneticsModifierEvaluator.evaluateReverseTriggers(
+            catalogue: catalogue, db: db, today: today, genotypes: genotypes,
+            preferences: prefs, latestResults: newestResults) {
+            var bullets = [rev.rationale]
+            if let guardrail = rev.guardrailWarning { bullets.append(guardrail) }
+            if let clinical = rev.clinicalGradeWarning { bullets.append(clinical) }
+            items.append(Insight(
+                ruleID: "lab-gene-reverse-\(rev.geneID)", kind: .labs,
+                severity: rev.isSafetyGate ? .fix : .improve,
+                title: "Consider genetic test: \(rev.geneName)",
+                detail: LabInsightsRule.lines(rev.triggerSummary, bullets),
+                why: rev.source.map { "Vault \($0)" } ?? "Conditional genetic triage",
+                day: newestDate ?? today))
+        }
         items += try DrawPlanner(catalogue: catalogue, draws: draws, sex: sex, genetics: geneticsSvc, showDrugNotes: showDrugNotes).retests().compactMap { due in
             guard let from = due.from, let last = due.lastDate, today >= from else { return nil }
             return Insight(ruleID: "lab-retest-\(due.marker.id)", kind: .labs, severity: .tip, title: "Retest \(due.marker.name)",

@@ -227,7 +227,9 @@ struct BloodworkDashboardView: View {
     }
 
     private func testedMarkerRow(_ row: LabTestedMarkerRow) -> some View {
-        let bar = LabRangeBarModel.build(marker: row.marker, sex: model.sex, reading: row.reading, latestResult: row.result)
+        let prefs = model.preferences ?? LabPreferences(sex: model.sex, showDrugNotes: model.showDrugNotes)
+        let bar = LabRangeBarModel.build(marker: row.marker, sex: model.sex, reading: row.reading, latestResult: row.result,
+                                         genotypes: model.genotypes, preferences: prefs)
         return VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .top, spacing: 6) {
                 VStack(alignment: .leading, spacing: 3) {

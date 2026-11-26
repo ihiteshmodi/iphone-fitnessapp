@@ -272,6 +272,16 @@ struct MarkerRangeBarView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(pinColor)
             }
+            if let shift = bar.geneticShiftSummary {
+                Text("🧬 \(shift)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Theme.green)
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(Theme.green.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("labs-range-bar-genetic-shift")
+            }
         }
         .padding(.top, 4)
         .accessibilityIdentifier("labs-marker-range-bar")
@@ -353,7 +363,8 @@ struct MarkerDetailView: View {
         latest.map { LabReader.read(result: $0, marker: marker, preferences: prefs, draw: latestDrawDraft, genotypes: model.genotypes) }
     }
     private var rangeBar: LabRangeBarModel? {
-        LabRangeBarModel.build(marker: marker, sex: model.sex, reading: reading, latestResult: latest)
+        LabRangeBarModel.build(marker: marker, sex: model.sex, reading: reading, latestResult: latest,
+                               genotypes: model.genotypes, preferences: prefs)
     }
     private var isCore: Bool {
         CoreBloodworkGuide.isCoreMarker(marker.id, catalogue: model.catalogue, sex: model.sex)

@@ -86,6 +86,23 @@ public struct DrawPlanner {
         return out
     }
 
+    /// Conditional genetic tests triggered by latest bloodwork, diet/supplements, and clinical context when unlogged.
+    public func conditionalGeneticTests(db: Database, today: ISODate) throws -> [LabReverseGeneticRecommendation] {
+        let prefs = try LabSettings(db).load()
+        let entries = try genetics?.entries() ?? []
+        let (latestByMarker, _, _) = try draws.latestResultsSnapshot()
+        return GeneticsModifierEvaluator.evaluateReverseTriggers(
+            catalogue: catalogue, db: db, today: today, genotypes: entries,
+            preferences: prefs, latestResults: Array(latestByMarker.values))
+    }
+
+    /// Genetic tests in `07.04.*` (`change_nothing_mandate`) that should NEVER be purchased, paired with their direct phenotypic test.
+    public func doNotBuyGeneticTests() -> [(geneName: String, directPhenotype: String)] {
+        catalogue.genes
+            .filter { $0.changeNothingMandate || $0.actionCategory == .changeNothing }
+            .map { ($0.name, GeneticsPresenter.directPhenotypeLabel(for: $0) ?? "Test phenotype directly") }
+    }
+
     /// The global draw-day checklist, stripping opposite-sex lines so Male sees only Male/All-Adult guidance.
     public func checklist() -> LabDrawChecklist? {
         guard let raw = catalogue.globalProtocols?.checklist else { return nil }

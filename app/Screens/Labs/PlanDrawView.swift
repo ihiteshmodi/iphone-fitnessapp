@@ -9,10 +9,13 @@ struct PlanDrawView: View {
     let genetics: GeneticsService?
     var showDrugNotes = false
     let today: ISODate
+    @EnvironmentObject private var services: Services
     @State private var drawDate = Date()
     @State private var drawHour = 8
     @State private var order: [OrderItem] = []
     @State private var upgrades: [OrderTest] = []
+    @State private var conditionalGenes: [LabReverseGeneticRecommendation] = []
+    @State private var doNotBuyGenes: [(geneName: String, directPhenotype: String)] = []
     @State private var checklist: LabDrawChecklist?
     @State private var checkedSteps: Set<String> = []
     @State private var retests: [RetestDue] = []
@@ -48,7 +51,9 @@ struct PlanDrawView: View {
                 }
                 .card()
                 orderCard
+                if !conditionalGenes.isEmpty { conditionalGeneticsCard }
                 if !upgrades.isEmpty { upgradesCard }
+                if !doNotBuyGenes.isEmpty { doNotBuyGeneticsCard }
                 if let checklist { checklistCard(checklist) }
                 if !timeline.isEmpty { timelineCard }
                 triggeredCard
@@ -179,6 +184,68 @@ struct PlanDrawView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var conditionalGeneticsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionLabel("Conditional genetic tests warranted (\(conditionalGenes.count))")
+                Spacer()
+                Pill(text: "Reverse trigger", tone: .amber)
+            }
+            ForEach(conditionalGenes) { rec in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text(rec.geneName).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                        Spacer()
+                        if rec.requiresClinicalGradeAssay {
+                            Pill(text: "Clinical-grade lab", tone: .red)
+                        }
+                    }
+                    Text(rec.triggerSummary).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.amber)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(rec.rationale).font(.system(size: 12)).foregroundColor(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let guardrail = rec.guardrailWarning {
+                        Text("⚠️ \(guardrail)").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.amber)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let clinical = rec.clinicalGradeWarning {
+                        Text("🏥 \(clinical)").font(.system(size: 11)).foregroundColor(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityIdentifier("labs-plan-conditional-genetics")
+    }
+
+    private var doNotBuyGeneticsCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel("Genetic tests NOT to buy (07.04)")
+            DisclosureGroup("Skip consumer SNP panels — test phenotype directly (\(doNotBuyGenes.count))") {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(doNotBuyGenes, id: \.geneName) { item in
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack {
+                                Text(item.geneName).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                                Spacer()
+                                Pill(text: "Do Not Buy", tone: .red)
+                            }
+                            Text(item.directPhenotype).font(.system(size: 12)).foregroundColor(Theme.green)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+            .font(.system(size: 13, weight: .semibold)).tint(Theme.green)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityIdentifier("labs-plan-do-not-buy-genetics")
+    }
+
     private var upgradesCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel("Optional Tier 2 & 3 upgrades (\(upgrades.count))")
@@ -292,6 +359,8 @@ struct PlanDrawView: View {
         do {
             order = try planner.order()
             upgrades = planner.upgrades()
+            conditionalGenes = (try? planner.conditionalGeneticTests(db: services.db, today: today)) ?? []
+            doNotBuyGenes = planner.doNotBuyGeneticTests()
             checklist = planner.checklist()
             retests = try planner.retests()
             coreSummary = try CoreBloodworkGuide.summarize(catalogue: catalogue, draws: draws, sex: sex, today: today)

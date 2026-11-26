@@ -11,6 +11,9 @@ public struct GeneRowViewModel: Equatable, Identifiable {
     public let pickedGenotype: String?
     public let pickedTone: LabBadgeTone
     public let changeNothingBadge: String?
+    public var triageBadge: String? = nil
+    public var directPhenotypeNote: String? = nil
+    public var requiresClinicalGradeAssay: Bool = false
 }
 
 public struct GeneSectionViewModel: Equatable, Identifiable {
@@ -25,6 +28,7 @@ public struct GeneticsScreenViewModel: Equatable {
     public let contextSummary: String
     public let preferences: LabPreferences
     public let activeFindings: [Insight]
+    public let reverseRecommendations: [LabReverseGeneticRecommendation]
     public let sections: [GeneSectionViewModel]
 }
 
@@ -50,6 +54,8 @@ public struct GeneDetailViewModel: Equatable {
     public let contraindications: [LabHardContraindication]
     public let whatNotToDo: [String]
     public let caveatLines: [String]
+    public let requiresClinicalGradeAssay: Bool
+    public let clinicalGradeWarning: String?
 }
 
 /// Pure view-model builder for Genetics screens so grouping, context summaries, and badges are unit-tested without SwiftUI.
@@ -63,8 +69,8 @@ public enum GeneticsPresenter {
          "Standard lab markers that lose their vote or need a specialty confirmer."),
         ("priority_shift", "Tightens targets & screening timing",
          "Tighter ApoB, caffeine, alcohol, or post-meal glucose rules."),
-        ("change_nothing", "Changes nothing — bloodwork wins",
-         "Genotype alone never justifies supplements or training changes.")
+        ("change_nothing", "Skip / Do Not Buy — Test Phenotype Directly",
+         "Genotype alone never justifies supplements or training changes; order the direct blood or clinical test instead.")
     ]
 
     private static let legacyBuckets: [(id: String, title: String)] = [
@@ -88,6 +94,9 @@ public enum GeneticsPresenter {
         let findings = GeneticsModifierEvaluator.evaluateInsights(
             on: today, db: db, genotypes: genotypes, preferences: prefs,
             latestResults: latestResults, latestDraw: allDraws.first?.draft)
+        let reverseRecs = GeneticsModifierEvaluator.evaluateReverseTriggers(
+            catalogue: catalogue, db: db, today: today, genotypes: genotypes,
+            preferences: prefs, latestResults: latestResults)
 
         var sections: [GeneSectionViewModel] = []
         let categorizedGenes = catalogue.genes.filter { $0.actionCategory != nil }
@@ -116,6 +125,7 @@ public enum GeneticsPresenter {
             contextSummary: formatContextSummary(prefs),
             preferences: prefs,
             activeFindings: findings,
+            reverseRecommendations: reverseRecs,
             sections: sections)
     }
 
@@ -128,6 +138,7 @@ public enum GeneticsPresenter {
             parts.append("Rx: \(names.joined(separator: ", "))")
         }
         parts.append("Regular alcohol: \(prefs.drinksAlcoholRegularly ? "Yes" : "No")")
+        parts.append("Reverse DNA suggestions: \(prefs.reverseGeneticsEnabled ? "On" : "Off")")
         return parts.joined(separator: " · ")
     }
 
@@ -167,6 +178,9 @@ public enum GeneticsPresenter {
             caveats += c.timingOrAssayTraps.map { "Timing / assay trap: \($0)" }
         }
 
+        let requiresClinical = GeneticsModifierEvaluator.requiresClinicalGradeAssay(geneID: gene.id)
+        let clinicalWarn = GeneticsModifierEvaluator.clinicalGradeWarning(for: gene.id)
+
         return GeneDetailViewModel(
             gene: gene,
             selectedRow: row,
@@ -179,19 +193,48 @@ public enum GeneticsPresenter {
             epistaticCells: gene.epistaticGrid,
             contraindications: gene.hardContraindications,
             whatNotToDo: gene.whatNotToDo,
-            caveatLines: caveats)
+            caveatLines: caveats,
+            requiresClinicalGradeAssay: requiresClinical,
+            clinicalGradeWarning: clinicalWarn)
+    }
+
+    public static func directPhenotypeLabel(for gene: LabGene) -> String? {
+        guard gene.changeNothingMandate || gene.actionCategory == .changeNothing else { return nil }
+        let names = gene.phenotypicVerifiers.map(\.markerName).filter { !$0.isEmpty }
+        if !names.isEmpty {
+            return "Test phenotype directly: \(names.prefix(3).joined(separator: ", "))"
+        }
+        switch gene.id {
+        case "vdr": return "Test phenotype directly: 25(OH)D, PTH, Calcium"
+        case "lpa-gene": return "Test phenotype directly: Serum Lp(a) particle count (nmol/L)"
+        case "gstm1-gstt1": return "Test phenotype directly: GGT, ALT, AST, Bilirubin"
+        case "salt-sensitivity": return "Test phenotype directly: 2-week home blood pressure cuff"
+        case "actn3-ace": return "Test phenotype directly: Training block progression"
+        case "sod2": return "Test phenotype directly: Routine inflammation & mineral markers"
+        default: return "Test phenotype directly instead of genotype"
+        }
     }
 
     private static func rowVM(_ gene: LabGene, entry: GenotypeEntry?) -> GeneRowViewModel {
         let subtitle = gene.variant ?? (gene.symbols.isEmpty ? nil : gene.symbols.joined(separator: " · "))
         let (_, tone) = riskPresentation(entry?.row.riskLevel, urgency: entry?.row.urgency)
+        let isChangeNothing = gene.changeNothingMandate || gene.actionCategory == .changeNothing
+        let isConditionalOnly = gene.actionCategory == .hardContraindication || gene.id == "hla-dq2-dq8" || gene.id == "lct-mcm6"
+        let triage: String = {
+            if isChangeNothing { return "Skip / Do Not Buy — Test Phenotype Directly" }
+            if isConditionalOnly { return "Conditional — Test If Triggered" }
+            return "Worth Knowing Once"
+        }()
         return GeneRowViewModel(
             id: gene.id,
             gene: gene,
             subtitle: subtitle,
             pickedGenotype: entry?.row.genotype,
             pickedTone: entry == nil ? .grey : tone,
-            changeNothingBadge: (gene.changeNothingMandate || gene.actionCategory == .changeNothing) ? "Bloodwork wins" : nil)
+            changeNothingBadge: isChangeNothing ? "Bloodwork wins" : nil,
+            triageBadge: triage,
+            directPhenotypeNote: directPhenotypeLabel(for: gene),
+            requiresClinicalGradeAssay: GeneticsModifierEvaluator.requiresClinicalGradeAssay(geneID: gene.id))
     }
 
     public static func riskPresentation(_ riskLevel: String?, urgency: LabUrgency?) -> (String?, LabBadgeTone) {

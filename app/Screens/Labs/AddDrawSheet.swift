@@ -667,7 +667,8 @@ struct DrawDetailView: View {
             let reading = LabReader.read(result: result, marker: marker, preferences: prefs, draw: currentDraw.draft, genotypes: model.genotypes)
             let warnings = LabValidityGate.evaluate(result: result, marker: marker, draw: currentDraw.draft,
                                                     sameDrawResults: results, catalogue: model.catalogue, sex: model.sex)
-            let bar = LabRangeBarModel.build(marker: marker, sex: model.sex, reading: reading, latestResult: result)
+            let bar = LabRangeBarModel.build(marker: marker, sex: model.sex, reading: reading, latestResult: result,
+                                             genotypes: model.genotypes, preferences: prefs)
             HStack(spacing: 8) {
                 NavigationLink { MarkerDetailView(model: model, marker: marker) } label: {
                     VStack(alignment: .leading, spacing: 5) {

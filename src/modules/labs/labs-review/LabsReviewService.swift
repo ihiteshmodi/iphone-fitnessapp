@@ -66,6 +66,19 @@ public struct LabsReviewService {
         let snapshot = try LabLatestSnapshot.build(catalogue: catalogue, db: db, draws: draws,
                                                    preferences: preferences, genotypes: genotypes)
         let newestResults = snapshot.testedRows.map(\.result)
+        let reverseGeneticTests = GeneticsModifierEvaluator.evaluateReverseTriggers(
+            catalogue: catalogue, db: db, today: today, genotypes: genotypes,
+            preferences: preferences, latestResults: newestResults)
+        if !reverseGeneticTests.isEmpty {
+            lines.append("# Conditional Genetic Tests Warranted")
+            for rec in reverseGeneticTests {
+                let badge = rec.requiresClinicalGradeAssay ? " [Clinical-Grade / Physician-Ordered Lab Required]" : ""
+                lines.append("- \(rec.geneName)\(badge): \(rec.triggerSummary) — \(rec.rationale)")
+                if let guardrail = rec.guardrailWarning { lines.append("  - \(guardrail)") }
+                if let clinical = rec.clinicalGradeWarning { lines.append("  - \(clinical)") }
+            }
+            lines.append("")
+        }
         if !snapshot.activePatterns.isEmpty || !snapshot.simplePatterns.isEmpty {
             lines.append("# Active multi-marker patterns")
             for pat in snapshot.activePatterns {

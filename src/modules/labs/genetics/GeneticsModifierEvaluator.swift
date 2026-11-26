@@ -10,7 +10,272 @@ public struct LabGeneticEpistaticMatch: Equatable, Identifiable {
     public let isUrgentSafetyStop: Bool
 }
 
+public struct LabReverseGeneticRecommendation: Equatable, Identifiable {
+    public var id: String { geneID }
+    public let geneID: String
+    public let geneName: String
+    public let source: String?
+    public let triggerSummary: String
+    public let rationale: String
+    public let requiresClinicalGradeAssay: Bool
+    public let clinicalGradeWarning: String?
+    public let guardrailWarning: String?
+    public let isSafetyGate: Bool
+}
+
+public struct LabGeneticTargetShift: Equatable {
+    public let markerID: String
+    public let geneID: String
+    public let geneName: String
+    public let genotype: String
+    public let adjustedOptimalLow: Double?
+    public let adjustedOptimalHigh: Double?
+    public let adjustedLabelOverride: String?
+    public let summary: String
+}
+
 public enum GeneticsModifierEvaluator {
+    private static let changeNothingForbiddenIDs: Set<String> = [
+        "actn3-ace", "vdr", "lpa-gene", "gstm1-gstt1", "sod2", "salt-sensitivity"
+    ]
+
+    public static let clinicalGradeRequiredIDs: Set<String> = [
+        "g6pd", "cyp2d6-cyp2c19", "f5-f2", "hla-dq2-dq8", "apoe"
+    ]
+
+    public static func requiresClinicalGradeAssay(geneID: String) -> Bool {
+        clinicalGradeRequiredIDs.contains(geneID)
+    }
+
+    public static func clinicalGradeWarning(for geneID: String) -> String? {
+        switch geneID {
+        case "g6pd":
+            return "Clinical-Grade / Physician-Ordered Lab Required: order a quantitative RBC G6PD enzyme assay (never rely on 23andMe/Ancestry consumer SNP chips, which miss common African/Mediterranean/Asian variants and female X-inactivation)."
+        case "cyp2d6-cyp2c19":
+            return "Clinical-Grade / Physician-Ordered Lab Required: consumer DTC microarrays (23andMe/Ancestry) miss CYP2D6 whole-gene deletions, *1xN/*2xN copy-number duplications, and CYP2D7 pseudogene conversions."
+        case "f5-f2":
+            return "Clinical-Grade / Physician-Ordered Lab Required: thrombophilia clearance requires a CLIA/CAP clinical coagulation or targeted PCR assay, not a consumer SNP chip."
+        case "hla-dq2-dq8":
+            return "Clinical-Grade / Physician-Ordered Lab Required: consumer DTC chips impute HLA from stand-in tag SNPs; use clinical HLA-DQ2/DQ8 typing alongside tTG-IgA + Total IgA."
+        case "apoe":
+            return "Clinical-Grade / Physician-Ordered Lab Required: confirm any actionable APOE e4 or e2/e2 call on a clinical-grade assay with genetic counseling rather than raw consumer microarray SNPs."
+        default:
+            return nil
+        }
+    }
+
+    /// Returns the gene-adjusted optimal bounds and Standard-vs-Genetic comparison text for a marker (even before logging a value).
+    public static func targetShift(for marker: LabMarker, standardLow: Double?, standardHigh: Double?, unit: String,
+                                   preferences: LabPreferences, genotypes: [GenotypeEntry]) -> LabGeneticTargetShift? {
+        guard !genotypes.isEmpty else { return nil }
+        let active = Dictionary(uniqueKeysWithValues: genotypes.map { ($0.gene.id, $0) })
+        let u = unit.isEmpty ? "" : " \(unit)"
+        let stdText: String = {
+            switch (standardLow, standardHigh) {
+            case let (l?, h?): return "\(LabInsightsRule.number(l))–\(LabInsightsRule.number(h))\(u)"
+            case (nil, let h?): return "≤ \(LabInsightsRule.number(h))\(u)"
+            case (let l?, nil): return "≥ \(LabInsightsRule.number(l))\(u)"
+            case (nil, nil): return "standard optimal"
+            }
+        }()
+
+        let methEntry = active["mthfr"].flatMap { $0.row.isBaseline ? nil : $0 }
+            ?? active["mtr-mtrr"].flatMap { $0.row.isBaseline ? nil : $0 }
+        if marker.id == "homocysteine", let meth = methEntry {
+            return LabGeneticTargetShift(
+                markerID: marker.id, geneID: meth.gene.id, geneName: meth.gene.name, genotype: meth.row.genotype,
+                adjustedOptimalLow: standardLow, adjustedOptimalHigh: 7.0,
+                adjustedLabelOverride: "Optimal < 7\(u) (\(meth.gene.name))",
+                summary: "Standard optimal: \(stdText) → Your \(meth.gene.name) (\(meth.row.genotype)) target: < 7\(u)")
+        }
+        if marker.id == "rbc-folate", let meth = methEntry {
+            return LabGeneticTargetShift(
+                markerID: marker.id, geneID: meth.gene.id, geneName: meth.gene.name, genotype: meth.row.genotype,
+                adjustedOptimalLow: 800.0, adjustedOptimalHigh: standardHigh,
+                adjustedLabelOverride: "Optimal > 800\(u) (\(meth.gene.name))",
+                summary: "Standard optimal: \(stdText) → Your \(meth.gene.name) (\(meth.row.genotype)) target: > 800\(u)")
+        }
+        if marker.id == "apob", let apoe = active["apoe"], apoe.row.genotype.lowercased().contains("e4") {
+            return LabGeneticTargetShift(
+                markerID: marker.id, geneID: "apoe", geneName: apoe.gene.name, genotype: apoe.row.genotype,
+                adjustedOptimalLow: standardLow, adjustedOptimalHigh: 60.0,
+                adjustedLabelOverride: "Optimal ≤ 60\(u) (APOE e4)",
+                summary: "Standard optimal: \(stdText) → Your APOE (\(apoe.row.genotype)) target: ≤ 60\(u)")
+        }
+        if marker.id == "tsat", let hfe = active["hfe"], !hfe.row.isBaseline {
+            let cap = min(standardHigh ?? 45.0, 45.0)
+            return LabGeneticTargetShift(
+                markerID: marker.id, geneID: "hfe", geneName: hfe.gene.name, genotype: hfe.row.genotype,
+                adjustedOptimalLow: standardLow, adjustedOptimalHigh: cap,
+                adjustedLabelOverride: "Optimal ≤ \(LabInsightsRule.number(cap))\(u) (HFE)",
+                summary: "Standard optimal: \(stdText) → Your HFE (\(hfe.row.genotype)) iron-loading ceiling: ≤ 45%")
+        }
+        if marker.id == "hematocrit", let f5 = active["f5-f2"], !f5.row.isBaseline, preferences.onTRTOrHRT {
+            return LabGeneticTargetShift(
+                markerID: marker.id, geneID: "f5-f2", geneName: f5.gene.name, genotype: f5.row.genotype,
+                adjustedOptimalLow: standardLow, adjustedOptimalHigh: min(standardHigh ?? 52.0, 52.0),
+                adjustedLabelOverride: "Stop-line ≤ 52% (\(f5.gene.name) + TRT)",
+                summary: "Standard optimal: \(stdText) → Your \(f5.gene.name) + TRT safety ceiling: ≤ 52%")
+        }
+        if marker.id == "b12", let fut2 = active["fut2"], !fut2.row.isBaseline {
+            return LabGeneticTargetShift(
+                markerID: marker.id, geneID: "fut2", geneName: fut2.gene.name, genotype: fut2.row.genotype,
+                adjustedOptimalLow: standardLow, adjustedOptimalHigh: standardHigh,
+                adjustedLabelOverride: nil,
+                summary: "Standard optimal: \(stdText) → FUT2 (\(fut2.row.genotype)): serum B12 can look falsely normal; judge status by MMA & Homocysteine")
+        }
+        return nil
+    }
+
+    /// Evaluates Reverse Triggers (`Bloodwork / Diet / Meds / Context -> Conditional Genetic Test`) for unlogged genes.
+    public static func evaluateReverseTriggers(catalogue: LabCatalogue, db: Database, today: ISODate,
+                                               genotypes: [GenotypeEntry], preferences: LabPreferences,
+                                               latestResults: [LabResult]) -> [LabReverseGeneticRecommendation] {
+        guard preferences.reverseGeneticsEnabled else { return [] }
+
+        let loggedIDs = Set(genotypes.map(\.gene.id))
+        let byMarker = Dictionary(uniqueKeysWithValues: latestResults.map { ($0.markerID, $0.defaultValue ?? $0.value) })
+        let diet = DietSnapshot.load(from: db, on: today)
+
+        func unloggedAllowedGene(_ id: String) -> LabGene? {
+            guard !loggedIDs.contains(id), !changeNothingForbiddenIDs.contains(id) else { return nil }
+            guard let gene = catalogue.gene(id) else { return nil }
+            // Hard guardrail: NEVER emit a reverse trigger for 07.04.* / change_nothing genes.
+            guard !gene.changeNothingMandate, gene.actionCategory != .changeNothing,
+                  !(gene.source?.hasPrefix("07.04") == true) else { return nil }
+            return gene
+        }
+
+        var out: [LabReverseGeneticRecommendation] = []
+
+        // 1. HFE (07.01.06): Ferritin > 300 (male) / > 200 (female) AND TSAT > 45% without elevated inflammatory hs-CRP (>= 3.0)
+        if let gene = unloggedAllowedGene("hfe"),
+           let ferr = byMarker["ferritin"], let tsat = byMarker["tsat"] {
+            let ferrThreshold = preferences.sex == .female ? 200.0 : 300.0
+            let crp = byMarker["hs-crp"] ?? 0.0
+            if ferr > ferrThreshold && tsat > 45.0 && crp < 3.0 {
+                out.append(LabReverseGeneticRecommendation(
+                    geneID: gene.id, geneName: gene.name, source: gene.source ?? "07.01.06",
+                    triggerSummary: "Ferritin \(LabInsightsRule.number(ferr)) ng/mL + TSAT \(LabInsightsRule.number(tsat))% without elevated hs-CRP",
+                    rationale: "Elevated transferrin saturation (> 45%) paired with high ferritin in the absence of systemic inflammation warrants HFE genotyping (C282Y / H63D) to evaluate hereditary hemochromatosis.",
+                    requiresClinicalGradeAssay: false,
+                    clinicalGradeWarning: "Confirm any C282Y homozygous finding on a clinical diagnostic assay before invasive phlebotomy.",
+                    guardrailWarning: nil,
+                    isSafetyGate: true))
+            }
+        }
+
+        // 2. FUT2 (07.02.01): Normal/high Serum B12 (>= 450 pg/mL) while MMA (> 0.27) or Homocysteine (>= 10) is elevated
+        if let gene = unloggedAllowedGene("fut2"),
+           let b12 = byMarker["b12"], b12 >= 450.0 {
+            let mmaHigh = (byMarker["mma"] ?? 0) > 0.27
+            let hcyHigh = (byMarker["homocysteine"] ?? 0) >= 10.0
+            if mmaHigh || hcyHigh {
+                let raised = mmaHigh ? "MMA (\(LabInsightsRule.number(byMarker["mma"]!)))" : "Homocysteine (\(LabInsightsRule.number(byMarker["homocysteine"]!)) µmol/L)"
+                out.append(LabReverseGeneticRecommendation(
+                    geneID: gene.id, geneName: gene.name, source: gene.source ?? "07.02.01",
+                    triggerSummary: "Reassuring Serum B12 (\(LabInsightsRule.number(b12)) pg/mL) alongside elevated \(raised)",
+                    rationale: "FUT2 non-secretors run higher haptocorrin-bound serum B12 that masks functional cellular B12 deficiency; testing FUT2 explains discordant serum vs intracellular B12 markers.",
+                    requiresClinicalGradeAssay: false,
+                    clinicalGradeWarning: "Note: consumer chips testing only European rs601338 miss East/South Asian FUT2 secretor variants (rs1047781); MMA and Homocysteine always outrank serum B12.",
+                    guardrailWarning: nil,
+                    isSafetyGate: false))
+            }
+        }
+
+        // 3. HLA-DQ2 / DQ8 (07.02.02): Unexplained low Ferritin (< 30) + low B12 (< 350) or low Folate (< 4.0 / RBC Folate < 400)
+        if let gene = unloggedAllowedGene("hla-dq2-dq8"),
+           let ferr = byMarker["ferritin"], ferr < 30.0 {
+            let lowB12 = (byMarker["b12"] ?? 9999) < 350.0
+            let lowFolate = (byMarker["folate"] ?? 9999) < 4.0 || (byMarker["rbc-folate"] ?? 9999) < 400.0
+            if lowB12 && lowFolate || (lowB12 || lowFolate) {
+                var lowParts = ["Ferritin \(LabInsightsRule.number(ferr)) ng/mL"]
+                if lowB12, let b = byMarker["b12"] { lowParts.append("B12 \(LabInsightsRule.number(b)) pg/mL") }
+                if let f = byMarker["folate"], f < 4.0 { lowParts.append("Folate \(LabInsightsRule.number(f)) ng/mL") }
+                out.append(LabReverseGeneticRecommendation(
+                    geneID: gene.id, geneName: gene.name, source: gene.source ?? "07.02.02",
+                    triggerSummary: "Multi-nutrient malabsorption pattern (\(lowParts.joined(separator: " + ")))",
+                    rationale: "Combined unexplained iron and B-vitamin depletion warrants celiac screening (tTG-IgA + Total IgA) and clinical HLA-DQ2 / DQ8 typing to rule out celiac susceptibility.",
+                    requiresClinicalGradeAssay: true,
+                    clinicalGradeWarning: clinicalGradeWarning(for: "hla-dq2-dq8"),
+                    guardrailWarning: "MANDATORY GUARDRAIL: Do NOT eliminate gluten before celiac serology (tTG-IgA) or endoscopic biopsy — going gluten-free first causes false-negative test results.",
+                    isSafetyGate: false))
+            }
+        }
+
+        // 4. LCT / MCM6 (07.02.03): ONLY if symptomatic dairy intolerance persists after structured 2-week lactose elimination/rechallenge
+        if let gene = unloggedAllowedGene("lct-mcm6"), preferences.persistentLactoseSymptoms {
+            out.append(LabReverseGeneticRecommendation(
+                geneID: gene.id, geneName: gene.name, source: gene.source ?? "07.02.03",
+                triggerSummary: "Persistent GI symptoms after 2-week lactose elimination & rechallenge",
+                rationale: "Optional LCT / MCM6 genotyping distinguishes primary adult-type hypolactasia from secondary mucosal or casein intolerance.",
+                requiresClinicalGradeAssay: false,
+                clinicalGradeWarning: "Multi-ethnic note: standard rs4988235 panels test only the European persistence allele and can misclassify non-European pastoral persistence variants.",
+                guardrailWarning: nil,
+                isSafetyGate: false))
+        }
+
+        // 5. G6PD (07.05.02): Oxidative therapy / IV Vitamin C / Methylene Blue / high-dose Vitamin C (> 1,000 mg) when unconfirmed
+        if let gene = unloggedAllowedGene("g6pd") {
+            let mbOrOxidative = diet.hasAnyItem(matching: ["methylene blue", "dapsone", "rasburicase"])
+            let highVitC = (diet.supplementNutrients[.vitaminC] ?? 0) > 1000.0
+            if preferences.oxidativeTherapyPlanned || mbOrOxidative != nil || highVitC {
+                let triggerText: String = {
+                    if preferences.oxidativeTherapyPlanned { return "Planned or active IV Vitamin C / Methylene Blue / oxidative therapy" }
+                    if let item = mbOrOxidative { return "Active oxidative agent in plan (\(item))" }
+                    return "High-dose supplemental Vitamin C (> 1,000 mg/day) in plan"
+                }()
+                out.append(LabReverseGeneticRecommendation(
+                    geneID: gene.id, geneName: gene.name, source: gene.source ?? "07.05.02",
+                    triggerSummary: triggerText,
+                    rationale: "Confirm G6PD status before high-dose IV Vitamin C, Methylene Blue, or oxidative therapies to prevent acute hemolytic crisis.",
+                    requiresClinicalGradeAssay: true,
+                    clinicalGradeWarning: clinicalGradeWarning(for: "g6pd"),
+                    guardrailWarning: "TIMING GUARDRAIL: Delay quantitative G6PD enzyme assay 2–3 months after any acute hemolytic episode (young reticulocytes artificially normalize enzyme levels).",
+                    isSafetyGate: true))
+            }
+        }
+
+        // 6. Factor V Leiden (F5) & Prothrombin G20210A (F2) (07.05.01): TRT/HRT + Hematocrit > 50% OR personal/family clotting risk
+        if let gene = unloggedAllowedGene("f5-f2") {
+            let hct = byMarker["hematocrit"]
+            let trtHighHct = preferences.onTRTOrHRT && (hct ?? 0) > 50.0
+            if trtHighHct || preferences.clottingRiskHistory {
+                let triggerText = trtHighHct
+                    ? "Active TRT/HRT with elevated Hematocrit (\(LabInsightsRule.number(hct!))%)"
+                    : "Personal or family history of venous thromboembolism (clotting risk)"
+                out.append(LabReverseGeneticRecommendation(
+                    geneID: gene.id, geneName: gene.name, source: gene.source ?? "07.05.01",
+                    triggerSummary: triggerText,
+                    rationale: "Inherited Factor V Leiden or Prothrombin G20210A compounds thrombotic risk alongside exogenous hormone replacement or elevated hematocrit.",
+                    requiresClinicalGradeAssay: true,
+                    clinicalGradeWarning: clinicalGradeWarning(for: "f5-f2"),
+                    guardrailWarning: nil,
+                    isSafetyGate: true))
+            }
+        }
+
+        // 7. CYP2D6 & CYP2C19 (07.05.03): Active CPIC substrates/prodrugs (SSRIs, TCAs, codeine/tramadol, clopidogrel, PPIs)
+        if let gene = unloggedAllowedGene("cyp2d6-cyp2c19") {
+            let hasCPIC = preferences.activeMedications.contains(.cpicPrescription)
+            let hasPPI = preferences.activeMedications.contains(.metforminOrAcidBlocker)
+            if hasCPIC || hasPPI {
+                let medLabel = hasCPIC
+                    ? "Active CYP2D6 / CYP2C19 prescription class (SSRIs, clopidogrel, codeine/tramadol, TCAs, tamoxifen)"
+                    : "Active PPI / acid-blocker or metformin medication class"
+                out.append(LabReverseGeneticRecommendation(
+                    geneID: gene.id, geneName: gene.name, source: gene.source ?? "07.05.03",
+                    triggerSummary: medLabel,
+                    rationale: "Clinical pharmacogenomic testing identifies ultrarapid or poor metabolizer alleles that alter prodrug activation and drug toxicity.",
+                    requiresClinicalGradeAssay: true,
+                    clinicalGradeWarning: clinicalGradeWarning(for: "cyp2d6-cyp2c19"),
+                    guardrailWarning: nil,
+                    isSafetyGate: hasCPIC))
+            }
+        }
+
+        return out
+    }
     /// Applies active genotype marker shifts and tightened thresholds to a base `LabReading`.
     public static func applyReadingModifiers(base: LabReading, marker: LabMarker, preferences: LabPreferences,
                                              genotypes: [GenotypeEntry]) -> LabReading {

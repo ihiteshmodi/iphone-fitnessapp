@@ -71,5 +71,25 @@ Feature: Genotypes, read the vault's way
     When the user confirms TRT on and CPIC medication active and picks Factor V Leiden Heterozygous and HLA-DQ2.5 Positive
     Then needsContextPrompt is false, contextSummary shows TRT/HRT On and CYP2D6/CYP2C19 medication, and GeneDetailViewModel exposes external verifiers, form swaps, and safety stop-lines
 
+  Scenario: All 7 dynamic reverse triggers recommend conditional genetic tests when unlogged and stay silent when clean, logged, or toggled off
+    Given Reverse Genetics is enabled by default and zero genotypes are logged
+    When iron overload labs (Ferritin 340, TSAT 48%, hs-CRP 0.8), masked B12 labs (B12 650, MMA 0.35), malabsorption labs (Ferritin 18, B12 240, Folate 3.1), TRT with Hematocrit 51.5%, CPIC Rx, oxidative therapy, and post-rechallenge lactose symptoms are present
+    Then Reverse Genetics recommends HFE, FUT2, HLA-DQ2/DQ8 (with gluten guardrail), Factor V/F2, CYP2D6/2C19, G6PD (with 2-3 month hemolysis assay delay warning), and LCT/MCM6
+    And G6PD, CYP2D6/2C19, Factor V/F2, and HLA-DQ2/DQ8 carry Clinical-Grade vs DTC microarray warnings
+    And labs-review markdown exports "# Conditional Genetic Tests Warranted"
+    When HFE is logged or Reverse Genetics is switched OFF
+    Then the corresponding reverse recommendation disappears immediately
+
+  Scenario: Zero reverse triggers ever fire for 07.04.* change-nothing genes and Tier 1 badges warn Do Not Buy
+    Given unlogged 07.04.* genes (VDR, LPA gene, ACTN3/ACE, GSTM1/GSTT1, SOD2, Salt Sensitivity)
+    When bloodwork has low 25(OH)D (14 ng/mL), high Lp(a) (210 nmol/L), and elevated ALT (88 U/L)
+    Then zero reverse genetic recommendations fire for any 07.04.* gene
+    And GeneticsPresenter badges all 07.04.* genes as "Skip / Do Not Buy — Test Phenotype Directly"
+
+  Scenario: Marker detail range bar shifts optimal bounds and shows Standard vs Gene-Adjusted target for MTHFR and APOE e4
+    Given MTHFR C677T TT and APOE e3/e4 are logged
+    When LabRangeBarModel builds for Homocysteine (standard <= 8 umol/L) and ApoB (standard <= 80 mg/dL)
+    Then Homocysteine shows Standard optimal <= 8 -> MTHFR target < 7 umol/L and ApoB shows Standard optimal <= 80 -> APOE e4 target <= 60 mg/dL
+
 
 

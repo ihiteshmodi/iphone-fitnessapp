@@ -31,8 +31,10 @@ public struct LabRangeBarModel: Equatable {
     public let highLabel: String?
     public let pinFraction: Double?
     public let pinText: String?
+    public let geneticShiftSummary: String?
 
-    public static func build(marker: LabMarker, sex: LabSex, reading: LabReading? = nil, latestResult: LabResult? = nil) -> LabRangeBarModel? {
+    public static func build(marker: LabMarker, sex: LabSex, reading: LabReading? = nil, latestResult: LabResult? = nil,
+                             genotypes: [GenotypeEntry] = [], preferences: LabPreferences? = nil) -> LabRangeBarModel? {
         guard marker.id != "blood-pressure" else { return nil }
         if marker.units.isEmpty && !marker.isUnitlessRatio { return nil }
         let unit = reading?.unit ?? marker.defaultUnit ?? ""
@@ -85,6 +87,14 @@ public struct LabRangeBarModel: Equatable {
             optLow = stdLow
             optHigh = stdHigh
         }
+
+        // Apply active genotype optimal-range shifts (e.g. MTHFR Homocysteine < 7, APOE e4 ApoB <= 60).
+        let effectivePrefs = preferences ?? LabPreferences(sex: sex)
+        let geneShift = GeneticsModifierEvaluator.targetShift(
+            for: marker, standardLow: optLow, standardHigh: optHigh, unit: unit,
+            preferences: effectivePrefs, genotypes: genotypes)
+        if let adjLow = geneShift?.adjustedOptimalLow { optLow = adjLow }
+        if let adjHigh = geneShift?.adjustedOptimalHigh { optHigh = adjHigh }
 
         let anchors = [optLow, optHigh, stdLow, stdHigh].compactMap { $0 }
         guard let minAnchor = anchors.min(), let maxAnchor = anchors.max() else { return nil }
@@ -151,11 +161,15 @@ public struct LabRangeBarModel: Equatable {
         let lowLabel: String? = (stdLow ?? optLow).map { "Low < \(fmt($0))" }
         let highLabel: String? = (stdHigh ?? optHigh).map { "High > \(fmt($0))" }
         let optimalLabel: String
-        switch (optLow, optHigh) {
-        case let (l?, h?): optimalLabel = "Optimal \(fmt(l))–\(fmt(h))\(unitSuffix)"
-        case (nil, let h?): optimalLabel = "Optimal ≤ \(fmt(h))\(unitSuffix)"
-        case (let l?, nil): optimalLabel = "Optimal ≥ \(fmt(l))\(unitSuffix)"
-        case (nil, nil): optimalLabel = "Reference range"
+        if let customLabel = geneShift?.adjustedLabelOverride {
+            optimalLabel = customLabel
+        } else {
+            switch (optLow, optHigh) {
+            case let (l?, h?): optimalLabel = "Optimal \(fmt(l))–\(fmt(h))\(unitSuffix)"
+            case (nil, let h?): optimalLabel = "Optimal ≤ \(fmt(h))\(unitSuffix)"
+            case (let l?, nil): optimalLabel = "Optimal ≥ \(fmt(l))\(unitSuffix)"
+            case (nil, nil): optimalLabel = "Reference range"
+            }
         }
 
         var pinFraction: Double?
@@ -175,7 +189,7 @@ public struct LabRangeBarModel: Equatable {
 
         return LabRangeBarModel(unit: unit, domainMin: domainMin, domainMax: domainMax, segments: segments,
                                 lowLabel: lowLabel, optimalLabel: optimalLabel, highLabel: highLabel,
-                                pinFraction: pinFraction, pinText: pinText)
+                                pinFraction: pinFraction, pinText: pinText, geneticShiftSummary: geneShift?.summary)
     }
 
     private static func fmt(_ value: Double) -> String {

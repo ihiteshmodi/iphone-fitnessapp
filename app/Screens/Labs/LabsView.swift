@@ -12,6 +12,7 @@ final class LabsModel: ObservableObject {
     @Published private(set) var activePatterns: [LabPatternMatch] = []
     @Published private(set) var simplePatterns: [LabSimplePatternMatch] = []
     @Published private(set) var discordances: [LabDiscordanceAlert] = []
+    @Published private(set) var reverseGeneticRecommendations: [LabReverseGeneticRecommendation] = []
     @Published private(set) var genotypes: [GenotypeEntry] = []
     @Published private(set) var coreSummary: CoreBloodworkSummary?
     @Published private(set) var preferences: LabPreferences?
@@ -59,6 +60,9 @@ final class LabsModel: ObservableObject {
             activePatterns = dashboard?.snapshot.activePatterns ?? []
             simplePatterns = dashboard?.snapshot.simplePatterns ?? []
             discordances = dashboard?.snapshot.discordances ?? []
+            reverseGeneticRecommendations = GeneticsModifierEvaluator.evaluateReverseTriggers(
+                catalogue: catalogue, db: services.db, today: today, genotypes: genotypes,
+                preferences: prefs, latestResults: dashboard?.snapshot.testedRows.map(\.result) ?? [])
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -129,6 +133,7 @@ struct LabsView: View {
                     CoreBloodworkPendingCard(summary: coreSummary)
                 }
                 actions
+                if !model.reverseGeneticRecommendations.isEmpty { reverseGeneticsSection }
                 if !model.activePatterns.isEmpty { activePatternsSection }
                 if !model.discordances.isEmpty || !model.simplePatterns.isEmpty { discordancesSection }
                 if let dashboard = model.dashboard {
@@ -196,6 +201,35 @@ struct LabsView: View {
         .card(highlighted: true)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("labs-sex-confirm-card")
+    }
+
+    private var reverseGeneticsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel("Conditional genetic tests warranted")
+            ForEach(model.reverseGeneticRecommendations) { rec in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text(rec.geneName).font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(rec.isSafetyGate ? Theme.red : Theme.amber)
+                        Spacer()
+                        if rec.requiresClinicalGradeAssay {
+                            Pill(text: "Clinical-grade lab", tone: .red)
+                        }
+                    }
+                    Text(rec.triggerSummary).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(rec.rationale).font(.system(size: 12)).foregroundColor(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let guardrail = rec.guardrailWarning {
+                        Text("⚠️ \(guardrail)").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.amber)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityIdentifier("labs-reverse-genetics-card")
     }
 
     private var activePatternsSection: some View {
@@ -692,6 +726,7 @@ struct LabsSettingsSheet: View {
     @State private var onTRTOrHRT = false
     @State private var activeMedications: Set<LabMedicationClass> = []
     @State private var drinksAlcoholRegularly = false
+    @State private var reverseGeneticsEnabled = true
     @State private var errorMessage: String?
 
     var body: some View {
@@ -732,9 +767,11 @@ struct LabsSettingsSheet: View {
                     }
                     Toggle("Drinks alcohol regularly", isOn: $drinksAlcoholRegularly)
                 }
-                Section("Notes") {
+                Section("Notes & genetics") {
                     Toggle("Show drug and TRT notes", isOn: $showDrugNotes)
                         .accessibilityIdentifier("labs-drug-notes-toggle")
+                    Toggle("Suggest DNA tests from labs & meds", isOn: $reverseGeneticsEnabled)
+                        .accessibilityIdentifier("labs-settings-reverse-genetics-toggle")
                 }
             }
             .navigationTitle("Labs settings")
@@ -761,6 +798,7 @@ struct LabsSettingsSheet: View {
         onTRTOrHRT = prefs.onTRTOrHRT
         activeMedications = prefs.activeMedications
         drinksAlcoholRegularly = prefs.drinksAlcoholRegularly
+        reverseGeneticsEnabled = prefs.reverseGeneticsEnabled
     }
 
     private func save() {
@@ -775,7 +813,8 @@ struct LabsSettingsSheet: View {
             try settings.confirmContext(
                 onTRTOrHRT: onTRTOrHRT,
                 activeMedications: activeMedications,
-                drinksAlcoholRegularly: drinksAlcoholRegularly)
+                drinksAlcoholRegularly: drinksAlcoholRegularly,
+                reverseGeneticsEnabled: reverseGeneticsEnabled)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

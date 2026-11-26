@@ -16,19 +16,34 @@ extension LabBadgeTone {
 struct LabClinicalContextSheet: View {
     let settings: LabSettings
     @Environment(\.dismiss) private var dismiss
+    @State private var reverseGeneticsEnabled = true
     @State private var onTRTOrHRT = false
     @State private var activeMedications: Set<LabMedicationClass> = []
     @State private var drinksAlcoholRegularly = false
+    @State private var oxidativeTherapyPlanned = false
+    @State private var clottingRiskHistory = false
+    @State private var persistentLactoseSymptoms = false
     @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Genes like Factor V Leiden, CYP2D6/2C19, ALDH2, and HFE interact directly with hormones, prescriptions, and alcohol. You can update these switches anytime in the future.")
+                    Text("Genes like Factor V Leiden, CYP2D6/2C19, G6PD, ALDH2, and HFE interact directly with hormones, prescriptions, and clinical history. Update these switches anytime.")
                         .font(.system(size: 13))
                         .foregroundColor(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Section("Reverse genetics (labs & meds → DNA test suggestions)") {
+                    Toggle(isOn: $reverseGeneticsEnabled) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Suggest DNA tests from my labs & meds").font(.system(size: 14, weight: .medium))
+                            Text("Default On · recommends conditional genetic tests only when bloodwork, prescriptions, or switches warrant one.")
+                                .font(.system(size: 11)).foregroundColor(Theme.muted)
+                        }
+                    }
+                    .accessibilityIdentifier("labs-context-reverse-genetics-toggle")
                 }
 
                 Section("Hormone replacement") {
@@ -46,6 +61,35 @@ struct LabClinicalContextSheet: View {
                         }
                         .accessibilityIdentifier("labs-context-med-\(med.rawValue)")
                     }
+                }
+
+                Section("Personal clinical & symptom switches") {
+                    Toggle(isOn: $oxidativeTherapyPlanned) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Taking or planning IV Vitamin C / Methylene Blue").font(.system(size: 14, weight: .medium))
+                            Text("Triggers G6PD safety check before oxidative therapy.")
+                                .font(.system(size: 11)).foregroundColor(Theme.muted)
+                        }
+                    }
+                    .accessibilityIdentifier("labs-context-oxidative-toggle")
+
+                    Toggle(isOn: $clottingRiskHistory) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Personal or family history of blood clots").font(.system(size: 14, weight: .medium))
+                            Text("Triggers Factor V Leiden & Prothrombin G20210A check.")
+                                .font(.system(size: 11)).foregroundColor(Theme.muted)
+                        }
+                    }
+                    .accessibilityIdentifier("labs-context-clotting-toggle")
+
+                    Toggle(isOn: $persistentLactoseSymptoms) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Dairy causes stomach symptoms after a 2-week break").font(.system(size: 14, weight: .medium))
+                            Text("Suggests optional LCT / MCM6 test; stays silent when Off.")
+                                .font(.system(size: 11)).foregroundColor(Theme.muted)
+                        }
+                    }
+                    .accessibilityIdentifier("labs-context-lactose-toggle")
                 }
 
                 Section("Alcohol") {
@@ -78,9 +122,13 @@ struct LabClinicalContextSheet: View {
 
     private func load() {
         guard let prefs = try? settings.load() else { return }
+        reverseGeneticsEnabled = prefs.reverseGeneticsEnabled
         onTRTOrHRT = prefs.onTRTOrHRT
         activeMedications = prefs.activeMedications
         drinksAlcoholRegularly = prefs.drinksAlcoholRegularly
+        oxidativeTherapyPlanned = prefs.oxidativeTherapyPlanned
+        clottingRiskHistory = prefs.clottingRiskHistory
+        persistentLactoseSymptoms = prefs.persistentLactoseSymptoms
     }
 
     private func save() {
@@ -88,7 +136,11 @@ struct LabClinicalContextSheet: View {
             try settings.confirmContext(
                 onTRTOrHRT: onTRTOrHRT,
                 activeMedications: activeMedications,
-                drinksAlcoholRegularly: drinksAlcoholRegularly)
+                drinksAlcoholRegularly: drinksAlcoholRegularly,
+                reverseGeneticsEnabled: reverseGeneticsEnabled,
+                oxidativeTherapyPlanned: oxidativeTherapyPlanned,
+                clottingRiskHistory: clottingRiskHistory,
+                persistentLactoseSymptoms: persistentLactoseSymptoms)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
@@ -112,6 +164,43 @@ struct GeneticsView: View {
                     contextCard(vm)
                         .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                         .listRowBackground(Color.clear)
+                }
+
+                if !vm.reverseRecommendations.isEmpty {
+                    Section("Consider genetic test (\(vm.reverseRecommendations.count))") {
+                        ForEach(vm.reverseRecommendations) { rec in
+                            VStack(alignment: .leading, spacing: 5) {
+                                HStack(spacing: 6) {
+                                    Text(rec.geneName).font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(rec.isSafetyGate ? Theme.red : Theme.amber)
+                                    Spacer()
+                                    if rec.requiresClinicalGradeAssay {
+                                        Pill(text: "Clinical-grade lab only", tone: .red)
+                                    } else {
+                                        Pill(text: "Triggered", tone: .amber)
+                                    }
+                                }
+                                Text("Why: \(rec.triggerSummary)")
+                                    .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.text)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text(rec.rationale)
+                                    .font(.system(size: 12)).foregroundColor(Theme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let guardrail = rec.guardrailWarning {
+                                    Text("⚠️ \(guardrail)")
+                                        .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.amber)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                if let clinical = rec.clinicalGradeWarning {
+                                    Text("🏥 \(clinical)")
+                                        .font(.system(size: 11)).foregroundColor(Theme.muted)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .accessibilityIdentifier("labs-reverse-gene-\(rec.geneID)")
+                        }
+                    }
                 }
 
                 if !vm.activeFindings.isEmpty {
@@ -227,16 +316,26 @@ struct GeneticsView: View {
     }
 
     private func geneRow(_ item: GeneRowViewModel) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 3) {
+        let isSkip = item.gene.changeNothingMandate || item.gene.actionCategory == .changeNothing
+        return HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(item.gene.name).font(.system(size: 15, weight: .semibold))
-                    if let badge = item.changeNothingBadge {
-                        Pill(text: badge, tone: .grey)
+                    if isSkip {
+                        Pill(text: "Skip / Do Not Buy", tone: .red)
+                    } else if item.pickedGenotype == nil, let triage = item.triageBadge {
+                        Pill(text: triage == "Worth Knowing Once" ? "Worth knowing once" : "Conditional",
+                             tone: triage == "Worth Knowing Once" ? .green : .amber)
                     }
                 }
                 if let sub = item.subtitle {
                     Text(sub).font(.system(size: 11)).foregroundColor(Theme.muted)
+                }
+                if let direct = item.directPhenotypeNote {
+                    Text(direct).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.green)
+                } else if item.requiresClinicalGradeAssay && item.pickedGenotype == nil {
+                    Text("Requires clinical-grade / physician lab (not consumer SNP chip)")
+                        .font(.system(size: 11)).foregroundColor(Theme.amber)
                 }
             }
             Spacer()
@@ -295,11 +394,30 @@ struct GeneDetailView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Pill(text: "Change-Nothing Mandate", tone: .green)
+                            Pill(text: "Skip / Do Not Buy — Test Phenotype Directly", tone: .red)
                             Spacer()
                         }
-                        Text("Genotype alone never justifies supplement stacks or program changes here. Test and treat the direct blood or clinical marker instead.")
+                        Text("Genotype alone never justifies buying this DNA test, adding supplement stacks, or altering training. Measure and manage the direct clinical or blood marker instead.")
                             .font(.system(size: 13))
+                            .foregroundColor(Theme.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let direct = GeneticsPresenter.directPhenotypeLabel(for: gene) {
+                            Text(direct).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.green)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
+            if vm.requiresClinicalGradeAssay, let clinicalWarn = vm.clinicalGradeWarning {
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Pill(text: "Clinical-Grade / Physician Lab Required", tone: .amber)
+                            Spacer()
+                        }
+                        Text(clinicalWarn)
+                            .font(.system(size: 12))
                             .foregroundColor(Theme.text)
                             .fixedSize(horizontal: false, vertical: true)
                     }

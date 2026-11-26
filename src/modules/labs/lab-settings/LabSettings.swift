@@ -57,12 +57,19 @@ public struct LabPreferences: Equatable {
     public var onTRTOrHRT: Bool
     public var activeMedications: Set<LabMedicationClass>
     public var drinksAlcoholRegularly: Bool
+    /// Suggest conditional DNA tests from bloodwork, diet, and Rx context when genotype is unlogged (default ON).
+    public var reverseGeneticsEnabled: Bool
+    public var oxidativeTherapyPlanned: Bool
+    public var clottingRiskHistory: Bool
+    public var persistentLactoseSymptoms: Bool
 
     public init(sex: LabSex = .male, isSexConfirmed: Bool = false, isContextConfirmed: Bool = false,
                 birthDate: ISODate? = nil, showDrugNotes: Bool = false,
                 reproductiveStatus: LabReproductiveStatus? = nil, isEnduranceAthlete: Bool = false, isSmoker: Bool = false,
                 africanAncestry: Bool = false, onTRTOrHRT: Bool = false,
-                activeMedications: Set<LabMedicationClass> = [], drinksAlcoholRegularly: Bool = false) {
+                activeMedications: Set<LabMedicationClass> = [], drinksAlcoholRegularly: Bool = false,
+                reverseGeneticsEnabled: Bool = true, oxidativeTherapyPlanned: Bool = false,
+                clottingRiskHistory: Bool = false, persistentLactoseSymptoms: Bool = false) {
         self.sex = sex
         self.isSexConfirmed = isSexConfirmed
         self.isContextConfirmed = isContextConfirmed
@@ -75,6 +82,10 @@ public struct LabPreferences: Equatable {
         self.onTRTOrHRT = onTRTOrHRT
         self.activeMedications = activeMedications
         self.drinksAlcoholRegularly = drinksAlcoholRegularly
+        self.reverseGeneticsEnabled = reverseGeneticsEnabled
+        self.oxidativeTherapyPlanned = oxidativeTherapyPlanned
+        self.clottingRiskHistory = clottingRiskHistory
+        self.persistentLactoseSymptoms = persistentLactoseSymptoms
     }
 }
 
@@ -89,6 +100,7 @@ public final class LabSettings {
             "'labs_sex'", "'labs_birth_date'", "'labs_show_drug_notes'", "'labs_reproductive_status'",
             "'labs_endurance_athlete'", "'labs_smoker'", "'labs_african_ancestry'",
             "'labs_context_confirmed'", "'labs_on_trt_hrt'", "'labs_active_medications'", "'labs_drinks_alcohol'",
+            "'labs_reverse_genetics'", "'labs_oxidative_therapy'", "'labs_clotting_history'", "'labs_lactose_symptoms'",
         ].joined(separator: ", ")
         for row in try db.query("SELECT key, value FROM settings WHERE key IN (\(keys))") {
             values[row.text("key")] = row.text("value")
@@ -109,7 +121,11 @@ public final class LabSettings {
                               africanAncestry: values["labs_african_ancestry"] == "1",
                               onTRTOrHRT: values["labs_on_trt_hrt"] == "1",
                               activeMedications: meds,
-                              drinksAlcoholRegularly: values["labs_drinks_alcohol"] == "1")
+                              drinksAlcoholRegularly: values["labs_drinks_alcohol"] == "1",
+                              reverseGeneticsEnabled: values["labs_reverse_genetics"].map { $0 == "1" } ?? true,
+                              oxidativeTherapyPlanned: values["labs_oxidative_therapy"] == "1",
+                              clottingRiskHistory: values["labs_clotting_history"] == "1",
+                              persistentLactoseSymptoms: values["labs_lactose_symptoms"] == "1")
     }
 
     public func setSex(_ sex: LabSex) throws {
@@ -134,10 +150,20 @@ public final class LabSettings {
         try save("labs_active_medications", joined)
     }
     public func setDrinksAlcoholRegularly(_ on: Bool) throws { try save("labs_drinks_alcohol", on ? "1" : "0") }
-    public func confirmContext(onTRTOrHRT: Bool, activeMedications: Set<LabMedicationClass>, drinksAlcoholRegularly: Bool) throws {
+    public func setReverseGeneticsEnabled(_ on: Bool) throws { try save("labs_reverse_genetics", on ? "1" : "0") }
+    public func setOxidativeTherapyPlanned(_ on: Bool) throws { try save("labs_oxidative_therapy", on ? "1" : "0") }
+    public func setClottingRiskHistory(_ on: Bool) throws { try save("labs_clotting_history", on ? "1" : "0") }
+    public func setPersistentLactoseSymptoms(_ on: Bool) throws { try save("labs_lactose_symptoms", on ? "1" : "0") }
+    public func confirmContext(onTRTOrHRT: Bool, activeMedications: Set<LabMedicationClass>, drinksAlcoholRegularly: Bool,
+                               reverseGeneticsEnabled: Bool? = nil, oxidativeTherapyPlanned: Bool? = nil,
+                               clottingRiskHistory: Bool? = nil, persistentLactoseSymptoms: Bool? = nil) throws {
         try setOnTRTOrHRT(onTRTOrHRT)
         try setActiveMedications(activeMedications)
         try setDrinksAlcoholRegularly(drinksAlcoholRegularly)
+        if let reverseGeneticsEnabled { try setReverseGeneticsEnabled(reverseGeneticsEnabled) }
+        if let oxidativeTherapyPlanned { try setOxidativeTherapyPlanned(oxidativeTherapyPlanned) }
+        if let clottingRiskHistory { try setClottingRiskHistory(clottingRiskHistory) }
+        if let persistentLactoseSymptoms { try setPersistentLactoseSymptoms(persistentLactoseSymptoms) }
         try save("labs_context_confirmed", "1")
     }
 
