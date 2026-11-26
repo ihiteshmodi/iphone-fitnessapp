@@ -5,25 +5,48 @@ struct MarkerLibraryView: View {
     @ObservedObject var model: LabsModel
     var chapter: String?
     @State private var search = ""
+    @State private var quickFilter: MarkerQuickFilter = .all
+    @State private var customFilter = MarkerCustomFilter()
+    @State private var showingCustomSheet = false
 
-    private var markers: [LabMarker] {
-        let base = search.isEmpty ? model.catalogue.visibleMarkers(for: model.sex) : model.catalogue.search(search).filter { $0.applies(to: model.sex) }
-        return base.filter { chapter == nil || $0.chapter == chapter }
-    }
-
-    private var chapters: [String] {
-        var seen: [String] = []
-        for marker in markers where !seen.contains(marker.chapter) { seen.append(marker.chapter) }
-        return seen
+    private var vm: MarkerLibraryViewModel {
+        let prefs = model.preferences ?? LabPreferences(sex: model.sex, showDrugNotes: model.showDrugNotes)
+        return (try? MarkerLibraryPresenter.build(
+            catalogue: model.catalogue, draws: model.draw, preferences: prefs,
+            genotypes: model.genotypes, today: model.today, fixedChapter: chapter,
+            search: search, quickFilter: quickFilter,
+            customFilter: customFilter.isActive ? customFilter : nil))
+            ?? .empty
     }
 
     var body: some View {
         List {
-            ForEach(chapters, id: \.self) { name in
-                Section(name) {
-                    ForEach(markers.filter { $0.chapter == name }) { marker in
-                        NavigationLink { MarkerDetailView(model: model, marker: marker) } label: { label(marker) }
-                            .accessibilityIdentifier("labs-marker-row-\(marker.id)")
+            Section {
+                filterBar
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                    .listRowBackground(Color.clear)
+            }
+
+            if vm.sections.isEmpty {
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("No markers match this filter.")
+                            .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                        Button("Reset filters") {
+                            quickFilter = .all
+                            customFilter = MarkerCustomFilter()
+                        }
+                        .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.green)
+                    }
+                    .padding(.vertical, 6)
+                }
+            } else {
+                ForEach(vm.sections) { section in
+                    Section("\(section.chapter) (\(section.rows.count))") {
+                        ForEach(section.rows) { row in
+                            NavigationLink { MarkerDetailView(model: model, marker: row.marker) } label: { label(row) }
+                                .accessibilityIdentifier("labs-marker-row-\(row.marker.id)")
+                        }
                     }
                 }
             }
@@ -31,22 +54,164 @@ struct MarkerLibraryView: View {
         .scrollContentBackground(.hidden)
         .screenBackground()
         .searchable(text: $search, prompt: "Marker or alias")
-        .navigationTitle(chapter ?? "Markers")
+        .navigationTitle(chapter ?? "Markers (\(vm.totalMatched))")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showingCustomSheet = true
+                } label: {
+                    Label("Custom filter", systemImage: customFilter.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                }
+                .accessibilityIdentifier("labs-markers-custom-filter-button")
+            }
+        }
+        .sheet(isPresented: $showingCustomSheet) {
+            MarkerCustomFilterSheet(filter: $customFilter, allChapters: vm.allChapters) {
+                if customFilter.isActive { quickFilter = .all }
+            }
+        }
     }
 
-    private func label(_ marker: LabMarker) -> some View {
-        let prefs = model.preferences ?? LabPreferences(sex: model.sex)
-        let isCore = CoreBloodworkGuide.isCoreMarker(marker.id, catalogue: model.catalogue, sex: model.sex)
-        return HStack(spacing: 6) {
-            Text(marker.name)
-            if isCore { Pill(text: "★ Core", tone: .gold) }
+    private var filterBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    Button {
+                        showingCustomSheet = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "slider.horizontal.3")
+                            Text(customFilter.isActive ? "Custom: \(customFilter.summaryText)" : "Custom filter")
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 11).padding(.vertical, 6)
+                        .background(customFilter.isActive ? Theme.green : Theme.card)
+                        .foregroundColor(customFilter.isActive ? Theme.onGreen : Theme.green)
+                        .overlay(Capsule().stroke(Theme.green.opacity(0.6), lineWidth: 1))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("labs-marker-chip-custom")
+
+                    ForEach(MarkerQuickFilter.allCases) { option in
+                        let isSelected = !customFilter.isActive && quickFilter == option
+                        let count = vm.quickCounts[option] ?? 0
+                        Button("\(option.rawValue) (\(count))") {
+                            customFilter = MarkerCustomFilter()
+                            quickFilter = option
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 11).padding(.vertical, 6)
+                        .background(isSelected ? Theme.green : Theme.card)
+                        .foregroundColor(isSelected ? Theme.onGreen : Theme.muted)
+                        .overlay(Capsule().stroke(isSelected ? .clear : Theme.line))
+                        .clipShape(Capsule())
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("labs-marker-chip-\(option.rawValue)")
+                    }
+                }
+            }
+        }
+    }
+
+    private func label(_ row: MarkerLibraryRowViewModel) -> some View {
+        HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(row.marker.name)
+                    if row.isCore { Pill(text: "★ Core", tone: .gold) }
+                }
+                if row.isRetestDue {
+                    Text("Retest due").font(.system(size: 11)).foregroundColor(Theme.amber)
+                }
+            }
             Spacer()
-            if let latest = try? model.draw.history(of: marker.id).first {
+            if let latest = row.latest {
                 let text = latest.textValue ?? "\(Format.number(latest.value)) \(latest.unit)"
                 Text(text).font(.system(size: 12)).foregroundColor(Theme.muted)
-                LabStatusPill(status: LabReader.read(result: latest, marker: marker, preferences: prefs, genotypes: model.genotypes).status)
+                if let reading = row.reading {
+                    LabStatusPill(status: reading.status)
+                }
+            } else if MarkerLibraryPresenter.isTestable(row.marker) {
+                Pill(text: "Not done", tone: .grey)
             }
+        }
+    }
+}
+
+struct MarkerCustomFilterSheet: View {
+    @Binding var filter: MarkerCustomFilter
+    let allChapters: [String]
+    let onApply: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft = MarkerCustomFilter()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Priority tier") {
+                    Picker("Tier", selection: $draft.tier) {
+                        ForEach(MarkerCustomFilter.Tier.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("labs-custom-filter-tier")
+                }
+
+                Section("Testing status") {
+                    Picker("Completion", selection: $draft.completion) {
+                        ForEach(MarkerCustomFilter.Completion.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .accessibilityIdentifier("labs-custom-filter-completion")
+                }
+
+                Section("Result status (for tested markers)") {
+                    Picker("Reading", selection: $draft.status) {
+                        ForEach(MarkerCustomFilter.Status.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .accessibilityIdentifier("labs-custom-filter-status")
+                }
+
+                if allChapters.count > 1 {
+                    Section("Systems / chapters (optional)") {
+                        ForEach(allChapters, id: \.self) { name in
+                            let selected = draft.chapters.contains(name)
+                            Button {
+                                if selected { draft.chapters.remove(name) } else { draft.chapters.insert(name) }
+                            } label: {
+                                HStack {
+                                    Text(name).foregroundColor(Theme.text)
+                                    Spacer()
+                                    if selected {
+                                        Image(systemName: "checkmark").foregroundColor(Theme.green)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Section {
+                    Button("Reset all filters", role: .destructive) {
+                        draft = MarkerCustomFilter()
+                    }
+                    .accessibilityIdentifier("labs-custom-filter-reset")
+                }
+            }
+            .navigationTitle("Custom marker filter")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply") {
+                        filter = draft
+                        onApply()
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("labs-custom-filter-apply")
+                }
+            }
+            .onAppear { draft = filter }
         }
     }
 }
