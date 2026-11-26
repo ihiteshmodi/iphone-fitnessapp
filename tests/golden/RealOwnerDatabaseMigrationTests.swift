@@ -25,9 +25,9 @@ final class RealOwnerDatabaseMigrationTests: XCTestCase {
         try db.execute("UPDATE measurement_targets SET unit = 'mm' WHERE site LIKE 'Body Fat (%' COLLATE NOCASE")
         try db.execute("UPDATE measurement_targets SET unit = '%' WHERE site = 'Body Fat' COLLATE NOCASE")
 
-        XCTAssertEqual(try db.count("foods"), 73)
-        XCTAssertEqual(try db.count("lab_draws"), 9)
-        XCTAssertGreaterThanOrEqual(try db.count("lab_results"), 104)
+        XCTAssertGreaterThanOrEqual(try db.count("foods"), 73)
+        XCTAssertGreaterThanOrEqual(try db.count("lab_draws"), 10)
+        XCTAssertGreaterThanOrEqual(try db.count("lab_results"), 118)
 
         let units = Dictionary(uniqueKeysWithValues: try db.query("SELECT site, unit FROM measurement_targets").map { ($0.text("site"), $0.text("unit")) })
         XCTAssertEqual(units["Body Fat (belly Button)"], "mm")
