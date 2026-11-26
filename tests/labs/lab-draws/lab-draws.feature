@@ -43,3 +43,23 @@ Feature: Add a lab draw
     When I enter Urine Nitrites "Negative", ANA titer "1:80", hs-CRP "< 0.3" mg/L, and Blood Pressure 126 / 84 mmHg
     Then Urine Nitrites keeps "Negative", ANA keeps "1:80" with numeric titer 80, hs-CRP feeds PhenoAge as LOD/root-2, and Blood Pressure keeps systolic 126 and diastolic 84
 
+  Scenario: Editing an existing draw updates its lab name, date, and prep state without losing its results
+    Given a draw on 27 Sep 2025 at "Vardhaman jain trust" with ferritin 48 ng/mL and glucose 86 mg/dL
+    When I edit that draw to lab "Sthanak Lab (Vardhman Jain Trust)", fasted 12 hours, biotin stopped, and note "Morning CBC"
+    Then the draw reflects the updated metadata and still keeps ferritin 48 ng/mL and glucose 86 mg/dL
+
+  Scenario: Saved lab names return unique trimmed names newest first
+    Given draws at "Tata 1mg Labs", "  tata 1mg labs ", "Healthians Labs", and a blank lab name
+    When I ask for saved lab names
+    Then I get "Healthians Labs" followed by the newest casing of Tata 1mg Labs with no duplicates or blanks
+
+  Scenario: Editing an existing result updates its value, unit, and lab range while leaving other results untouched
+    Given a draw on 27 Sep 2025 with glucose 86 mg/dL and ferritin 40 ng/mL
+    When I edit the glucose result to 5.0 mmol/L with lab range 3.9-5.6
+    Then glucose reads 5.0 mmol/L (90 mg/dL in default unit) with lab range 3.9-5.6 and ferritin remains 40 ng/mL
+
+  Scenario: Editing a result refuses an unknown unit without a positive custom multiplier
+    Given a draw on 27 Sep 2025 with ferritin 48 ng/mL
+    When I edit the ferritin result to 50 in "pmol/L" without a custom multiplier
+    Then the edit is refused and ferritin stays 48 ng/mL
+

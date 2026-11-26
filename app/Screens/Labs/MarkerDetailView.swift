@@ -176,6 +176,7 @@ struct MarkerDetailView: View {
     let marker: LabMarker
     @State private var history: [LabResult] = []
     @State private var latestDrawResults: [LabResult] = []
+    @State private var editingResult: LabResult?
 
     private var prefs: LabPreferences { model.preferences ?? LabPreferences(sex: model.sex, showDrugNotes: model.showDrugNotes) }
     private var latest: LabResult? { history.first }
@@ -235,12 +236,22 @@ struct MarkerDetailView: View {
         .screenBackground()
         .navigationTitle(marker.name)
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            let loaded = (try? model.draw.history(of: marker.id)) ?? []
-            history = loaded
-            if let first = loaded.first {
-                latestDrawResults = (try? model.draw.results(inDraw: first.drawID)) ?? []
+        .onAppear(perform: reloadHistory)
+        .sheet(item: $editingResult) { target in
+            EditResultSheet(existing: target, marker: marker, draws: model.draw, sex: model.sex) {
+                reloadHistory()
+                model.load()
             }
+        }
+    }
+
+    private func reloadHistory() {
+        let loaded = (try? model.draw.history(of: marker.id)) ?? []
+        history = loaded
+        if let first = loaded.first {
+            latestDrawResults = (try? model.draw.results(inDraw: first.drawID)) ?? []
+        } else {
+            latestDrawResults = []
         }
     }
 
@@ -298,8 +309,18 @@ struct MarkerDetailView: View {
                 if let tierLabel = reading.tierLabel, !tierLabel.isEmpty {
                     Text(tierLabel).font(.system(size: 12)).foregroundColor(Theme.muted).fixedSize(horizontal: false, vertical: true)
                 }
-                Text("Latest: \(Format.longDate(latest.date))\(latest.isCalculated ? " · calculated from that draw" : "")")
-                    .font(.system(size: 12)).foregroundColor(Theme.muted)
+                HStack {
+                    Text("Latest: \(Format.longDate(latest.date))\(latest.isCalculated ? " · calculated from that draw" : "")")
+                        .font(.system(size: 12)).foregroundColor(Theme.muted)
+                    Spacer()
+                    if !latest.isCalculated {
+                        Button("Edit result") { editingResult = latest }
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Theme.green)
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("labs-marker-edit-latest")
+                    }
+                }
                 if !reading.edgeLabels.isEmpty {
                     Text("On the edge of \(reading.edgeLabels.joined(separator: " and "))").font(.system(size: 12)).foregroundColor(Theme.amber)
                 }
@@ -462,10 +483,21 @@ struct MarkerDetailView: View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel("Every result")
             ForEach(history) { result in
-                HStack {
-                    Text(Format.longDate(result.date)).font(.system(size: 13))
+                let labName = model.draws.first { $0.id == result.drawID }?.draft.lab
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(Format.longDate(result.date)).font(.system(size: 13))
+                        if let labName { Text(labName).font(.system(size: 11)).foregroundColor(Theme.muted) }
+                    }
                     Spacer()
-                    Text("\(Format.number(result.value)) \(result.unit)").font(.system(size: 13)).foregroundColor(Theme.muted)
+                    Text(result.textValue ?? "\(Format.number(result.value)) \(result.unit)")
+                        .font(.system(size: 13)).foregroundColor(Theme.muted)
+                    if !result.isCalculated {
+                        Button { editingResult = result } label: {
+                            Image(systemName: "pencil").font(.system(size: 13)).foregroundColor(Theme.green)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }

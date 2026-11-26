@@ -180,4 +180,76 @@ final class LabDrawTests: XCTestCase {
         XCTAssertEqual(bp.secondaryValue, 84)
         XCTAssertEqual(bp.assay, "home-cuff")
     }
+
+    func testEditingADrawUpdatesMetadataAndKeepsExistingResults() throws {
+        let id = try draws.addDraw(LabDrawDraft(date: date("2025-09-27"), time: "10:11", lab: "Vardhaman jain trust"))
+        try draws.addResult(drawID: id, markerID: "ferritin", value: 48, unit: "ng/mL")
+        try draws.addResult(drawID: id, markerID: "glucose", value: 86, unit: "mg/dL")
+
+        try draws.updateDraw(id, LabDrawDraft(
+            date: date("2025-09-28"), time: "08:30", lab: "Sthanak Lab (Vardhman Jain Trust)",
+            fastedHours: 12, biotinStopped: true, note: "Morning CBC"))
+
+        let updated = try XCTUnwrap(try draws.draws().first { $0.id == id })
+        XCTAssertEqual(updated.draft.date, date("2025-09-28"))
+        XCTAssertEqual(updated.draft.time, "08:30")
+        XCTAssertEqual(updated.draft.lab, "Sthanak Lab (Vardhman Jain Trust)")
+        XCTAssertEqual(updated.draft.fastedHours, 12)
+        XCTAssertEqual(updated.draft.biotinStopped, true)
+        XCTAssertEqual(updated.draft.note, "Morning CBC")
+
+        let inDraw = try draws.results(inDraw: id)
+        XCTAssertEqual(inDraw.count, 2)
+        XCTAssertEqual(try draws.history(of: "ferritin").first?.date, date("2025-09-28"))
+    }
+
+    func testSavedLabNamesReturnsUniqueTrimmedNamesOrderedNewestFirst() throws {
+        _ = try draws.addDraw(LabDrawDraft(date: date("2025-06-17"), lab: "tata 1mg labs"))
+        _ = try draws.addDraw(LabDrawDraft(date: date("2025-09-27"), lab: "   "))
+        _ = try draws.addDraw(LabDrawDraft(date: date("2026-05-03"), lab: "  Tata 1mg Labs  "))
+        _ = try draws.addDraw(LabDrawDraft(date: date("2026-10-02"), lab: "Healthians Labs"))
+
+        let names = try draws.savedLabNames()
+
+        XCTAssertEqual(names, ["Healthians Labs", "Tata 1mg Labs"])
+    }
+
+    func testEditingAResultUpdatesValueUnitAndRangeWhilePreservingSiblings() throws {
+        let drawID = try draws.addDraw(LabDrawDraft(date: date("2025-09-27"), lab: "Vardhaman jain trust"))
+        let glucoseID = try draws.addResult(drawID: drawID, markerID: "glucose", value: 86, unit: "mg/dL")
+        _ = try draws.addResult(drawID: drawID, markerID: "ferritin", value: 40, unit: "ng/mL")
+
+        try draws.updateResult(glucoseID, value: 5.0, unit: "mmol/L", labLow: 3.9, labHigh: 5.6, assay: "hexokinase")
+
+        let updatedGlucose = try XCTUnwrap(try draws.history(of: "glucose").first)
+        XCTAssertEqual(updatedGlucose.id, glucoseID)
+        XCTAssertEqual(updatedGlucose.value, 5.0, accuracy: 1e-9)
+        XCTAssertEqual(updatedGlucose.unit, "mmol/L")
+        XCTAssertEqual(updatedGlucose.defaultValue ?? 0, 90.0, accuracy: 1e-9)
+        XCTAssertEqual(updatedGlucose.labLow, 3.9)
+        XCTAssertEqual(updatedGlucose.labHigh, 5.6)
+        XCTAssertEqual(updatedGlucose.assay, "hexokinase")
+        XCTAssertEqual(try draws.history(of: "ferritin").first?.value, 40)
+    }
+
+    func testEditingQualitativeResultAndRejectingInvalidUnitKeepIntegrity() throws {
+        let json = #"""
+        {"markers": [
+          {"id": "ferritin", "name": "Ferritin", "units": [{"unit": "ng/mL", "default": true}]},
+          {"id": "ana", "name": "ANA", "units": [{"unit": "titer ratio", "default": true}]}
+        ]}
+        """#
+        let svc = LabDrawService(db, catalogue: try LabCatalogue(data: Data(json.utf8)))
+        let drawID = try svc.addDraw(LabDrawDraft(date: date("2025-09-27")))
+        let ferrID = try svc.addResult(drawID: drawID, markerID: "ferritin", value: 48, unit: "ng/mL")
+        let anaID = try svc.addQualitativeResult(drawID: drawID, markerID: "ana", textValue: "1:40", unit: "titer ratio")
+
+        XCTAssertThrowsError(try svc.updateResult(ferrID, value: 50, unit: "pmol/L"))
+        XCTAssertEqual(try svc.history(of: "ferritin").first?.value, 48)
+
+        try svc.updateQualitativeResult(anaID, textValue: "1:160", unit: "titer ratio")
+        let ana = try XCTUnwrap(try svc.history(of: "ana").first)
+        XCTAssertEqual(ana.textValue, "1:160")
+        XCTAssertEqual(ana.value, 160)
+    }
 }

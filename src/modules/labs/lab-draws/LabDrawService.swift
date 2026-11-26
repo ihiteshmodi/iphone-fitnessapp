@@ -141,19 +141,43 @@ public final class LabDrawService {
         try db.execute("DELETE FROM lab_draws WHERE id = ?", [.int(Int64(id))])
     }
 
+    public func updateDraw(_ id: Int, _ draft: LabDrawDraft) throws {
+        guard !(try db.query("SELECT 1 FROM lab_draws WHERE id = ?", [.int(Int64(id))])).isEmpty else {
+            throw ValidationError("Draw not found")
+        }
+        try db.execute("""
+            UPDATE lab_draws SET
+                draw_date = ?, draw_time = ?, lab = ?, fasted_hours = ?, trained_72h = ?, alcohol_5d = ?,
+                biotin_stopped = ?, iron_stopped = ?, ill_recently = ?, cycle_day = ?, cycle_phase = ?,
+                poor_sleep = ?, acute_stress = ?, recent_vaccine_or_surgery = ?, meds_noted = ?, note = ?
+            WHERE id = ?
+            """, [.text(draft.date.string), .optional(draft.time), .optional(draft.lab), .optional(draft.fastedHours),
+                  Self.flag(draft.trainedHard72h), Self.flag(draft.alcohol5d), Self.flag(draft.biotinStopped),
+                  Self.flag(draft.ironStopped), Self.flag(draft.illRecently), .optional(draft.cycleDay),
+                  .optional(draft.cyclePhase), Self.flag(draft.poorSleep), Self.flag(draft.acuteStress),
+                  Self.flag(draft.recentVaccineOrSurgery), .optional(draft.medsNoted), .optional(draft.note),
+                  .int(Int64(id))])
+    }
+
+    /// Unique trimmed lab names ordered by most recent draw, deduplicated case-insensitively while keeping newest casing.
+    public func savedLabNames() throws -> [String] {
+        let rows = try db.query("SELECT lab FROM lab_draws WHERE lab IS NOT NULL ORDER BY draw_date DESC, id DESC")
+        var seen: Set<String> = []
+        var names: [String] = []
+        for row in rows {
+            guard let raw = row.optionalText("lab") else { continue }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed.lowercased()).inserted else { continue }
+            names.append(trimmed)
+        }
+        return names
+    }
+
     @discardableResult
     public func addResult(drawID: Int, markerID: String, value: Double, unit: String, labLow: Double? = nil, labHigh: Double? = nil,
                           valueOperator: LabValueOperator? = nil, secondaryValue: Double? = nil, customToDefault: Double? = nil,
                           specimen: String? = nil, assay: String? = nil) throws -> Int {
-        guard let marker = catalogue.marker(markerID) else { throw ValidationError("\(markerID) is not in the labs catalogue") }
-        let isKnownUnit = marker.units.isEmpty || marker.units.contains(where: { $0.unit == unit })
-        if let customToDefault, (!customToDefault.isFinite || customToDefault <= 0) {
-            throw ValidationError("Custom conversion multiplier must be a positive number")
-        }
-        guard isKnownUnit || customToDefault != nil else {
-            throw ValidationError("\(unit) is not a unit the catalogue gives for \(marker.name)")
-        }
-        guard value.isFinite else { throw ValidationError("The value must be a number") }
+        try validateNumericResult(markerID: markerID, value: value, unit: unit, customToDefault: customToDefault)
         try db.execute("""
             INSERT INTO lab_results (
                 draw_id, marker_id, value, value_operator, secondary_value, custom_to_default, specimen, assay, unit, lab_low, lab_high
@@ -166,11 +190,7 @@ public final class LabDrawService {
 
     @discardableResult
     public func addQualitativeResult(drawID: Int, markerID: String, textValue: String, unit: String = "", specimen: String? = nil) throws -> Int {
-        guard let marker = catalogue.marker(markerID) else { throw ValidationError("\(markerID) is not in the labs catalogue") }
-        let cleaned = textValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleaned.isEmpty else { throw ValidationError("Enter a result for \(marker.name)") }
-        let parsedNumeric = Self.parseTiterNumber(cleaned)
-        let resolvedUnit = unit.isEmpty ? (marker.defaultUnit ?? "") : unit
+        let (cleaned, parsedNumeric, resolvedUnit) = try validateQualitativeResult(markerID: markerID, textValue: textValue, unit: unit)
         try db.execute("""
             INSERT INTO lab_results (draw_id, marker_id, value, text_value, specimen, unit)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -181,6 +201,55 @@ public final class LabDrawService {
 
     public func deleteResult(_ id: Int) throws {
         try db.execute("DELETE FROM lab_results WHERE id = ?", [.int(Int64(id))])
+    }
+
+    public func updateResult(_ id: Int, value: Double, unit: String, labLow: Double? = nil, labHigh: Double? = nil,
+                             valueOperator: LabValueOperator? = nil, secondaryValue: Double? = nil, customToDefault: Double? = nil,
+                             specimen: String? = nil, assay: String? = nil) throws {
+        guard let markerID = try db.query("SELECT marker_id FROM lab_results WHERE id = ?", [.int(Int64(id))]).first?.text("marker_id") else {
+            throw ValidationError("Result not found")
+        }
+        try validateNumericResult(markerID: markerID, value: value, unit: unit, customToDefault: customToDefault)
+        try db.execute("""
+            UPDATE lab_results SET
+                value = ?, text_value = NULL, value_operator = ?, secondary_value = ?, custom_to_default = ?,
+                specimen = ?, assay = ?, unit = ?, lab_low = ?, lab_high = ?
+            WHERE id = ?
+            """, [.double(value), .optional(valueOperator?.rawValue), .optional(secondaryValue), .optional(customToDefault),
+                  .optional(specimen), .optional(assay), .text(unit), .optional(labLow), .optional(labHigh), .int(Int64(id))])
+    }
+
+    public func updateQualitativeResult(_ id: Int, textValue: String, unit: String = "", specimen: String? = nil) throws {
+        guard let markerID = try db.query("SELECT marker_id FROM lab_results WHERE id = ?", [.int(Int64(id))]).first?.text("marker_id") else {
+            throw ValidationError("Result not found")
+        }
+        let (cleaned, parsedNumeric, resolvedUnit) = try validateQualitativeResult(markerID: markerID, textValue: textValue, unit: unit)
+        try db.execute("""
+            UPDATE lab_results SET value = ?, text_value = ?, value_operator = NULL, secondary_value = NULL,
+                custom_to_default = NULL, specimen = ?, assay = NULL, unit = ?, lab_low = NULL, lab_high = NULL
+            WHERE id = ?
+            """, [.optional(parsedNumeric), .text(cleaned), .optional(specimen), .text(resolvedUnit), .int(Int64(id))])
+    }
+
+    private func validateNumericResult(markerID: String, value: Double, unit: String, customToDefault: Double?) throws {
+        guard let marker = catalogue.marker(markerID) else { throw ValidationError("\(markerID) is not in the labs catalogue") }
+        let isKnownUnit = marker.units.isEmpty || marker.units.contains(where: { $0.unit == unit })
+        if let customToDefault, (!customToDefault.isFinite || customToDefault <= 0) {
+            throw ValidationError("Custom conversion multiplier must be a positive number")
+        }
+        guard isKnownUnit || customToDefault != nil else {
+            throw ValidationError("\(unit) is not a unit the catalogue gives for \(marker.name)")
+        }
+        guard value.isFinite else { throw ValidationError("The value must be a number") }
+    }
+
+    private func validateQualitativeResult(markerID: String, textValue: String, unit: String) throws -> (String, Double?, String) {
+        guard let marker = catalogue.marker(markerID) else { throw ValidationError("\(markerID) is not in the labs catalogue") }
+        let cleaned = textValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { throw ValidationError("Enter a result for \(marker.name)") }
+        let parsedNumeric = Self.parseTiterNumber(cleaned)
+        let resolvedUnit = unit.isEmpty ? (marker.defaultUnit ?? "") : unit
+        return (cleaned, parsedNumeric, resolvedUnit)
     }
 
     /// Newest first. A calculated marker is worked out on every draw that has its inputs.

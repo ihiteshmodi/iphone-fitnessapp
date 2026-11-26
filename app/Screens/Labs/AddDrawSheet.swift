@@ -22,6 +22,25 @@ struct PendingResult: Identifiable {
         unit = marker.defaultUnit ?? ""
     }
 
+    init(existing: LabResult, marker: LabMarker) {
+        self.marker = marker
+        value = Format.number(existing.value, maxDecimals: 4)
+        secondaryValue = existing.secondaryValue.map { Format.number($0, maxDecimals: 4) } ?? ""
+        textValue = existing.textValue ?? ""
+        isBelowLimit = existing.valueOperator == .belowLimit
+        if let customMult = existing.customToDefault {
+            unit = marker.defaultUnit ?? existing.unit
+            useCustomUnit = true
+            customUnit = existing.unit
+            customMultiplier = Format.number(customMult, maxDecimals: 4)
+        } else {
+            unit = existing.unit
+        }
+        assay = existing.assay ?? ""
+        labLow = existing.labLow.map { Format.number($0, maxDecimals: 4) } ?? ""
+        labHigh = existing.labHigh.map { Format.number($0, maxDecimals: 4) } ?? ""
+    }
+
     var isBloodPressure: Bool { marker.id == "blood-pressure" }
     var isQualitative: Bool { marker.units.isEmpty && marker.bands.contains { ($0.values?.isEmpty == false) } }
     var isTiter: Bool { marker.defaultUnit?.lowercased().contains("titer") == true }
@@ -33,6 +52,13 @@ struct PendingResult: Identifiable {
 private enum Answer: String, CaseIterable {
     case unknown = "—", yes = "Yes", no = "No"
     var value: Bool? { self == .unknown ? nil : self == .yes }
+    init(_ flag: Bool?) {
+        switch flag {
+        case true: self = .yes
+        case false: self = .no
+        case nil: self = .unknown
+        }
+    }
 }
 
 struct AddDrawSheet: View {
@@ -40,10 +66,12 @@ struct AddDrawSheet: View {
     let draws: LabDrawService
     let sex: LabSex
     let today: ISODate
+    var existing: LabDraw?
     @Environment(\.dismiss) private var dismiss
     @State private var date = Date()
     @State private var time = ""
     @State private var lab = ""
+    @State private var savedLabs: [String] = []
     @State private var fastedHours = ""
     @State private var trained = Answer.unknown
     @State private var alcohol = Answer.unknown
@@ -58,6 +86,7 @@ struct AddDrawSheet: View {
     @State private var note = ""
     @State private var results: [PendingResult] = []
     @State private var pickingMarker = false
+    @State private var loadedInitial = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -67,6 +96,27 @@ struct AddDrawSheet: View {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                     TextField("Time (e.g. 08:15)", text: $time).keyboardType(.numbersAndPunctuation)
                     TextField("Lab", text: $lab)
+                        .accessibilityIdentifier("labs-draw-lab-field")
+                    if !savedLabs.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Saved labs (tap to fill)").font(.system(size: 11)).foregroundColor(Theme.muted)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(savedLabs, id: \.self) { name in
+                                        let active = lab.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(name) == .orderedSame
+                                        Button(name) { lab = name }
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .padding(.horizontal, 10).padding(.vertical, 5)
+                                            .background(active ? Theme.green.opacity(0.22) : Theme.card2)
+                                            .foregroundColor(active ? Theme.green : Theme.text)
+                                            .clipShape(Capsule())
+                                            .buttonStyle(.plain)
+                                            .accessibilityIdentifier("labs-saved-lab-\(name)")
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 Section("How you came in") {
                     TextField("Hours fasted", text: $fastedHours).keyboardType(.decimalPad)
@@ -85,14 +135,16 @@ struct AddDrawSheet: View {
                     TextField("Medications / supplements taken", text: $medsNoted)
                     TextField("Note", text: $note)
                 }
-                Section("Results") {
-                    ForEach($results) { $row in ResultFields(row: $row, sex: sex) }
-                        .onDelete { results.remove(atOffsets: $0) }
-                    Button("+ Add a result") { pickingMarker = true }
-                        .accessibilityIdentifier("labs-add-result")
+                if existing == nil {
+                    Section("Results") {
+                        ForEach($results) { $row in ResultFields(row: $row, sex: sex) }
+                            .onDelete { results.remove(atOffsets: $0) }
+                        Button("+ Add a result") { pickingMarker = true }
+                            .accessibilityIdentifier("labs-add-result")
+                    }
                 }
             }
-            .navigationTitle("New draw")
+            .navigationTitle(existing == nil ? "New draw" : "Edit draw")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -102,8 +154,34 @@ struct AddDrawSheet: View {
                 MarkerPicker(catalogue: catalogue, sex: sex) { results.append(PendingResult(marker: $0)) }
             }
             .errorAlert($errorMessage)
-            .onAppear { date = BodyDates.date(from: today) }
+            .onAppear(perform: populateInitial)
         }
+    }
+
+    private func populateInitial() {
+        savedLabs = (try? draws.savedLabNames()) ?? []
+        guard !loadedInitial else { return }
+        loadedInitial = true
+        guard let existing else {
+            date = BodyDates.date(from: today)
+            return
+        }
+        let d = existing.draft
+        date = BodyDates.date(from: d.date)
+        time = d.time ?? ""
+        lab = d.lab ?? ""
+        fastedHours = d.fastedHours.map { Format.number($0, maxDecimals: 2) } ?? ""
+        trained = Answer(d.trainedHard72h)
+        alcohol = Answer(d.alcohol5d)
+        biotin = Answer(d.biotinStopped)
+        iron = Answer(d.ironStopped)
+        ill = Answer(d.illRecently)
+        poorSleep = Answer(d.poorSleep)
+        acuteStress = Answer(d.acuteStress)
+        recentVaccine = Answer(d.recentVaccineOrSurgery)
+        cycleDay = d.cycleDay.map(String.init) ?? ""
+        medsNoted = d.medsNoted ?? ""
+        note = d.note ?? ""
     }
 
     private func answer(_ title: String, _ value: Binding<Answer>) -> some View {
@@ -118,13 +196,17 @@ struct AddDrawSheet: View {
         let draft = LabDrawDraft(date: BodyDates.day(from: date), time: blank(time), lab: blank(lab),
                                  fastedHours: PendingResult.number(fastedHours), trainedHard72h: trained.value,
                                  alcohol5d: alcohol.value, biotinStopped: biotin.value, ironStopped: iron.value,
-                                 illRecently: ill.value, cycleDay: parsedCycle, poorSleep: poorSleep.value,
-                                 acuteStress: acuteStress.value, recentVaccineOrSurgery: recentVaccine.value,
-                                 medsNoted: blank(medsNoted), note: blank(note))
+                                 illRecently: ill.value, cycleDay: parsedCycle, cyclePhase: existing?.draft.cyclePhase,
+                                 poorSleep: poorSleep.value, acuteStress: acuteStress.value,
+                                 recentVaccineOrSurgery: recentVaccine.value, medsNoted: blank(medsNoted), note: blank(note))
         do {
-            try ResultFields.validate(results)
-            let drawID = try draws.addDraw(draft)
-            try ResultFields.save(results, drawID: drawID, draws: draws)
+            if let existing {
+                try draws.updateDraw(existing.id, draft)
+            } else {
+                try ResultFields.validate(results)
+                let drawID = try draws.addDraw(draft)
+                try ResultFields.save(results, drawID: drawID, draws: draws)
+            }
             dismiss()
         } catch {
             errorMessage = (error as? ValidationError)?.message ?? error.localizedDescription
@@ -172,13 +254,15 @@ struct ResultFields: View {
             if !row.isQualitative {
                 extraOptionsRow
             }
-            if row.marker.needsLabRange || showRange {
+            if row.marker.needsLabRange || showRange || !row.labLow.isEmpty || !row.labHigh.isEmpty {
                 if row.marker.needsLabRange {
                     Text("The vault reads this against your lab's own range.").font(.system(size: 11)).foregroundColor(Theme.muted)
                 }
                 HStack {
                     TextField("Lab low", text: $row.labLow).keyboardType(.decimalPad)
+                        .accessibilityIdentifier("labs-result-lab-low")
                     TextField("Lab high", text: $row.labHigh).keyboardType(.decimalPad)
+                        .accessibilityIdentifier("labs-result-lab-high")
                 }
             }
         }
@@ -347,6 +431,90 @@ struct ResultFields: View {
                                     valueOperator: op, secondaryValue: secVal, customToDefault: customMult, assay: assayVal)
         }
     }
+
+    static func update(_ row: PendingResult, resultID: Int, specimen: String?, draws: LabDrawService) throws {
+        try validate([row])
+        if row.isQualitative || row.isTiter {
+            let text = row.textValue.trimmingCharacters(in: .whitespaces)
+            try draws.updateQualitativeResult(resultID, textValue: text, unit: row.unit, specimen: specimen)
+            return
+        }
+        guard let value = PendingResult.number(row.value) else { return }
+        let chosenUnit = row.useCustomUnit ? row.customUnit.trimmingCharacters(in: .whitespaces) : row.unit
+        let customMult = row.useCustomUnit ? PendingResult.number(row.customMultiplier) : nil
+        let op: LabValueOperator? = row.isBelowLimit ? .belowLimit : nil
+        let secVal = row.isBloodPressure ? PendingResult.number(row.secondaryValue) : nil
+        let assayVal = row.assay.isEmpty ? nil : row.assay
+        try draws.updateResult(resultID, value: value, unit: chosenUnit,
+                               labLow: PendingResult.number(row.labLow), labHigh: PendingResult.number(row.labHigh),
+                               valueOperator: op, secondaryValue: secVal, customToDefault: customMult,
+                               specimen: specimen, assay: assayVal)
+    }
+}
+
+struct EditResultSheet: View {
+    let existing: LabResult
+    let marker: LabMarker
+    let draws: LabDrawService
+    let sex: LabSex
+    let onSaved: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var row: PendingResult
+    @State private var confirmingDelete = false
+    @State private var errorMessage: String?
+
+    init(existing: LabResult, marker: LabMarker, draws: LabDrawService, sex: LabSex, onSaved: @escaping () -> Void) {
+        self.existing = existing
+        self.marker = marker
+        self.draws = draws
+        self.sex = sex
+        self.onSaved = onSaved
+        _row = State(initialValue: PendingResult(existing: existing, marker: marker))
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Edit result (\(Format.longDate(existing.date)))") {
+                    ResultFields(row: $row, sex: sex)
+                }
+                Section {
+                    Button("Delete this result", role: .destructive) { confirmingDelete = true }
+                        .accessibilityIdentifier("labs-delete-result")
+                }
+            }
+            .navigationTitle("Edit \(marker.name)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: save).accessibilityIdentifier("labs-save-edit-result")
+                }
+            }
+            .confirmationDialog("Delete \(marker.name) from this draw?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
+                    do {
+                        try draws.deleteResult(existing.id)
+                        onSaved()
+                        dismiss()
+                    } catch {
+                        errorMessage = error.localizedDescription
+                    }
+                }
+            }
+            .errorAlert($errorMessage)
+        }
+    }
+
+    private func save() {
+        do {
+            try ResultFields.update(row, resultID: existing.id, specimen: existing.specimen, draws: draws)
+            onSaved()
+            dismiss()
+        } catch {
+            errorMessage = (error as? ValidationError)?.message ?? error.localizedDescription
+        }
+    }
 }
 
 struct MarkerPicker: View {
@@ -386,35 +554,53 @@ struct DrawDetailView: View {
     @ObservedObject var model: LabsModel
     let draw: LabDraw
     @Environment(\.dismiss) private var dismiss
+    @State private var currentDraw: LabDraw
     @State private var results: [LabResult] = []
     @State private var pending: [PendingResult] = []
     @State private var pickingMarker = false
+    @State private var editingDraw = false
+    @State private var editingResult: LabResult?
     @State private var confirmingDelete = false
+
+    init(model: LabsModel, draw: LabDraw) {
+        self.model = model
+        self.draw = draw
+        _currentDraw = State(initialValue: draw)
+    }
 
     var body: some View {
         List {
             Section("Draw") {
-                row("Date", Format.longDate(draw.draft.date))
-                if let time = draw.draft.time { row("Time", time) }
-                if let lab = draw.draft.lab { row("Lab", lab) }
-                if let hours = draw.draft.fastedHours { row("Fasted", "\(Format.number(hours)) h") }
-                prep("Hard training (72 h)", draw.draft.trainedHard72h)
-                prep("Alcohol (5 days)", draw.draft.alcohol5d)
-                prep("Biotin stopped", draw.draft.biotinStopped)
-                prep("Iron stopped", draw.draft.ironStopped)
-                prep("Ill recently", draw.draft.illRecently)
-                prep("Poor sleep", draw.draft.poorSleep)
-                prep("Acute stress", draw.draft.acuteStress)
-                prep("Recent vaccine / surgery", draw.draft.recentVaccineOrSurgery)
-                if model.sex == .female, let cd = draw.draft.cycleDay { row("Cycle day", "Day \(cd)") }
-                if let meds = draw.draft.medsNoted { row("Medications", meds) }
-                if let note = draw.draft.note { Text(note).font(.system(size: 13)) }
+                row("Date", Format.longDate(currentDraw.draft.date))
+                if let time = currentDraw.draft.time { row("Time", time) }
+                if let lab = currentDraw.draft.lab { row("Lab", lab) }
+                if let hours = currentDraw.draft.fastedHours { row("Fasted", "\(Format.number(hours)) h") }
+                prep("Hard training (72 h)", currentDraw.draft.trainedHard72h)
+                prep("Alcohol (5 days)", currentDraw.draft.alcohol5d)
+                prep("Biotin stopped", currentDraw.draft.biotinStopped)
+                prep("Iron stopped", currentDraw.draft.ironStopped)
+                prep("Ill recently", currentDraw.draft.illRecently)
+                prep("Poor sleep", currentDraw.draft.poorSleep)
+                prep("Acute stress", currentDraw.draft.acuteStress)
+                prep("Recent vaccine / surgery", currentDraw.draft.recentVaccineOrSurgery)
+                if model.sex == .female, let cd = currentDraw.draft.cycleDay { row("Cycle day", "Day \(cd)") }
+                if let meds = currentDraw.draft.medsNoted { row("Medications", meds) }
+                if let note = currentDraw.draft.note { Text(note).font(.system(size: 13)) }
             }
             Section("Results") {
-                ForEach(results) { result in resultRow(result).deleteDisabled(result.isCalculated) }
-                    .onDelete { offsets in
-                        for index in offsets { perform { try model.draw.deleteResult(results[index].id) } }
-                    }
+                ForEach(results) { result in
+                    resultRow(result)
+                        .deleteDisabled(result.isCalculated)
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            if !result.isCalculated {
+                                Button("Edit") { editingResult = result }
+                                    .tint(Theme.green)
+                            }
+                        }
+                }
+                .onDelete { offsets in
+                    for index in offsets { perform { try model.draw.deleteResult(results[index].id) } }
+                }
             }
             if !pending.isEmpty {
                 Section("New results") {
@@ -424,19 +610,41 @@ struct DrawDetailView: View {
                 }
             }
             Section {
+                Button("Edit draw details") { editingDraw = true }
+                    .accessibilityIdentifier("labs-edit-draw-row")
                 Button("+ Add a result") { pickingMarker = true }
                 Button("Delete this draw", role: .destructive) { confirmingDelete = true }
             }
         }
         .scrollContentBackground(.hidden)
         .screenBackground()
-        .navigationTitle(Format.longDate(draw.draft.date))
+        .navigationTitle(Format.longDate(currentDraw.draft.date))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Edit") { editingDraw = true }
+                    .accessibilityIdentifier("labs-edit-draw")
+            }
+        }
         .onAppear(perform: reload)
         .sheet(isPresented: $pickingMarker) { MarkerPicker(catalogue: model.catalogue, sex: model.sex) { pending.append(PendingResult(marker: $0)) } }
+        .sheet(isPresented: $editingDraw, onDismiss: {
+            reload()
+            model.load()
+        }) {
+            AddDrawSheet(catalogue: model.catalogue, draws: model.draw, sex: model.sex, today: model.today, existing: currentDraw)
+        }
+        .sheet(item: $editingResult) { target in
+            if let marker = model.catalogue.marker(target.markerID) {
+                EditResultSheet(existing: target, marker: marker, draws: model.draw, sex: model.sex) {
+                    reload()
+                    model.load()
+                }
+            }
+        }
         .confirmationDialog("Delete this draw and all its results?", isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
-                perform { try model.draw.deleteDraw(draw.id) }
+                perform { try model.draw.deleteDraw(currentDraw.id) }
                 dismiss()
             }
         }
@@ -456,34 +664,46 @@ struct DrawDetailView: View {
     private func resultRow(_ result: LabResult) -> some View {
         if let marker = model.catalogue.marker(result.markerID) {
             let prefs = model.preferences ?? LabPreferences(sex: model.sex)
-            let reading = LabReader.read(result: result, marker: marker, preferences: prefs, draw: draw.draft, genotypes: model.genotypes)
-            let warnings = LabValidityGate.evaluate(result: result, marker: marker, draw: draw.draft,
+            let reading = LabReader.read(result: result, marker: marker, preferences: prefs, draw: currentDraw.draft, genotypes: model.genotypes)
+            let warnings = LabValidityGate.evaluate(result: result, marker: marker, draw: currentDraw.draft,
                                                     sameDrawResults: results, catalogue: model.catalogue, sex: model.sex)
             let bar = LabRangeBarModel.build(marker: marker, sex: model.sex, reading: reading, latestResult: result)
-            NavigationLink { MarkerDetailView(model: model, marker: marker) } label: {
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(marker.name)
-                            if result.isCalculated { Text("Calculated from this draw").font(.system(size: 11)).foregroundColor(Theme.muted) }
-                            if result.labLow != nil || result.labHigh != nil {
-                                Text("Lab range \(result.labLow.map { Format.number($0) } ?? "…")–\(result.labHigh.map { Format.number($0) } ?? "…")")
-                                    .font(.system(size: 11)).foregroundColor(Theme.muted)
+            HStack(spacing: 8) {
+                NavigationLink { MarkerDetailView(model: model, marker: marker) } label: {
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(marker.name)
+                                if result.isCalculated { Text("Calculated from this draw").font(.system(size: 11)).foregroundColor(Theme.muted) }
+                                if result.labLow != nil || result.labHigh != nil {
+                                    Text("Lab range \(result.labLow.map { Format.number($0) } ?? "…")–\(result.labHigh.map { Format.number($0) } ?? "…")")
+                                        .font(.system(size: 11)).foregroundColor(Theme.muted)
+                                }
+                                if let firstWarn = warnings.first {
+                                    Text(firstWarn.title).font(.system(size: 11)).foregroundColor(Theme.amber)
+                                }
+                                if let firstGene = reading.geneticNotes.first {
+                                    Text(firstGene).font(.system(size: 11)).foregroundColor(Theme.green).lineLimit(2)
+                                }
                             }
-                            if let firstWarn = warnings.first {
-                                Text(firstWarn.title).font(.system(size: 11)).foregroundColor(Theme.amber)
-                            }
-                            if let firstGene = reading.geneticNotes.first {
-                                Text(firstGene).font(.system(size: 11)).foregroundColor(Theme.green).lineLimit(2)
-                            }
+                            Spacer()
+                            Text(formattedResultText(result)).foregroundColor(Theme.muted)
+                            LabStatusPill(status: reading.status)
                         }
-                        Spacer()
-                        Text(formattedResultText(result)).foregroundColor(Theme.muted)
-                        LabStatusPill(status: reading.status)
+                        if let bar {
+                            MarkerMiniRangeBar(bar: bar, status: reading.status)
+                        }
                     }
-                    if let bar {
-                        MarkerMiniRangeBar(bar: bar, status: reading.status)
+                }
+                if !result.isCalculated {
+                    Button { editingResult = result } label: {
+                        Image(systemName: "pencil.circle")
+                            .font(.system(size: 18))
+                            .foregroundColor(Theme.green)
                     }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Edit \(marker.name)")
+                    .accessibilityIdentifier("labs-edit-result-\(result.markerID)")
                 }
             }
         }
@@ -497,13 +717,16 @@ struct DrawDetailView: View {
     }
 
     private func reload() {
+        if let fresh = (try? model.draw.draws())?.first(where: { $0.id == draw.id }) {
+            currentDraw = fresh
+        }
         results = (try? model.draw.results(inDraw: draw.id)) ?? []
     }
 
     private func savePending() {
         do {
             try ResultFields.validate(pending)
-            try ResultFields.save(pending, drawID: draw.id, draws: model.draw)
+            try ResultFields.save(pending, drawID: currentDraw.id, draws: model.draw)
             pending = []
             reload()
             model.load()
