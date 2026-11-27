@@ -428,6 +428,10 @@ struct GeneDetailView: View {
     let changed: () -> Void
     @EnvironmentObject private var services: Services
     @State private var picked: String?
+    @State private var customGenotypeText = ""
+    @State private var enteredDate = Date()
+    @State private var labName = ""
+    @State private var noteText = ""
     @State private var loadedInitial = false
     @State private var errorMessage: String?
 
@@ -485,6 +489,22 @@ struct GeneDetailView: View {
                             Spacer()
                             Pill(text: badge, tone: vm.riskLevelTone.pillTone)
                         }
+                    }
+                    if picked != nil {
+                        DatePicker("Test / entry date", selection: $enteredDate, displayedComponents: .date)
+                            .accessibilityIdentifier("labs-genotype-date")
+                        TextField("Custom genotype wording (optional)", text: $customGenotypeText)
+                            .accessibilityIdentifier("labs-genotype-custom-text")
+                        TextField("Testing lab (e.g. MapMyGenome, 23andMe)", text: $labName)
+                            .accessibilityIdentifier("labs-genotype-lab")
+                        TextField("Notes", text: $noteText)
+                            .accessibilityIdentifier("labs-genotype-note")
+                        Button("Save metadata edits") {
+                            saveMetadata()
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Theme.green)
+                        .accessibilityIdentifier("labs-genotype-save-metadata")
                     }
                 }
             } else {
@@ -653,6 +673,14 @@ struct GeneDetailView: View {
         .onAppear {
             if !loadedInitial {
                 picked = initialPicked
+                if let entry = (try? service?.entries())?.first(where: { $0.gene.id == gene.id }) {
+                    customGenotypeText = entry.customGenotype ?? ""
+                    labName = entry.lab ?? ""
+                    noteText = entry.note ?? ""
+                    enteredDate = Format.date(from: entry.enteredOn)
+                } else {
+                    enteredDate = Format.date(from: services.clock.today())
+                }
                 loadedInitial = true
             }
         }
@@ -679,10 +707,35 @@ struct GeneDetailView: View {
         guard loadedInitial, genotype != initialPicked || genotype == nil else { return }
         do {
             if let genotype {
-                try service?.set(gene.id, genotype: genotype, on: services.clock.today())
+                try service?.updateEntry(
+                    geneID: gene.id,
+                    genotype: genotype,
+                    customGenotype: customGenotypeText,
+                    enteredOn: ISODate(date: enteredDate),
+                    lab: labName,
+                    note: noteText
+                )
             } else {
                 try service?.clear(gene.id)
             }
+            changed()
+            labsModel.load()
+        } catch {
+            errorMessage = (error as? ValidationError)?.message ?? error.localizedDescription
+        }
+    }
+
+    private func saveMetadata() {
+        guard let genotype = picked else { return }
+        do {
+            try service?.updateEntry(
+                geneID: gene.id,
+                genotype: genotype,
+                customGenotype: customGenotypeText,
+                enteredOn: ISODate(date: enteredDate),
+                lab: labName,
+                note: noteText
+            )
             changed()
             labsModel.load()
         } catch {

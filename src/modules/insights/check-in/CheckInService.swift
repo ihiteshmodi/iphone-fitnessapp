@@ -38,11 +38,16 @@ public struct CheckInDay: Equatable {
     public let urine: UrineColour?
     public let heavySweat: Bool?
     public let walkedAfter: Set<String>
+    public let caffeineBeforeNoon: Bool?
+    public let noAlcoholWithin3h: Bool?
 
-    public init(urine: UrineColour?, heavySweat: Bool?, walkedAfter: Set<String>) {
+    public init(urine: UrineColour?, heavySweat: Bool?, walkedAfter: Set<String>,
+                caffeineBeforeNoon: Bool? = nil, noAlcoholWithin3h: Bool? = nil) {
         self.urine = urine
         self.heavySweat = heavySweat
         self.walkedAfter = walkedAfter
+        self.caffeineBeforeNoon = caffeineBeforeNoon
+        self.noAlcoholWithin3h = noAlcoholWithin3h
     }
 }
 
@@ -53,10 +58,15 @@ public final class CheckInService {
     public init(_ db: Database) { self.db = db }
 
     public func day(_ day: ISODate) throws -> CheckInDay {
-        let row = try db.query("SELECT urine, heavy_sweat FROM checkins WHERE day = ?", [.text(day.string)]).first
+        let row = try db.query("SELECT urine, heavy_sweat, caffeine_before_noon, no_alcohol_within_3h FROM checkins WHERE day = ?", [.text(day.string)]).first
         let walks = Set(try db.query("SELECT meal FROM meal_walks WHERE day = ?", [.text(day.string)]).map { $0.text("meal") })
-        return CheckInDay(urine: row?.optionalText("urine").flatMap(UrineColour.init(rawValue:)),
-                          heavySweat: row?.optionalInt("heavy_sweat").map { $0 == 1 }, walkedAfter: walks)
+        return CheckInDay(
+            urine: row?.optionalText("urine").flatMap(UrineColour.init(rawValue:)),
+            heavySweat: row?.optionalInt("heavy_sweat").map { $0 == 1 },
+            walkedAfter: walks,
+            caffeineBeforeNoon: row?.optionalInt("caffeine_before_noon").map { $0 == 1 },
+            noAlcoholWithin3h: row?.optionalInt("no_alcohol_within_3h").map { $0 == 1 }
+        )
     }
 
     public func setUrine(_ colour: UrineColour?, on day: ISODate) throws {
@@ -67,6 +77,16 @@ public final class CheckInService {
     public func setHeavySweat(_ sweat: Bool?, on day: ISODate) throws {
         try db.execute("INSERT INTO checkins (day, heavy_sweat) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET heavy_sweat = excluded.heavy_sweat",
                        [.text(day.string), .optional(sweat.map { $0 ? 1 : 0 })])
+    }
+
+    public func setCaffeineBeforeNoon(_ compliant: Bool?, on day: ISODate) throws {
+        try db.execute("INSERT INTO checkins (day, caffeine_before_noon) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET caffeine_before_noon = excluded.caffeine_before_noon",
+                       [.text(day.string), .optional(compliant.map { $0 ? 1 : 0 })])
+    }
+
+    public func setNoAlcoholWithin3h(_ compliant: Bool?, on day: ISODate) throws {
+        try db.execute("INSERT INTO checkins (day, no_alcohol_within_3h) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET no_alcohol_within_3h = excluded.no_alcohol_within_3h",
+                       [.text(day.string), .optional(compliant.map { $0 ? 1 : 0 })])
     }
 
     public func setWalked(_ walked: Bool, after meal: String, on day: ISODate) throws {

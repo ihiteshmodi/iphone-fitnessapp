@@ -92,7 +92,9 @@ CREATE TABLE set_logs (
     -- muscle label as typed in the old Master Sheet; kept for fidelity, never used for analytics
     logged_muscle  TEXT,
     -- 1 when the set was logged while deload mode was on; can be left out of progress (setting ignore_deload_sessions)
-    is_deload      INTEGER NOT NULL DEFAULT 0 CHECK (is_deload IN (0, 1))
+    is_deload      INTEGER NOT NULL DEFAULT 0 CHECK (is_deload IN (0, 1)),
+    logged_at_ts   INTEGER,
+    session_id     TEXT
 );
 CREATE INDEX idx_set_logs_exercise_date ON set_logs (exercise_id, performed_on);
 CREATE INDEX idx_set_logs_date ON set_logs (performed_on);
@@ -157,9 +159,11 @@ CREATE TABLE insight_rules (
 
 -- The optional check-in: urine colour and heavy sweat per day, walks after meals, recovery signs per week (Monday).
 CREATE TABLE checkins (
-    day         TEXT PRIMARY KEY CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
-    urine       TEXT CHECK (urine IS NULL OR urine IN ('clear', 'pale', 'dark')),
-    heavy_sweat INTEGER CHECK (heavy_sweat IS NULL OR heavy_sweat IN (0, 1))
+    day                  TEXT PRIMARY KEY CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    urine                TEXT CHECK (urine IS NULL OR urine IN ('clear', 'pale', 'dark')),
+    heavy_sweat          INTEGER CHECK (heavy_sweat IS NULL OR heavy_sweat IN (0, 1)),
+    caffeine_before_noon INTEGER CHECK (caffeine_before_noon IS NULL OR caffeine_before_noon IN (0, 1)),
+    no_alcohol_within_3h INTEGER CHECK (no_alcohol_within_3h IS NULL OR no_alcohol_within_3h IN (0, 1))
 );
 CREATE TABLE meal_walks (
     day  TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
@@ -254,7 +258,15 @@ CREATE TABLE diet_day_ticks (
     day     TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
     meal    TEXT NOT NULL,
     food_id INTEGER NOT NULL REFERENCES foods(id) ON DELETE CASCADE,
+    ate_at  TEXT,
     PRIMARY KEY (day, meal, food_id)
+);
+
+CREATE TABLE IF NOT EXISTS diet_meal_times (
+    day    TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    meal   TEXT NOT NULL,
+    ate_at TEXT NOT NULL,
+    PRIMARY KEY (day, meal)
 );
 
 -- Something eaten on top of the plan. amount is in the food's unit (grams for a packet); pieces is only for showing.
@@ -293,15 +305,16 @@ CREATE TABLE diet_meal_skips (
     PRIMARY KEY (day, meal)
 );
 
--- label, time_tag and note are optional: a name of its own (street food logged against a preset), when it was eaten, a note.
+-- label, time_tag, ate_at and note are optional: a name of its own (street food logged against a preset), when it was eaten, a note.
 CREATE TABLE diet_extras (
-    id      INTEGER PRIMARY KEY,
-    day     TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
-    food_id INTEGER NOT NULL REFERENCES foods(id) ON DELETE RESTRICT,
-    amount  REAL NOT NULL CHECK (amount > 0),
-    pieces  REAL CHECK (pieces IS NULL OR pieces > 0),
+    id       INTEGER PRIMARY KEY,
+    day      TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    food_id  INTEGER NOT NULL REFERENCES foods(id) ON DELETE RESTRICT,
+    amount   REAL NOT NULL CHECK (amount > 0),
+    pieces   REAL CHECK (pieces IS NULL OR pieces > 0),
     label    TEXT,
     time_tag TEXT CHECK (time_tag IS NULL OR time_tag IN ('morning', 'noon', 'evening', 'night')),
+    ate_at   TEXT,
     note     TEXT
 );
 CREATE INDEX diet_extras_by_day ON diet_extras(day);
@@ -344,11 +357,33 @@ CREATE TABLE IF NOT EXISTS lab_results (
     CHECK (value IS NOT NULL OR text_value IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS lab_results_by_marker ON lab_results(marker_id);
--- One genotype per gene, picked from that gene's table in the genetics volume.
+
+-- One genotype per gene, picked from that gene's table in the genetics volume (plus optional custom_genotype, lab, and note).
 CREATE TABLE IF NOT EXISTS lab_genotypes (
-    gene_id    TEXT PRIMARY KEY,
+    gene_id         TEXT PRIMARY KEY,
+    genotype        TEXT NOT NULL,
+    custom_genotype TEXT,
+    entered_on      TEXT NOT NULL CHECK (entered_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    lab             TEXT,
+    note            TEXT
+);
+
+CREATE TABLE IF NOT EXISTS lab_custom_genes (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    variant    TEXT,
     genotype   TEXT NOT NULL,
-    entered_on TEXT NOT NULL CHECK (entered_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')
+    entered_on TEXT NOT NULL CHECK (entered_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    lab        TEXT,
+    note       TEXT
+);
+
+CREATE TABLE IF NOT EXISTS lab_marker_overrides (
+    marker_id    TEXT PRIMARY KEY,
+    optimal_low  REAL,
+    optimal_high REAL,
+    unit         TEXT NOT NULL,
+    note         TEXT
 );
 
 -- Optional per-muscle weekly hard-set target overrides (default is 10-20 sets per MuscleRegion).
@@ -356,6 +391,63 @@ CREATE TABLE IF NOT EXISTS muscle_set_targets (
     region   TEXT PRIMARY KEY,
     min_sets INTEGER NOT NULL CHECK (min_sets >= 0),
     max_sets INTEGER NOT NULL CHECK (max_sets >= min_sets)
+);
+
+CREATE TABLE IF NOT EXISTS workout_sessions (
+    id                    TEXT PRIMARY KEY,
+    performed_on          TEXT NOT NULL CHECK (performed_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    kind                  TEXT NOT NULL DEFAULT 'lifting' CHECK (kind IN ('lifting', 'easy_cardio', 'intervals', 'tempo', 'long_endurance')),
+    sport                 TEXT NOT NULL DEFAULT 'Strength',
+    start_ts              INTEGER NOT NULL,
+    end_ts                INTEGER,
+    active_kcal           REAL,
+    avg_hr                INTEGER,
+    max_hr                INTEGER,
+    strain                REAL,
+    zone0_sec             INTEGER NOT NULL DEFAULT 0,
+    zone1_sec             INTEGER NOT NULL DEFAULT 0,
+    zone2_sec             INTEGER NOT NULL DEFAULT 0,
+    zone3_sec             INTEGER NOT NULL DEFAULT 0,
+    zone4_sec             INTEGER NOT NULL DEFAULT 0,
+    zone5_sec             INTEGER NOT NULL DEFAULT 0,
+    long_endurance_exempt INTEGER NOT NULL DEFAULT 0 CHECK (long_endurance_exempt IN (0, 1)),
+    notes                 TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_date ON workout_sessions(performed_on);
+
+CREATE TABLE IF NOT EXISTS hiit_presets (
+    id       TEXT PRIMARY KEY,
+    name     TEXT NOT NULL,
+    mode     TEXT NOT NULL CHECK (mode IN ('time', 'hr_threshold')),
+    work_sec INTEGER NOT NULL DEFAULT 30 CHECK (work_sec >= 5),
+    rest_sec INTEGER NOT NULL DEFAULT 90 CHECK (rest_sec >= 5),
+    rounds   INTEGER NOT NULL DEFAULT 8 CHECK (rounds >= 1),
+    high_bpm INTEGER NOT NULL DEFAULT 170 CHECK (high_bpm >= 60),
+    low_bpm  INTEGER NOT NULL DEFAULT 130 CHECK (low_bpm >= 40),
+    position INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS treadmill_vo2_logs (
+    id               INTEGER PRIMARY KEY,
+    logged_on        TEXT NOT NULL CHECK (logged_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    speed_kmh        REAL NOT NULL CHECK (speed_kmh > 0),
+    grade_pct        REAL NOT NULL CHECK (grade_pct >= 0),
+    duration_min     REAL NOT NULL CHECK (duration_min > 0),
+    steady_hr        INTEGER CHECK (steady_hr IS NULL OR steady_hr > 0),
+    resting_hr       INTEGER,
+    max_hr           INTEGER,
+    vo2_ml_kg_min    REAL NOT NULL,
+    estimated_vo2max REAL NOT NULL,
+    notes            TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_treadmill_vo2_logs_date ON treadmill_vo2_logs(logged_on);
+
+CREATE TABLE IF NOT EXISTS whoop_alarm_schedules (
+    weekday              INTEGER PRIMARY KEY CHECK (weekday BETWEEN 1 AND 7),
+    hour                 INTEGER NOT NULL CHECK (hour BETWEEN 0 AND 23),
+    minute               INTEGER NOT NULL CHECK (minute BETWEEN 0 AND 59),
+    enabled              INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+    smart_window_minutes INTEGER NOT NULL DEFAULT 0 CHECK (smart_window_minutes BETWEEN 0 AND 60)
 );
 
 -- Each setting is one independent knob. history_start_date affects every screen that looks at progress;
@@ -374,4 +466,4 @@ INSERT INTO settings (key, value) VALUES
     ('fat_max_percent', '35'),
     ('fat_floor_g_per_kg', '0.8');
 
-PRAGMA user_version = 23;
+PRAGMA user_version = 24;

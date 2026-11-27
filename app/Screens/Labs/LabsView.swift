@@ -1,6 +1,7 @@
 import Charts
 import FitnessCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 final class LabsModel: ObservableObject {
@@ -172,7 +173,7 @@ struct LabsView: View {
             AddDrawSheet(catalogue: model.catalogue, draws: model.draw, sex: model.sex, today: model.today)
         }
         .sheet(isPresented: $editingSettings, onDismiss: model.load) {
-            LabsSettingsSheet(settings: model.services.labSettings)
+            LabsSettingsSheet(settings: model.services.labSettings, db: model.services.db, catalogue: model.catalogue)
         }
         .sheet(isPresented: $editingContext, onDismiss: model.load) {
             LabClinicalContextSheet(settings: model.services.labSettings)
@@ -712,8 +713,15 @@ enum LabCopy {
     }
 }
 
+private struct SharedLabJsonFile: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
 struct LabsSettingsSheet: View {
     let settings: LabSettings
+    var db: Database? = nil
+    var catalogue: LabCatalogue? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var sex = LabSex.male
     @State private var hasBirthDate = false
@@ -727,6 +735,12 @@ struct LabsSettingsSheet: View {
     @State private var activeMedications: Set<LabMedicationClass> = []
     @State private var drinksAlcoholRegularly = false
     @State private var reverseGeneticsEnabled = true
+    @State private var savedLabs: [String] = []
+    @State private var renamingLabOld: String?
+    @State private var renamingLabNew = ""
+    @State private var sharedFile: SharedLabJsonFile?
+    @State private var importingJson = false
+    @State private var importBanner: String?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -773,12 +787,72 @@ struct LabsSettingsSheet: View {
                     Toggle("Suggest DNA tests from labs & meds", isOn: $reverseGeneticsEnabled)
                         .accessibilityIdentifier("labs-settings-reverse-genetics-toggle")
                 }
+                if db != nil && catalogue != nil {
+                    Section("AI Lab & Genetics JSON Template") {
+                        Button("Export Blank AI JSON Template") {
+                            exportJsonTemplate(includeDraws: false)
+                        }
+                        .accessibilityIdentifier("labs-export-json-template")
+                        Button("Export Current Draws + Guide JSON") {
+                            exportJsonTemplate(includeDraws: true)
+                        }
+                        .accessibilityIdentifier("labs-export-json-full")
+                        Button("Import AI-Filled Lab / DNA JSON") {
+                            importingJson = true
+                        }
+                        .accessibilityIdentifier("labs-import-json-filled")
+                        if let importBanner {
+                            Text(importBanner)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(Theme.green)
+                        }
+                    }
+                    if !savedLabs.isEmpty {
+                        Section("Saved Lab Names") {
+                            ForEach(savedLabs, id: \.self) { lab in
+                                HStack {
+                                    Text(lab).font(.system(size: 14))
+                                    Spacer()
+                                    Button("Rename") {
+                                        renamingLabOld = lab
+                                        renamingLabNew = lab
+                                    }
+                                    .font(.system(size: 12, weight: .semibold))
+                                    Button("Clear", role: .destructive) {
+                                        if let db, let catalogue {
+                                            try? LabDrawService(db, catalogue: catalogue).clearSavedLab(lab)
+                                            savedLabs = (try? LabDrawService(db, catalogue: catalogue).savedLabNames()) ?? []
+                                        }
+                                    }
+                                    .font(.system(size: 12))
+                                }
+                            }
+                        }
+                    }
+                }
             }
             .navigationTitle("Labs settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Save", action: save) }
+            }
+            .sheet(item: $sharedFile) { item in
+                ShareSheet(items: [item.url])
+            }
+            .fileImporter(isPresented: $importingJson, allowedContentTypes: [.json]) { result in
+                handleJsonImport(result)
+            }
+            .alert("Rename saved lab", isPresented: Binding(get: { renamingLabOld != nil }, set: { if !$0 { renamingLabOld = nil } })) {
+                TextField("Lab name", text: $renamingLabNew)
+                Button("Cancel", role: .cancel) { renamingLabOld = nil }
+                Button("Save") {
+                    if let old = renamingLabOld, let db, let catalogue {
+                        try? LabDrawService(db, catalogue: catalogue).renameSavedLab(from: old, to: renamingLabNew)
+                        savedLabs = (try? LabDrawService(db, catalogue: catalogue).savedLabNames()) ?? []
+                    }
+                    renamingLabOld = nil
+                }
             }
             .onAppear(perform: load)
             .errorAlert($errorMessage)
@@ -799,6 +873,38 @@ struct LabsSettingsSheet: View {
         activeMedications = prefs.activeMedications
         drinksAlcoholRegularly = prefs.drinksAlcoholRegularly
         reverseGeneticsEnabled = prefs.reverseGeneticsEnabled
+        if let db, let catalogue {
+            savedLabs = (try? LabDrawService(db, catalogue: catalogue).savedLabNames()) ?? []
+        }
+    }
+
+    private func exportJsonTemplate(includeDraws: Bool) {
+        guard let db, let catalogue else { return }
+        do {
+            let data = try LabJsonTemplateService(db: db, catalogue: catalogue)
+                .exportTemplateJSON(includeExistingDraws: includeDraws)
+            let name = includeDraws ? "labs-and-genetics-export.json" : "labs-and-genetics-ai-template.json"
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            try data.write(to: url, options: .atomic)
+            sharedFile = SharedLabJsonFile(url: url)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleJsonImport(_ result: Result<URL, Error>) {
+        guard let db, let catalogue else { return }
+        do {
+            let url = try result.get()
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+            let data = try Data(contentsOf: url)
+            let summary = try LabJsonTemplateService(db: db, catalogue: catalogue).importFilledJSON(data)
+            importBanner = "Imported \(summary.drawsCreated) new / \(summary.drawsUpdated) updated draws (\(summary.resultsImported) results, \(summary.genotypesImported) genotypes)."
+            savedLabs = (try? LabDrawService(db, catalogue: catalogue).savedLabNames()) ?? []
+        } catch {
+            errorMessage = (error as? ValidationError)?.message ?? error.localizedDescription
+        }
     }
 
     private func save() {

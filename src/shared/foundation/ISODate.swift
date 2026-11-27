@@ -1,7 +1,7 @@
 import Foundation
 
 /// A calendar day stored as `YYYY-MM-DD`, independent of time zone.
-public struct ISODate: Hashable, Comparable, CustomStringConvertible {
+public struct ISODate: Hashable, Comparable, CustomStringConvertible, Sendable {
     public let string: String
 
     private static var calendar: Calendar = {
@@ -63,17 +63,28 @@ public struct ISODate: Hashable, Comparable, CustomStringConvertible {
 /// Role for "what day is it today", so the domain never reads the system clock.
 public protocol AppClock {
     func today() -> ISODate
+    func nowEpochSec() -> Int64?
+}
+
+public extension AppClock {
+    func nowEpochSec() -> Int64? { nil }
 }
 
 public struct SystemClock: AppClock {
     public init() {}
     public func today() -> ISODate { ISODate(date: Date()) }
+    public func nowEpochSec() -> Int64? { Int64(Date().timeIntervalSince1970) }
 }
 
 public struct FixedClock: AppClock {
     private let day: ISODate
-    public init(_ day: ISODate) { self.day = day }
+    private let epochSec: Int64?
+    public init(_ day: ISODate, epochSec: Int64? = nil) {
+        self.day = day
+        self.epochSec = epochSec
+    }
     public func today() -> ISODate { day }
+    public func nowEpochSec() -> Int64? { epochSec }
 }
 
 public struct ValidationError: Error, Equatable, LocalizedError {

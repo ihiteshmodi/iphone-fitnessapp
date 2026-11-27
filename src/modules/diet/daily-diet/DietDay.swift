@@ -38,6 +38,7 @@ public enum MealTickState: Equatable {
 public struct DietMeal: Equatable {
     public let name: String
     public let lines: [DietLine]
+    public var ateAt: String? = nil
 
     private var tickable: [DietLine] { lines.filter { if case .offCycle = $0.state { return false } else { return true } } }
 
@@ -79,11 +80,13 @@ public enum ExtraTime: String, CaseIterable, Equatable {
 public struct ExtraDetails: Equatable {
     public var label: String?
     public var time: ExtraTime?
+    public var ateAt: String?
     public var note: String?
 
-    public init(label: String? = nil, time: ExtraTime? = nil, note: String? = nil) {
+    public init(label: String? = nil, time: ExtraTime? = nil, ateAt: String? = nil, note: String? = nil) {
         self.label = Self.clean(label)
         self.time = time
+        self.ateAt = Self.clean(ateAt)
         self.note = Self.clean(note)
     }
 
@@ -107,6 +110,7 @@ public struct DietExtra: Equatable, Identifiable {
 
     /// The extra's own name when it has one (street food logged against a preset), else the food's.
     public var displayName: String { details.label ?? name }
+    public var ateAt: String? { details.ateAt }
 }
 
 /// A planned meal on a past day with nothing ticked and no answer yet.

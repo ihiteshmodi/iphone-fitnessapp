@@ -22,6 +22,7 @@ public final class DietDayService {
         let plan = try plans.plan(inForceOn: date)
         let training = try plans.trainingWeekdays()
         let ticked = Set(try db.query("SELECT meal, food_id FROM diet_day_ticks WHERE day = ?", [.text(date.string)]).map { "\($0.text("meal"))|\($0.int("food_id"))" })
+        let mealTimes = Dictionary(uniqueKeysWithValues: try db.query("SELECT meal, ate_at FROM diet_meal_times WHERE day = ?", [.text(date.string)]).map { ($0.text("meal"), $0.text("ate_at")) })
 
         var meals: [DietMeal] = []
         for meal in plan?.meals ?? [] {
@@ -38,7 +39,7 @@ public final class DietDayService {
                                 kind: food.kind,
                                 glycemicLoad: try book.glycemicLoad(of: item.foodID, quantity: item.quantity))
             }
-            meals.append(DietMeal(name: meal.name, lines: lines))
+            meals.append(DietMeal(name: meal.name, lines: lines, ateAt: mealTimes[meal.name]))
         }
 
         let extras = try extras(on: date, book: book)
@@ -97,20 +98,62 @@ public final class DietDayService {
     }
 
     /// Ticks or unticks every item of a meal that is on today. Items that are off their cycle are left alone.
-    public func setMealEaten(_ eaten: Bool, meal: String, on date: ISODate) throws {
+    public func setMealEaten(_ eaten: Bool, meal: String, on date: ISODate, ateAt: String? = nil) throws {
         let items = (try plans.plan(inForceOn: date)?.items ?? []).filter { $0.meal == meal }
         guard !items.isEmpty else { throw ValidationError("That meal is not in the plan") }
         let training = try plans.trainingWeekdays()
+        let resolvedHm: String? = try ateAt.map { try AppDefaultsStore.validHm($0) }
+            ?? (eaten ? (try mealAteAt(meal, on: date) ?? AppDefaultsStore(db).defaultMealTime(forMeal: meal)) : nil)
         try db.transaction {
             for item in items where item.cycle.isOn(on: date, trainingWeekdays: training) {
-                try setTick(eaten, meal: meal, foodID: item.foodID, on: date)
+                try setTick(eaten, meal: meal, foodID: item.foodID, on: date, ateAt: resolvedHm)
+            }
+            if eaten, let resolvedHm {
+                try db.execute("INSERT INTO diet_meal_times (day, meal, ate_at) VALUES (?, ?, ?) ON CONFLICT(day, meal) DO UPDATE SET ate_at = excluded.ate_at",
+                               [.text(date.string), .text(meal), .text(resolvedHm)])
+            } else if !eaten {
+                try db.execute("DELETE FROM diet_meal_times WHERE day = ? AND meal = ?", [.text(date.string), .text(meal)])
             }
         }
     }
 
-    private func setTick(_ eaten: Bool, meal: String, foodID: Int, on date: ISODate) throws {
+    /// Retroactively confirms a past day's meal: pre-fills that meal's configurable default eating time (never the morning-after tick clock) unless `ateAtOverride` is given.
+    public func confirmRetroactiveMeal(_ meal: String, on date: ISODate, confirmedOn: ISODate, ateAtOverride: String? = nil) throws {
+        let targetHm = try ateAtOverride.map { try AppDefaultsStore.validHm($0) }
+            ?? AppDefaultsStore(db).defaultMealTime(forMeal: meal)
+        try setMealEaten(true, meal: meal, on: date, ateAt: targetHm)
+    }
+
+    public func setMealAteAt(_ hm: String?, meal: String, on date: ISODate) throws {
+        if let hm {
+            let valid = try AppDefaultsStore.validHm(hm)
+            try db.transaction {
+                try db.execute("INSERT INTO diet_meal_times (day, meal, ate_at) VALUES (?, ?, ?) ON CONFLICT(day, meal) DO UPDATE SET ate_at = excluded.ate_at",
+                               [.text(date.string), .text(meal), .text(valid)])
+                try db.execute("UPDATE diet_day_ticks SET ate_at = ? WHERE day = ? AND meal = ?",
+                               [.text(valid), .text(date.string), .text(meal)])
+            }
+        } else {
+            try db.transaction {
+                try db.execute("DELETE FROM diet_meal_times WHERE day = ? AND meal = ?", [.text(date.string), .text(meal)])
+                try db.execute("UPDATE diet_day_ticks SET ate_at = NULL WHERE day = ? AND meal = ?", [.text(date.string), .text(meal)])
+            }
+        }
+    }
+
+    public func mealAteAt(_ meal: String, on date: ISODate) throws -> String? {
+        if let explicit = try db.query("SELECT ate_at FROM diet_meal_times WHERE day = ? AND meal = ?", [.text(date.string), .text(meal)]).first?.optionalText("ate_at") {
+            return explicit
+        }
+        return try db.query("SELECT ate_at FROM diet_day_ticks WHERE day = ? AND meal = ? AND ate_at IS NOT NULL LIMIT 1",
+                            [.text(date.string), .text(meal)]).first?.optionalText("ate_at")
+    }
+
+    private func setTick(_ eaten: Bool, meal: String, foodID: Int, on date: ISODate, ateAt: String? = nil) throws {
         if eaten {
-            try db.execute("INSERT OR IGNORE INTO diet_day_ticks (day, meal, food_id) VALUES (?, ?, ?)", [.text(date.string), .text(meal), .int(Int64(foodID))])
+            let fallbackHm = try ateAt ?? mealAteAt(meal, on: date) ?? AppDefaultsStore(db).defaultMealTime(forMeal: meal)
+            try db.execute("INSERT INTO diet_day_ticks (day, meal, food_id, ate_at) VALUES (?, ?, ?, ?) ON CONFLICT(day, meal, food_id) DO UPDATE SET ate_at = COALESCE(excluded.ate_at, diet_day_ticks.ate_at)",
+                           [.text(date.string), .text(meal), .int(Int64(foodID)), .optional(fallbackHm)])
         } else {
             try db.execute("DELETE FROM diet_day_ticks WHERE day = ? AND meal = ? AND food_id = ?", [.text(date.string), .text(meal), .int(Int64(foodID))])
         }
@@ -147,15 +190,17 @@ public final class DietDayService {
     public func addExtra(foodID: Int, _ input: PortionInput, on date: ISODate, details: ExtraDetails = ExtraDetails()) throws -> Int {
         guard let food = try library.food(foodID) else { throw ValidationError("That food is not in the library") }
         let portion = try Portions.portion(of: food, input)
-        try db.execute("INSERT INTO diet_extras (day, food_id, amount, pieces, label, time_tag, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        let validAteAt = try details.ateAt.map { try AppDefaultsStore.validHm($0) }
+        try db.execute("INSERT INTO diet_extras (day, food_id, amount, pieces, label, time_tag, ate_at, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                        [.text(date.string), .int(Int64(foodID)), .double(portion.amount), .optional(portion.pieces),
-                        .optional(details.label), .optional(details.time?.rawValue), .optional(details.note)])
+                        .optional(details.label), .optional(details.time?.rawValue), .optional(validAteAt), .optional(details.note)])
         return db.lastInsertRowID
     }
 
     public func updateExtraDetails(_ id: Int, _ details: ExtraDetails) throws {
-        try db.execute("UPDATE diet_extras SET label = ?, time_tag = ?, note = ? WHERE id = ?",
-                       [.optional(details.label), .optional(details.time?.rawValue), .optional(details.note), .int(Int64(id))])
+        let validAteAt = try details.ateAt.map { try AppDefaultsStore.validHm($0) }
+        try db.execute("UPDATE diet_extras SET label = ?, time_tag = ?, ate_at = ?, note = ? WHERE id = ?",
+                       [.optional(details.label), .optional(details.time?.rawValue), .optional(validAteAt), .optional(details.note), .int(Int64(id))])
     }
 
     /// Food without a label: weigh it and log it against a preset whose unit stands for a weight (a batch of 10 g).
@@ -181,7 +226,7 @@ public final class DietDayService {
     /// The extra as the edit sheet reopens it. Pieces when it is a whole number of pieces, otherwise the food's own amount
     /// (grams, or the unit it is counted in). Nil when the extra is gone.
     public func entry(of id: Int) throws -> ExtraEntry? {
-        guard let row = try db.query("SELECT day, food_id, amount, pieces, label, time_tag, note FROM diet_extras WHERE id = ?",
+        guard let row = try db.query("SELECT day, food_id, amount, pieces, label, time_tag, ate_at, note FROM diet_extras WHERE id = ?",
                                      [.int(Int64(id))]).first,
               let day = ISODate(row.text("day")) else { return nil }
         let foodID = row.int("food_id")
@@ -208,7 +253,7 @@ public final class DietDayService {
     // MARK: Private
 
     private func extras(on date: ISODate, book: FoodBook) throws -> [DietExtra] {
-        try db.query("SELECT id, food_id, amount, pieces, label, time_tag, note FROM diet_extras WHERE day = ? ORDER BY id",
+        try db.query("SELECT id, food_id, amount, pieces, label, time_tag, ate_at, note FROM diet_extras WHERE day = ? ORDER BY id",
                      [.text(date.string)]).map { row in
             let food = try require(book.food(row.int("food_id")))
             return DietExtra(id: row.int("id"), foodID: food.id, name: food.name, unit: food.unit, amount: row.double("amount"),
@@ -230,7 +275,7 @@ public final class DietDayService {
 
     private static func details(_ row: Row) -> ExtraDetails {
         ExtraDetails(label: row.optionalText("label"), time: row.optionalText("time_tag").flatMap(ExtraTime.init(rawValue:)),
-                     note: row.optionalText("note"))
+                     ateAt: row.optionalText("ate_at"), note: row.optionalText("note"))
     }
 
     private func require(_ food: Food?) throws -> Food {

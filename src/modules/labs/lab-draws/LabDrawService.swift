@@ -173,6 +173,19 @@ public final class LabDrawService {
         return names
     }
 
+    public func renameSavedLab(from oldName: String, to newName: String) throws {
+        let oldTrim = oldName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newTrim = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !oldTrim.isEmpty, !newTrim.isEmpty else { throw ValidationError("Lab name cannot be empty") }
+        try db.execute("UPDATE lab_draws SET lab = ? WHERE TRIM(lab) = ? COLLATE NOCASE", [.text(newTrim), .text(oldTrim)])
+    }
+
+    public func clearSavedLab(_ name: String) throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        try db.execute("UPDATE lab_draws SET lab = NULL WHERE TRIM(lab) = ? COLLATE NOCASE", [.text(trimmed)])
+    }
+
     @discardableResult
     public func addResult(drawID: Int, markerID: String, value: Double, unit: String, labLow: Double? = nil, labHigh: Double? = nil,
                           valueOperator: LabValueOperator? = nil, secondaryValue: Double? = nil, customToDefault: Double? = nil,

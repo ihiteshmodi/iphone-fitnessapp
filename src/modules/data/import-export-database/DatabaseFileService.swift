@@ -475,6 +475,119 @@ public struct DatabaseFileService {
                 SELECT id, 'psyllium', 1.0 FROM foods WHERE name = 'Psyllium Husk - ASES'
                 """)
             try db.execute("UPDATE foods SET fiber = 0.85 WHERE name = 'Psyllium Husk - ASES' AND fiber = 0")
+            // Version 24: ate_at meal timestamps, caffeine/alcohol check-ins, set timestamps, live workout sessions,
+            // HIIT presets, ACSM treadmill logs, 7-day WHOOP alarms, genetics/lab editability & marker overrides.
+            let setColsV24 = Set(try db.query("PRAGMA table_info(set_logs)").map { $0.text("name") })
+            if !setColsV24.contains("logged_at_ts") {
+                try db.execute("ALTER TABLE set_logs ADD COLUMN logged_at_ts INTEGER")
+            }
+            if !setColsV24.contains("session_id") {
+                try db.execute("ALTER TABLE set_logs ADD COLUMN session_id TEXT")
+            }
+            let checkinColsV24 = Set(try db.query("PRAGMA table_info(checkins)").map { $0.text("name") })
+            if !checkinColsV24.contains("caffeine_before_noon") {
+                try db.execute("ALTER TABLE checkins ADD COLUMN caffeine_before_noon INTEGER CHECK (caffeine_before_noon IS NULL OR caffeine_before_noon IN (0, 1))")
+            }
+            if !checkinColsV24.contains("no_alcohol_within_3h") {
+                try db.execute("ALTER TABLE checkins ADD COLUMN no_alcohol_within_3h INTEGER CHECK (no_alcohol_within_3h IS NULL OR no_alcohol_within_3h IN (0, 1))")
+            }
+            let tickColsV24 = Set(try db.query("PRAGMA table_info(diet_day_ticks)").map { $0.text("name") })
+            if !tickColsV24.contains("ate_at") {
+                try db.execute("ALTER TABLE diet_day_ticks ADD COLUMN ate_at TEXT")
+            }
+            try db.execute("""
+                CREATE TABLE IF NOT EXISTS diet_meal_times (
+                    day    TEXT NOT NULL CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    meal   TEXT NOT NULL,
+                    ate_at TEXT NOT NULL,
+                    PRIMARY KEY (day, meal)
+                )
+                """)
+            let extraColsV24 = Set(try db.query("PRAGMA table_info(diet_extras)").map { $0.text("name") })
+            if !extraColsV24.contains("ate_at") {
+                try db.execute("ALTER TABLE diet_extras ADD COLUMN ate_at TEXT")
+            }
+            let genotypeColsV24 = Set(try db.query("PRAGMA table_info(lab_genotypes)").map { $0.text("name") })
+            if !genotypeColsV24.contains("custom_genotype") {
+                try db.execute("ALTER TABLE lab_genotypes ADD COLUMN custom_genotype TEXT")
+            }
+            if !genotypeColsV24.contains("lab") {
+                try db.execute("ALTER TABLE lab_genotypes ADD COLUMN lab TEXT")
+            }
+            if !genotypeColsV24.contains("note") {
+                try db.execute("ALTER TABLE lab_genotypes ADD COLUMN note TEXT")
+            }
+            try db.runScript("""
+                CREATE TABLE IF NOT EXISTS lab_custom_genes (
+                    id         TEXT PRIMARY KEY,
+                    name       TEXT NOT NULL,
+                    variant    TEXT,
+                    genotype   TEXT NOT NULL,
+                    entered_on TEXT NOT NULL CHECK (entered_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    lab        TEXT,
+                    note       TEXT
+                );
+                CREATE TABLE IF NOT EXISTS lab_marker_overrides (
+                    marker_id    TEXT PRIMARY KEY,
+                    optimal_low  REAL,
+                    optimal_high REAL,
+                    unit         TEXT NOT NULL,
+                    note         TEXT
+                );
+                CREATE TABLE IF NOT EXISTS workout_sessions (
+                    id                    TEXT PRIMARY KEY,
+                    performed_on          TEXT NOT NULL CHECK (performed_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    kind                  TEXT NOT NULL DEFAULT 'lifting' CHECK (kind IN ('lifting', 'easy_cardio', 'intervals', 'tempo', 'long_endurance')),
+                    sport                 TEXT NOT NULL DEFAULT 'Strength',
+                    start_ts              INTEGER NOT NULL,
+                    end_ts                INTEGER,
+                    active_kcal           REAL,
+                    avg_hr                INTEGER,
+                    max_hr                INTEGER,
+                    strain                REAL,
+                    zone0_sec             INTEGER NOT NULL DEFAULT 0,
+                    zone1_sec             INTEGER NOT NULL DEFAULT 0,
+                    zone2_sec             INTEGER NOT NULL DEFAULT 0,
+                    zone3_sec             INTEGER NOT NULL DEFAULT 0,
+                    zone4_sec             INTEGER NOT NULL DEFAULT 0,
+                    zone5_sec             INTEGER NOT NULL DEFAULT 0,
+                    long_endurance_exempt INTEGER NOT NULL DEFAULT 0 CHECK (long_endurance_exempt IN (0, 1)),
+                    notes                 TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_workout_sessions_date ON workout_sessions(performed_on);
+                CREATE TABLE IF NOT EXISTS hiit_presets (
+                    id       TEXT PRIMARY KEY,
+                    name     TEXT NOT NULL,
+                    mode     TEXT NOT NULL CHECK (mode IN ('time', 'hr_threshold')),
+                    work_sec INTEGER NOT NULL DEFAULT 30 CHECK (work_sec >= 5),
+                    rest_sec INTEGER NOT NULL DEFAULT 90 CHECK (rest_sec >= 5),
+                    rounds   INTEGER NOT NULL DEFAULT 8 CHECK (rounds >= 1),
+                    high_bpm INTEGER NOT NULL DEFAULT 170 CHECK (high_bpm >= 60),
+                    low_bpm  INTEGER NOT NULL DEFAULT 130 CHECK (low_bpm >= 40),
+                    position INTEGER NOT NULL DEFAULT 1
+                );
+                CREATE TABLE IF NOT EXISTS treadmill_vo2_logs (
+                    id               INTEGER PRIMARY KEY,
+                    logged_on        TEXT NOT NULL CHECK (logged_on GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+                    speed_kmh        REAL NOT NULL CHECK (speed_kmh > 0),
+                    grade_pct        REAL NOT NULL CHECK (grade_pct >= 0),
+                    duration_min     REAL NOT NULL CHECK (duration_min > 0),
+                    steady_hr        INTEGER CHECK (steady_hr IS NULL OR steady_hr > 0),
+                    resting_hr       INTEGER,
+                    max_hr           INTEGER,
+                    vo2_ml_kg_min    REAL NOT NULL,
+                    estimated_vo2max REAL NOT NULL,
+                    notes            TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_treadmill_vo2_logs_date ON treadmill_vo2_logs(logged_on);
+                CREATE TABLE IF NOT EXISTS whoop_alarm_schedules (
+                    weekday              INTEGER PRIMARY KEY CHECK (weekday BETWEEN 1 AND 7),
+                    hour                 INTEGER NOT NULL CHECK (hour BETWEEN 0 AND 23),
+                    minute               INTEGER NOT NULL CHECK (minute BETWEEN 0 AND 59),
+                    enabled              INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+                    smart_window_minutes INTEGER NOT NULL DEFAULT 0 CHECK (smart_window_minutes BETWEEN 0 AND 60)
+                );
+                """)
             try db.execute("PRAGMA user_version = \(Schema.currentVersion)")
         }
     }

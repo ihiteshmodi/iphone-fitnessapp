@@ -9,10 +9,12 @@ public enum ExerciseChoice: Equatable {
 public struct SetEntry: Equatable {
     public let weightKg: Double
     public let reps: Int
+    public let loggedAtTs: Int64?
 
-    public init(weightKg: Double, reps: Int) {
+    public init(weightKg: Double, reps: Int, loggedAtTs: Int64? = nil) {
         self.weightKg = weightKg
         self.reps = reps
+        self.loggedAtTs = loggedAtTs
     }
 }
 
@@ -23,6 +25,20 @@ public struct LoggedSet: Equatable, Identifiable {
     public let date: ISODate
     public let weightKg: Double
     public let reps: Int
+    public let loggedAtTs: Int64?
+    public let sessionId: String?
+
+    public init(id: Int, exerciseId: Int, exerciseName: String, date: ISODate, weightKg: Double, reps: Int,
+                loggedAtTs: Int64? = nil, sessionId: String? = nil) {
+        self.id = id
+        self.exerciseId = exerciseId
+        self.exerciseName = exerciseName
+        self.date = date
+        self.weightKg = weightKg
+        self.reps = reps
+        self.loggedAtTs = loggedAtTs
+        self.sessionId = sessionId
+    }
 }
 
 /// All sets of one exercise on one day.
@@ -54,26 +70,29 @@ public final class LogSets {
 
     /// All sets are stored, or none (and no new exercise is created) if any set is invalid.
     @discardableResult
-    public func logSets(_ exercise: ExerciseChoice, on date: String, sets: [SetEntry]) throws -> [Int] {
+    public func logSets(_ exercise: ExerciseChoice, on date: String, sets: [SetEntry], sessionId: String? = nil) throws -> [Int] {
         guard !sets.isEmpty else { throw ValidationError("Log at least one set") }
         for set in sets { try validate(set) }
         let day = try validDay(date)
+        let fallbackTs = clock?.nowEpochSec()
 
         return try db.transaction {
             let exerciseId = try resolve(exercise)
             // Remembered per set, so switching deload off later never changes how an old set is treated.
             let duringDeload = try SettingsRepository(db).load().deload.enabled ? 1 : 0
             return try sets.map { set in
-                try db.execute("INSERT INTO set_logs (performed_on, exercise_id, weight_kg, reps, is_deload) VALUES (?, ?, ?, ?, ?)",
-                               [.text(day.string), .int(Int64(exerciseId)), .double(set.weightKg), .int(Int64(set.reps)), .int(Int64(duringDeload))])
+                let ts = set.loggedAtTs ?? fallbackTs
+                try db.execute("INSERT INTO set_logs (performed_on, exercise_id, weight_kg, reps, is_deload, logged_at_ts, session_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                               [.text(day.string), .int(Int64(exerciseId)), .double(set.weightKg), .int(Int64(set.reps)), .int(Int64(duringDeload)),
+                                .optional(ts), .optional(sessionId)])
                 return db.lastInsertRowID
             }
         }
     }
 
     @discardableResult
-    public func logSets(_ exercise: ExerciseChoice, on date: ISODate, sets: [SetEntry]) throws -> [Int] {
-        try logSets(exercise, on: date.string, sets: sets)
+    public func logSets(_ exercise: ExerciseChoice, on date: ISODate, sets: [SetEntry], sessionId: String? = nil) throws -> [Int] {
+        try logSets(exercise, on: date.string, sets: sets, sessionId: sessionId)
     }
 
     public func deleteSet(id: Int) throws {
@@ -83,25 +102,27 @@ public final class LogSets {
     /// Sets logged on one day, in the order they were entered.
     public func sets(on date: ISODate) throws -> [LoggedSet] {
         try db.query("""
-            SELECT s.id, s.exercise_id, e.name, s.performed_on, s.weight_kg, s.reps
+            SELECT s.id, s.exercise_id, e.name, s.performed_on, s.weight_kg, s.reps, s.logged_at_ts, s.session_id
             FROM set_logs s JOIN exercises e ON e.id = s.exercise_id
             WHERE s.performed_on = ? ORDER BY s.id
             """, [.text(date.string)]).compactMap { row in
             guard let day = ISODate(row.text("performed_on")) else { return nil }
             return LoggedSet(id: row.int("id"), exerciseId: row.int("exercise_id"), exerciseName: row.text("name"),
-                             date: day, weightKg: row.double("weight_kg"), reps: row.int("reps"))
+                             date: day, weightKg: row.double("weight_kg"), reps: row.int("reps"),
+                             loggedAtTs: row.optionalInt64("logged_at_ts"), sessionId: row.optionalText("session_id"))
         }
     }
 
-    /// Corrects a set in place. Whether it was logged during deload stays as it was.
-    public func updateSet(id: Int, weightKg: Double, reps: Int, on date: ISODate) throws {
+    /// Corrects a set in place (including optional timestamp correction). Whether it was logged during deload stays as it was.
+    public func updateSet(id: Int, weightKg: Double, reps: Int, on date: ISODate, loggedAtTs: Int64? = nil, preserveTimestamp: Bool = true) throws {
         try validate(SetEntry(weightKg: weightKg, reps: reps))
         let day = try validDay(date.string)
-        guard try db.query("SELECT id FROM set_logs WHERE id = ?", [.int(Int64(id))]).first != nil else {
+        guard let existing = try db.query("SELECT id, logged_at_ts FROM set_logs WHERE id = ?", [.int(Int64(id))]).first else {
             throw ValidationError("Set not found")
         }
-        try db.execute("UPDATE set_logs SET performed_on = ?, weight_kg = ?, reps = ? WHERE id = ?",
-                       [.text(day.string), .double(weightKg), .int(Int64(reps)), .int(Int64(id))])
+        let resolvedTs = loggedAtTs ?? (preserveTimestamp ? existing.optionalInt64("logged_at_ts") : nil)
+        try db.execute("UPDATE set_logs SET performed_on = ?, weight_kg = ?, reps = ?, logged_at_ts = ? WHERE id = ?",
+                       [.text(day.string), .double(weightKg), .int(Int64(reps)), .optional(resolvedTs), .int(Int64(id))])
     }
 
     /// The most recent training days of one exercise, newest first, leaving out one day (normally today).

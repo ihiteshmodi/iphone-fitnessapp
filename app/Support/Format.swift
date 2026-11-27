@@ -74,6 +74,16 @@ enum Format {
         let names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         return "\(names[date.weekday - 1]), \(shortDate(date))"
     }
+
+    static func date(from iso: ISODate) -> Date {
+        let parts = iso.string.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return Date() }
+        var comps = DateComponents()
+        comps.year = parts[0]
+        comps.month = parts[1]
+        comps.day = parts[2]
+        return Calendar.current.date(from: comps) ?? Date()
+    }
 }
 
 extension View {

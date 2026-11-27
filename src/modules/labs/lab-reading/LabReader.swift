@@ -65,9 +65,69 @@ public struct LabReading: Equatable {
     }
 }
 
+public struct LabMarkerOverride: Codable, Equatable, Sendable {
+    public var markerID: String
+    public var optimalLow: Double?
+    public var optimalHigh: Double?
+    public var unit: String
+    public var note: String?
+
+    public init(markerID: String, optimalLow: Double?, optimalHigh: Double?, unit: String, note: String? = nil) {
+        self.markerID = markerID
+        self.optimalLow = optimalLow
+        self.optimalHigh = optimalHigh
+        self.unit = unit
+        self.note = note
+    }
+}
+
+public final class LabMarkerOverrideService {
+    private let db: Database
+
+    public init(_ db: Database) { self.db = db }
+
+    public func overrides() throws -> [LabMarkerOverride] {
+        try db.query("SELECT marker_id, optimal_low, optimal_high, unit, note FROM lab_marker_overrides ORDER BY marker_id").map { row in
+            LabMarkerOverride(markerID: row.text("marker_id"), optimalLow: row.optionalDouble("optimal_low"),
+                              optimalHigh: row.optionalDouble("optimal_high"), unit: row.text("unit"), note: row.optionalText("note"))
+        }
+    }
+
+    public func override(for markerID: String) throws -> LabMarkerOverride? {
+        try db.query("SELECT marker_id, optimal_low, optimal_high, unit, note FROM lab_marker_overrides WHERE marker_id = ?", [.text(markerID)]).first.map { row in
+            LabMarkerOverride(markerID: row.text("marker_id"), optimalLow: row.optionalDouble("optimal_low"),
+                              optimalHigh: row.optionalDouble("optimal_high"), unit: row.text("unit"), note: row.optionalText("note"))
+        }
+    }
+
+    public func setOverride(_ override: LabMarkerOverride) throws {
+        guard override.optimalLow != nil || override.optimalHigh != nil else {
+            throw ValidationError("Specify at least one optimal bound")
+        }
+        if let lo = override.optimalLow, let hi = override.optimalHigh, lo > hi {
+            throw ValidationError("Optimal low cannot exceed optimal high")
+        }
+        try db.execute("""
+            INSERT INTO lab_marker_overrides (marker_id, optimal_low, optimal_high, unit, note)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(marker_id) DO UPDATE SET
+                optimal_low = excluded.optimal_low,
+                optimal_high = excluded.optimal_high,
+                unit = excluded.unit,
+                note = excluded.note
+            """, [.text(override.markerID), .optional(override.optimalLow), .optional(override.optimalHigh),
+                  .text(override.unit), .optional(override.note)])
+    }
+
+    public func deleteOverride(for markerID: String) throws {
+        try db.execute("DELETE FROM lab_marker_overrides WHERE marker_id = ?", [.text(markerID)])
+    }
+}
+
 public enum LabReader {
     public static func read(result: LabResult, marker: LabMarker, preferences: LabPreferences,
-                            draw: LabDrawDraft? = nil, genotypes: [GenotypeEntry] = []) -> LabReading {
+                            draw: LabDrawDraft? = nil, genotypes: [GenotypeEntry] = [],
+                            personalOverride: LabMarkerOverride? = nil) -> LabReading {
         if marker.id == "blood-pressure", let diastolic = result.secondaryValue {
             return readBloodPressure(systolic: result.value, diastolic: diastolic, marker: marker, sex: preferences.sex)
         }
@@ -79,7 +139,53 @@ public enum LabReader {
                                 textValue: result.textValue, labLow: result.labLow, labHigh: result.labHigh,
                                 specimen: result.specimen, assay: result.assay, marker: marker,
                                 preferences: preferences, ageYears: ageYears, draw: draw)
-        return GeneticsModifierEvaluator.applyReadingModifiers(base: base, marker: marker, preferences: preferences, genotypes: genotypes)
+        let withGenetics = GeneticsModifierEvaluator.applyReadingModifiers(base: base, marker: marker, preferences: preferences, genotypes: genotypes)
+        guard let personalOverride else { return withGenetics }
+        return applyPersonalOverride(withGenetics, result: result, marker: marker, override: personalOverride)
+    }
+
+    private static func applyPersonalOverride(_ base: LabReading, result: LabResult, marker: LabMarker, override: LabMarkerOverride) -> LabReading {
+        let valInOverrideUnit: Double?
+        if result.unit.caseInsensitiveCompare(override.unit) == .orderedSame {
+            valInOverrideUnit = result.value
+        } else if let defVal = base.value, let overrideLoInDef = override.optimalLow.flatMap({ marker.toDefault($0, unit: override.unit) }),
+                  override.optimalHigh == nil {
+            let status: LabStatus = defVal < overrideLoInDef ? .low : .optimal
+            return LabReading(value: base.value, unit: base.unit, status: status,
+                              tier: status == .low ? .suboptimalLow : .optimal, tierLabel: override.note ?? "Personal target",
+                              activeStratum: base.activeStratum, bands: base.bands, optimalBands: base.optimalBands,
+                              disputes: base.disputes, edgeLabels: base.edgeLabels, doctorLines: base.doctorLines,
+                              conditionalDoctorLines: base.conditionalDoctorLines, geneticNotes: base.geneticNotes)
+        } else if let defVal = base.value {
+            let loDef = override.optimalLow.flatMap { marker.toDefault($0, unit: override.unit) }
+            let hiDef = override.optimalHigh.flatMap { marker.toDefault($0, unit: override.unit) }
+            if loDef != nil || hiDef != nil {
+                let st: LabStatus
+                if let loDef, defVal < loDef { st = .low }
+                else if let hiDef, defVal > hiDef { st = .high }
+                else { st = .optimal }
+                let tier: LabSeverityTier = st == .low ? .suboptimalLow : (st == .high ? .suboptimalHigh : .optimal)
+                return LabReading(value: base.value, unit: base.unit, status: st, tier: tier,
+                                  tierLabel: override.note ?? "Personal target", activeStratum: base.activeStratum,
+                                  bands: base.bands, optimalBands: base.optimalBands, disputes: base.disputes,
+                                  edgeLabels: base.edgeLabels, doctorLines: base.doctorLines,
+                                  conditionalDoctorLines: base.conditionalDoctorLines, geneticNotes: base.geneticNotes)
+            }
+            valInOverrideUnit = nil
+        } else {
+            valInOverrideUnit = nil
+        }
+        guard let v = valInOverrideUnit else { return base }
+        let st: LabStatus
+        if let lo = override.optimalLow, v < lo { st = .low }
+        else if let hi = override.optimalHigh, v > hi { st = .high }
+        else { st = .optimal }
+        let tier: LabSeverityTier = st == .low ? .suboptimalLow : (st == .high ? .suboptimalHigh : .optimal)
+        return LabReading(value: base.value ?? v, unit: base.unit ?? override.unit, status: st, tier: tier,
+                          tierLabel: override.note ?? "Personal target", activeStratum: base.activeStratum,
+                          bands: base.bands, optimalBands: base.optimalBands, disputes: base.disputes,
+                          edgeLabels: base.edgeLabels, doctorLines: base.doctorLines,
+                          conditionalDoctorLines: base.conditionalDoctorLines, geneticNotes: base.geneticNotes)
     }
 
     public static func read(value typed: Double, unit: String, marker: LabMarker, sex: LabSex) -> LabReading {

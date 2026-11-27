@@ -4,6 +4,40 @@ public struct GenotypeEntry: Equatable {
     public let gene: LabGene
     public let row: LabGenotype
     public let enteredOn: ISODate
+    public let customGenotype: String?
+    public let lab: String?
+    public let note: String?
+
+    public init(gene: LabGene, row: LabGenotype, enteredOn: ISODate,
+                customGenotype: String? = nil, lab: String? = nil, note: String? = nil) {
+        self.gene = gene
+        self.row = row
+        self.enteredOn = enteredOn
+        self.customGenotype = customGenotype
+        self.lab = lab
+        self.note = note
+    }
+}
+
+public struct CustomGeneEntry: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var name: String
+    public var variant: String?
+    public var genotype: String
+    public var enteredOn: ISODate
+    public var lab: String?
+    public var note: String?
+
+    public init(id: String, name: String, variant: String? = nil, genotype: String, enteredOn: ISODate,
+                lab: String? = nil, note: String? = nil) {
+        self.id = id
+        self.name = name
+        self.variant = variant
+        self.genotype = genotype
+        self.enteredOn = enteredOn
+        self.lab = lab
+        self.note = note
+    }
 }
 
 /// Genotypes picked from each gene's table in the vault. "Genetics sets the prior. Bloodwork sets the dose."
@@ -16,18 +50,43 @@ public final class GeneticsService {
         self.catalogue = catalogue
     }
 
-    public func set(_ geneID: String, genotype: String, on day: ISODate) throws {
+    public func set(_ geneID: String, genotype: String, on day: ISODate,
+                    customGenotype: String? = nil, lab: String? = nil, note: String? = nil) throws {
+        try updateEntry(geneID: geneID, genotype: genotype, customGenotype: customGenotype, enteredOn: day, lab: lab, note: note)
+    }
+
+    public func updateEntry(geneID: String, genotype: String, customGenotype: String? = nil,
+                            enteredOn: ISODate, lab: String? = nil, note: String? = nil) throws {
         guard let gene = catalogue.gene(geneID) else { throw ValidationError("\(geneID) is not in the genetics catalogue") }
-        guard let matched = Self.matchGenotype(genotype, in: gene) else {
+        let cleanCustom = Self.clean(customGenotype)
+        let matched: LabGenotype
+        if let exact = Self.matchGenotype(genotype, in: gene) {
+            matched = exact
+        } else if cleanCustom != nil, let fallback = gene.genotypes?.first {
+            matched = fallback
+        } else {
             throw ValidationError("\(genotype) is not in the vault's \(gene.name) table")
         }
         if gene.id != geneID {
             try db.execute("DELETE FROM lab_genotypes WHERE gene_id = ?", [.text(geneID)])
         }
         try db.execute("""
-            INSERT INTO lab_genotypes (gene_id, genotype, entered_on) VALUES (?, ?, ?)
-            ON CONFLICT(gene_id) DO UPDATE SET genotype = excluded.genotype, entered_on = excluded.entered_on
-            """, [.text(gene.id), .text(matched.genotype), .text(day.string)])
+            INSERT INTO lab_genotypes (gene_id, genotype, custom_genotype, entered_on, lab, note)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(gene_id) DO UPDATE SET
+                genotype = excluded.genotype,
+                custom_genotype = COALESCE(excluded.custom_genotype, lab_genotypes.custom_genotype),
+                entered_on = excluded.entered_on,
+                lab = COALESCE(excluded.lab, lab_genotypes.lab),
+                note = COALESCE(excluded.note, lab_genotypes.note)
+            """, [.text(gene.id), .text(matched.genotype), .optional(cleanCustom),
+                  .text(enteredOn.string), .optional(Self.clean(lab)), .optional(Self.clean(note))])
+        if customGenotype != nil || lab != nil || note != nil {
+            // Explicit field replacement when updateEntry is called with optional overrides (including clearing).
+            try db.execute("""
+                UPDATE lab_genotypes SET custom_genotype = ?, lab = ?, note = ? WHERE gene_id = ?
+                """, [.optional(cleanCustom), .optional(Self.clean(lab)), .optional(Self.clean(note)), .text(gene.id)])
+        }
     }
 
     public func clear(_ geneID: String) throws {
@@ -37,13 +96,62 @@ public final class GeneticsService {
 
     public func entries() throws -> [GenotypeEntry] {
         var seenGenes: Set<String> = []
-        return try db.query("SELECT gene_id, genotype, entered_on FROM lab_genotypes ORDER BY gene_id").compactMap { row in
+        return try db.query("SELECT gene_id, genotype, custom_genotype, entered_on, lab, note FROM lab_genotypes ORDER BY gene_id").compactMap { row in
             guard let gene = catalogue.gene(row.text("gene_id")),
-                  let genotype = Self.matchGenotype(row.text("genotype"), in: gene),
                   let day = ISODate(row.text("entered_on")),
                   seenGenes.insert(gene.id).inserted else { return nil }
-            return GenotypeEntry(gene: gene, row: genotype, enteredOn: day)
+            let custom = row.optionalText("custom_genotype")
+            guard let genotype = Self.matchGenotype(row.text("genotype"), in: gene) ?? (custom != nil ? gene.genotypes?.first : nil) else {
+                return nil
+            }
+            return GenotypeEntry(gene: gene, row: genotype, enteredOn: day,
+                                 customGenotype: custom, lab: row.optionalText("lab"), note: row.optionalText("note"))
         }
+    }
+
+    public func customGenes() throws -> [CustomGeneEntry] {
+        try db.query("SELECT id, name, variant, genotype, entered_on, lab, note FROM lab_custom_genes ORDER BY name COLLATE NOCASE").compactMap { row in
+            guard let day = ISODate(row.text("entered_on")) else { return nil }
+            return CustomGeneEntry(
+                id: row.text("id"),
+                name: row.text("name"),
+                variant: row.optionalText("variant"),
+                genotype: row.text("genotype"),
+                enteredOn: day,
+                lab: row.optionalText("lab"),
+                note: row.optionalText("note")
+            )
+        }
+    }
+
+    public func upsertCustomGene(_ entry: CustomGeneEntry) throws {
+        let id = entry.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let name = entry.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let genotype = entry.genotype.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty, !name.isEmpty, !genotype.isEmpty else {
+            throw ValidationError("Custom gene requires id, name, and genotype")
+        }
+        try db.execute("""
+            INSERT INTO lab_custom_genes (id, name, variant, genotype, entered_on, lab, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                variant = excluded.variant,
+                genotype = excluded.genotype,
+                entered_on = excluded.entered_on,
+                lab = excluded.lab,
+                note = excluded.note
+            """, [.text(id), .text(name), .optional(Self.clean(entry.variant)), .text(genotype),
+                  .text(entry.enteredOn.string), .optional(Self.clean(entry.lab)), .optional(Self.clean(entry.note))])
+    }
+
+    public func deleteCustomGene(_ id: String) throws {
+        try db.execute("DELETE FROM lab_custom_genes WHERE id = ? COLLATE NOCASE", [.text(id)])
+    }
+
+    private static func clean(_ text: String?) -> String? {
+        guard let t = text?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else { return nil }
+        return t
     }
 
     /// The blood tests the entered genotypes ask for, as one order panel.

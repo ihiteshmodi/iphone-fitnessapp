@@ -241,8 +241,30 @@ final class SchemaMigrationTests: DatabaseFileTestCase {
 
         let db = try XCTUnwrap(try service.openLiveDatabase())
 
-        XCTAssertEqual(db.userVersion, 23)
+        XCTAssertEqual(db.userVersion, Schema.currentVersion)
         XCTAssertEqual(try columns(of: "muscle_set_targets", in: db), ["region", "min_sets", "max_sets"])
+    }
+
+    func testMigratingFromVersion23CreatesV24TablesAndColumns() throws {
+        let url = try makeFitnessDatabase(named: "v23-upgrade.sqlite")
+        let raw = try Database(path: url.path)
+        try raw.execute("DROP TABLE IF EXISTS workout_sessions")
+        try raw.execute("DROP TABLE IF EXISTS hiit_presets")
+        try raw.execute("DROP TABLE IF EXISTS treadmill_vo2_logs")
+        try raw.execute("DROP TABLE IF EXISTS whoop_alarm_schedules")
+        try raw.execute("DROP TABLE IF EXISTS lab_custom_genes")
+        try raw.execute("DROP TABLE IF EXISTS lab_marker_overrides")
+        try raw.execute("DROP TABLE IF EXISTS diet_meal_times")
+        try raw.runScript("PRAGMA user_version = 23")
+        try FileManager.default.copyItem(at: url, to: location.databaseURL)
+
+        let db = try XCTUnwrap(try service.openLiveDatabase())
+        XCTAssertEqual(db.userVersion, 24)
+        XCTAssertTrue(try columns(of: "set_logs", in: db).contains("logged_at_ts"))
+        XCTAssertTrue(try columns(of: "checkins", in: db).contains("caffeine_before_noon"))
+        XCTAssertTrue(try columns(of: "diet_day_ticks", in: db).contains("ate_at"))
+        XCTAssertTrue(try columns(of: "lab_genotypes", in: db).contains("custom_genotype"))
+        XCTAssertEqual(try columns(of: "lab_marker_overrides", in: db), ["marker_id", "optimal_low", "optimal_high", "unit", "note"])
     }
 }
 
