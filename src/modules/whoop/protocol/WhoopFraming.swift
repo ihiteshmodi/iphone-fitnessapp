@@ -326,19 +326,25 @@ public enum WhoopFraming {
     }
 }
 
-public struct WhoopFrameAccumulator {
+public struct WhoopFrameAccumulator: Sendable {
     public let profile: WhoopBandProfile
     private var buf: [UInt8] = []
     public private(set) var resyncs = 0
+    public private(set) var headerCrcErrors = 0
     public private(set) var lostFrames = 0
 
     public init(profile: WhoopBandProfile = .gen4) {
         self.profile = profile
     }
 
+    public mutating func clearBuffer() {
+        buf.removeAll()
+    }
+
     public mutating func reset() {
         buf.removeAll()
         resyncs = 0
+        headerCrcErrors = 0
         lostFrames = 0
     }
 
@@ -369,6 +375,7 @@ public struct WhoopFrameAccumulator {
                 continue
             }
             if !WhoopFraming.headerCrcValid(buf, profile: profile) {
+                headerCrcErrors += 1
                 if !resync() { break }
                 continue
             }

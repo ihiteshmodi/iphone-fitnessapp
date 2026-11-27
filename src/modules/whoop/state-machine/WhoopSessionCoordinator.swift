@@ -18,6 +18,9 @@ public struct WhoopSessionCoordinator: Sendable {
     public var profile: WhoopBandProfile
     public var deviceID: String
     public private(set) var isMaverick = false
+    public private(set) var detectedGeneration: String?
+    public private(set) var firmwareVersion: String?
+    public private(set) var sigprocVersion: String?
     public private(set) var serialNumber: String?
     public private(set) var batteryPct: Double?
     public private(set) var charging: Bool?
@@ -25,10 +28,18 @@ public struct WhoopSessionCoordinator: Sendable {
     public private(set) var offloadActive = false
     public private(set) var corruptionTripped = false
     public private(set) var lastDataRange: WhoopDataRangeInfo?
+    public private(set) var lastLiveHr: WhoopRealtimeHr?
+    public private(set) var lastExpectedPacketCount: Int?
+    public private(set) var lastActualPacketCount: Int?
+    public private(set) var lastAckVerdict = "none"
+    public private(set) var lastAckWasNack: Bool?
+    public private(set) var lastAckTokenHex: String?
+    public private(set) var ackOkCount = 0
+    public private(set) var nackCount = 0
 
     private var seq = WhoopSeqAllocator()
-    private var accumulator: WhoopFrameAccumulator
-    private var burstStats = WhoopBurstStats()
+    internal private(set) var accumulator: WhoopFrameAccumulator
+    internal private(set) var burstStats = WhoopBurstStats()
     private var trimGuard = WhoopBurstTrimGuard()
     private var recordGate = WhoopRecordGate()
     private var corruptionDetector = WhoopFrameCorruptionDetector()
@@ -47,7 +58,7 @@ public struct WhoopSessionCoordinator: Sendable {
 
     public mutating func onLinkReady() -> [[UInt8]] {
         seq.reset()
-        accumulator.reset()
+        accumulator.clearBuffer()
         offloadActive = false
         pendingBatch = nil
         if profile.isGen5 {
@@ -137,6 +148,7 @@ public struct WhoopSessionCoordinator: Sendable {
             case WhoopPacketType.realtimeData:
                 if let hr = WhoopLiveDecoder.parseRealtimeHr(frame.inner) {
                     latestHr = hr
+                    lastLiveHr = hr
                     wristOn = hr.wearing
                 }
 
@@ -256,6 +268,15 @@ public struct WhoopSessionCoordinator: Sendable {
 
         if let g5 = resp.gen5Hello {
             isMaverick = g5.isMaverick
+            if g5.isMaverick {
+                detectedGeneration = "Gen5 / MG (Maverick)"
+            } else if g5.isWhoop5 {
+                detectedGeneration = "Gen5 (WHOOP 5.0)"
+            } else {
+                detectedGeneration = "Gen5 (rev \(g5.helloRevision))"
+            }
+            firmwareVersion = g5.firmwareVersion
+            sigprocVersion = "\(g5.sigprocMajor).\(g5.sigprocMinor).\(g5.sigprocPatch)"
             if !g5.serial.isEmpty { serialNumber = g5.serial }
             if let pct = g5.batteryPct { batteryPct = pct }
             charging = g5.charging
@@ -285,6 +306,8 @@ public struct WhoopSessionCoordinator: Sendable {
             tx.append(WhoopCommands.cmdGetDataRange(seq: seq.nextLive(), profile: .gen5))
             tx.append(WhoopCommands.cmdToggleRealtimeHr(seq: seq.nextLive(), on: true, profile: .gen5))
         } else if let g4 = resp.gen4Hello {
+            detectedGeneration = "Gen4 (WHOOP 4.0)"
+            if let commit = g4.commit, !commit.isEmpty { firmwareVersion = commit }
             if let s = g4.serial { serialNumber = s }
             if let pct = g4.batteryPct { batteryPct = pct }
         }
@@ -323,12 +346,16 @@ public struct WhoopSessionCoordinator: Sendable {
         case .historyEnd:
             let droppedThisBurst = recordGate.dropped - droppedBeforeBurst
             let droppedBelowFloorThisBurst = recordGate.droppedBelowFloor - droppedBelowFloorBeforeBurst
+            let actualCount = burstStats.totalTrafficPacketCount + droppedThisBurst
+            lastExpectedPacketCount = meta.expectedPacketCount
+            lastActualPacketCount = actualCount
+
             let countOk: Bool
             if let expected = meta.expectedPacketCount, expected > 0 {
                 if profile.isGen5 {
                     countOk = burstStats.passesGen5CountGate(expectedPacketCount: expected, droppedThisBurst: droppedThisBurst)
                 } else {
-                    countOk = burstStats.totalTrafficPacketCount + droppedThisBurst >= expected
+                    countOk = actualCount >= expected
                 }
             } else {
                 countOk = true
@@ -338,6 +365,10 @@ public struct WhoopSessionCoordinator: Sendable {
                 burstStats.noteValidationFailure()
                 offloadActive = false
                 pendingBatch = nil
+                lastAckVerdict = countOk ? "blockedInvalidToken" : "blockedPacketCountMismatch"
+                lastAckWasNack = true
+                lastAckTokenHex = meta.token.map(WhoopBytes.hex)
+                nackCount += 1
                 let nack = WhoopCommands.buildHistoryResultFail(seq: seq.nextSync(), profile: profile)
                 return ([nack], false)
             }
@@ -358,23 +389,36 @@ public struct WhoopSessionCoordinator: Sendable {
             guard verdictPreCommit == .send else {
                 offloadActive = false
                 pendingBatch = nil
+                lastAckVerdict = verdictPreCommit.rawValue
+                lastAckWasNack = true
+                lastAckTokenHex = WhoopBytes.hex(token)
+                nackCount += 1
                 let nack = WhoopCommands.buildHistoryResultFail(seq: seq.nextSync(), profile: profile)
                 return ([nack], false)
             }
 
-            batch.trimTokenHex = WhoopBytes.hex(token)
+            let tokenHex = WhoopBytes.hex(token)
+            batch.trimTokenHex = tokenHex
             batch.capturedAtMs = nowMs
             do {
                 try store.commitSyncBatch(batch)
             } catch {
                 offloadActive = false
                 pendingBatch = nil
+                lastAckVerdict = WhoopTrimAckVerdict.blockedCommitFailed.rawValue
+                lastAckWasNack = true
+                lastAckTokenHex = tokenHex
+                nackCount += 1
                 let nack = WhoopCommands.buildHistoryResultFail(seq: seq.nextSync(), profile: profile)
                 return ([nack], false)
             }
 
             offloadActive = false
             pendingBatch = nil
+            lastAckVerdict = WhoopTrimAckVerdict.send.rawValue
+            lastAckWasNack = false
+            lastAckTokenHex = tokenHex
+            ackOkCount += 1
             let ack = try WhoopCommands.buildHistoryResultOk(seq: seq.nextSync(), token: token, profile: profile)
             return ([ack], false)
 

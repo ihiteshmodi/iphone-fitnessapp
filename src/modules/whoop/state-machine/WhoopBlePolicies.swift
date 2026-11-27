@@ -164,7 +164,7 @@ public struct WhoopRecordGate: Equatable, Sendable {
     }
 }
 
-public enum WhoopTrimAckVerdict: Equatable, Sendable {
+public enum WhoopTrimAckVerdict: String, Equatable, Sendable {
     case send
     case blockedStaleSession
     case blockedDiscardedBurst
