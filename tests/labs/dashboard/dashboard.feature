@@ -34,3 +34,9 @@ Feature: Bloodwork dashboard
     And MPV + Platelets reports a clean companion check using the 2026-05-03 values
     And "High SHBG masking low Free Testosterone" fires across split Draws 3 and 4
     And every tested marker row carries its Core flag, exact range classification, latest date, and linked interpretations
+
+  Scenario: Dashboard hub groups tested markers into compact system summaries with attention, optimal, and Core counts for drill-down
+    Given tested markers across CBC (2 optimal) and Hormones (Total Testosterone in-lab-below-optimal, Free Testosterone low, SHBG high)
+    When LabDashboardHubSummary builds from the latest snapshot
+    Then totalTested is 5, optimalCount is 2, inLabSuboptimalCount is 1, outOfRangeCount is 2, and activeInterpretationCount >= 1
+    And chapterSummaries orders chapters with attention items first ("Hormones" before "CBC") with exact per-chapter counts and rows for drill-down

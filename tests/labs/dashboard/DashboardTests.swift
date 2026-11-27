@@ -158,5 +158,20 @@ final class DashboardTests: XCTestCase {
         XCTAssertFalse(mpvRow.isCore)
         XCTAssertEqual(mpvRow.rangeClassification, .optimal)
         XCTAssertEqual(mpvRow.result.date, date("2026-05-03"))
+
+        // Verify compact Dashboard Hub summary & drill-down chapter ordering (attention-first)
+        let hub = LabDashboardHubSummary.build(from: snap)
+        XCTAssertEqual(hub.totalTested, 5)
+        XCTAssertEqual(hub.coreTestedCount, 2)
+        XCTAssertEqual(hub.optimalCount, 2)
+        XCTAssertEqual(hub.inLabSuboptimalCount, 1)
+        XCTAssertEqual(hub.outOfRangeCount, 2)
+        XCTAssertGreaterThanOrEqual(hub.activeInterpretationCount, 1)
+        XCTAssertEqual(hub.cleanCheckCount, 1)
+        XCTAssertEqual(hub.attentionRows.count, 3)
+        XCTAssertEqual(hub.chapterSummaries.map(\.chapter), ["Hormones", "CBC"],
+                       "Chapters with out-of-range / suboptimal markers appear first on the Dashboard hub")
+        XCTAssertEqual(hub.chapterSummaries.first?.attentionCount, 3)
+        XCTAssertEqual(hub.chapterSummaries.last?.optimalCount, 2)
     }
 }

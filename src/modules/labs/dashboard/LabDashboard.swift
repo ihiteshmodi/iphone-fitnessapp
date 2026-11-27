@@ -102,6 +102,90 @@ public struct LabTestedMarkerRow: Equatable, Identifiable {
     public let reading: LabReading
     public let rangeClassification: LabRangeClassification
     public let interpretations: [String]
+
+    public var isOptimalOrWithinLab: Bool {
+        rangeClassification == .optimal || rangeClassification == .withinLabNoOptimal
+    }
+
+    public var isInLabSuboptimal: Bool {
+        [.withinLabBelowOptimal, .withinLabAboveOptimal, .disputed].contains(rangeClassification)
+    }
+
+    public var isOutOfRange: Bool {
+        [.belowLabRange, .aboveLabRange, .low, .high].contains(rangeClassification)
+    }
+
+    public var needsAttention: Bool {
+        isOutOfRange || isInLabSuboptimal
+    }
+}
+
+public struct LabDashboardChapterSummary: Equatable, Identifiable {
+    public var id: String { chapter }
+    public let chapter: String
+    public let rows: [LabTestedMarkerRow]
+    public let coreCount: Int
+    public let optimalCount: Int
+    public let inLabSuboptimalCount: Int
+    public let outOfRangeCount: Int
+    public let latestDate: ISODate?
+
+    public var attentionCount: Int { outOfRangeCount + inLabSuboptimalCount }
+}
+
+public struct LabDashboardHubSummary: Equatable {
+    public let totalTested: Int
+    public let coreTestedCount: Int
+    public let optimalCount: Int
+    public let inLabSuboptimalCount: Int
+    public let outOfRangeCount: Int
+    public let activeInterpretationCount: Int
+    public let cleanCheckCount: Int
+    public let attentionRows: [LabTestedMarkerRow]
+    public let chapterSummaries: [LabDashboardChapterSummary]
+
+    public static func build(from snapshot: LabLatestSnapshot) -> LabDashboardHubSummary {
+        let rows = snapshot.testedRows
+        let activeEpistatic = snapshot.epistaticMatches.filter { !$0.id.hasSuffix("-silent") && !$0.id.hasSuffix("-unexpressed") }.count
+        let activeCount = snapshot.activePatterns.count + snapshot.discordances.count + snapshot.simplePatterns.count + activeEpistatic
+
+        var orderedChapters: [String] = []
+        for row in rows where !orderedChapters.contains(row.marker.chapter) {
+            orderedChapters.append(row.marker.chapter)
+        }
+
+        let summaries = orderedChapters.map { chapter -> LabDashboardChapterSummary in
+            let chRows = rows.filter { $0.marker.chapter == chapter }
+            return LabDashboardChapterSummary(
+                chapter: chapter,
+                rows: chRows,
+                coreCount: chRows.filter(\.isCore).count,
+                optimalCount: chRows.filter(\.isOptimalOrWithinLab).count,
+                inLabSuboptimalCount: chRows.filter(\.isInLabSuboptimal).count,
+                outOfRangeCount: chRows.filter(\.isOutOfRange).count,
+                latestDate: chRows.map(\.result.date).max())
+        }.sorted { lhs, rhs in
+            if lhs.outOfRangeCount != rhs.outOfRangeCount { return lhs.outOfRangeCount > rhs.outOfRangeCount }
+            if lhs.attentionCount != rhs.attentionCount { return lhs.attentionCount > rhs.attentionCount }
+            return false
+        }
+
+        let attentionRows = rows.filter(\.needsAttention).sorted { lhs, rhs in
+            if lhs.isOutOfRange != rhs.isOutOfRange { return lhs.isOutOfRange && !rhs.isOutOfRange }
+            return lhs.isCore && !rhs.isCore
+        }
+
+        return LabDashboardHubSummary(
+            totalTested: rows.count,
+            coreTestedCount: rows.filter(\.isCore).count,
+            optimalCount: rows.filter(\.isOptimalOrWithinLab).count,
+            inLabSuboptimalCount: rows.filter(\.isInLabSuboptimal).count,
+            outOfRangeCount: rows.filter(\.isOutOfRange).count,
+            activeInterpretationCount: activeCount,
+            cleanCheckCount: snapshot.cleanCompanionChecks.count,
+            attentionRows: attentionRows,
+            chapterSummaries: summaries)
+    }
 }
 
 public struct LabLatestSnapshot: Equatable {
