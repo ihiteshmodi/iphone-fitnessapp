@@ -72,7 +72,16 @@ struct WhoopBreatheAndStressView: View {
                     lastPhaseIndex = snap.stageIndex
                     lastCycleNum = snap.cycleNumber
                     if wristHapticsEnabled && snap.hapticLoops > 0 {
-                        _ = whoop.triggerVibrationTest(loops: snap.hapticLoops)
+                        if snap.kind == .exhale {
+                            // Exhale = 2 distinct pulses separated by a 350 ms gap so wrist feel differs unmistakably from Inhale (1 pulse)
+                            Task { @MainActor in
+                                _ = whoop.triggerVibrationTest(loops: 1)
+                                try? await Task.sleep(nanoseconds: 350_000_000)
+                                _ = whoop.triggerVibrationTest(loops: 1)
+                            }
+                        } else {
+                            _ = whoop.triggerVibrationTest(loops: 1)
+                        }
                     }
                 }
             }
@@ -163,6 +172,19 @@ struct WhoopBreatheAndStressView: View {
                 .font(.system(size: 12))
                 .foregroundColor(Theme.muted)
                 .multilineTextAlignment(.center)
+
+            HStack(spacing: 6) {
+                Image(systemName: "applewatch.radiowaves.left.and.right")
+                    .font(.system(size: 11))
+                    .foregroundColor(Theme.green)
+                Text("Wrist buzz pattern: Inhale = 1 pulse · Exhale = 2 pulses (0.35s gap) · Hold = silent")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Theme.muted)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Theme.card2)
+            .clipShape(Capsule())
 
             HStack(spacing: 8) {
                 ForEach([2, 5, 10, 15], id: \.self) { mins in
@@ -370,7 +392,6 @@ struct WhoopMetricsExplorerView: View {
             VStack(alignment: .leading, spacing: 14) {
                 controlsCard
                 chartCard
-                allVariablesGrid
             }
             .padding(16)
         }
@@ -452,13 +473,16 @@ struct WhoopMetricsExplorerView: View {
                     }
                     TrendChart(
                         points: pts,
-                        height: 158,
+                        height: 184,
                         seriesColors: [
                             b.definition.title: Theme.green,
                             "Normal Low": Theme.muted.opacity(0.45),
                             "Normal High": Theme.muted.opacity(0.45),
                         ]
                     )
+                    Text("Slide your finger across the chart to inspect any day's exact date and \(b.definition.unit) reading.")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundColor(Theme.greenSoft)
                     if let lo = b.bandLow, let hi = b.bandHigh {
                         Text("Personal normal band (28d median ± 1.48×MAD): \(Format.number(lo, maxDecimals: 1)) – \(Format.number(hi, maxDecimals: 1)) \(b.definition.unit) · \(b.points.count) days plotted.")
                             .font(.system(size: 11.5)).foregroundColor(Theme.muted)
@@ -472,39 +496,6 @@ struct WhoopMetricsExplorerView: View {
         .card()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("whoop-explorer-chart-card")
-    }
-
-    private var allVariablesGrid: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("Quick Jump — All \(WhoopMetricsExplorerService.catalogue.count) Physiological Variables")
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                ForEach(WhoopMetricsExplorerService.catalogue) { item in
-                    let active = (item.id == selectedMetricId)
-                    Button {
-                        selectedMetricId = item.id
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.title)
-                                    .font(.system(size: 12.5, weight: .semibold))
-                                    .foregroundColor(active ? Theme.onGreen : Theme.text)
-                                    .lineLimit(1)
-                                Text("\(item.category) · \(item.unit)")
-                                    .font(.system(size: 10.5))
-                                    .foregroundColor(active ? Theme.onGreen.opacity(0.8) : Theme.muted)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .padding(10)
-                        .background(active ? Theme.green : Theme.card)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("whoop-metric-tile-\(item.id)")
-                }
-            }
-        }
     }
 
     private func reload() {

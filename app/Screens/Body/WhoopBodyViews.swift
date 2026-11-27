@@ -37,13 +37,15 @@ struct WhoopBodyEntrySection: View {
     var body: some View {
         VStack(spacing: 12) {
             if let snap = snapshot {
-                NavigationLink {
-                    WhoopRecoverySleepView(initialDay: shownDay)
-                } label: {
-                    triadCard(snap)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("whoop-body-triad-card")
+                triadCard(snap)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("whoop-body-triad-card")
+
+                WhoopPendingReviewBanner(
+                    workouts: snap.pendingWorkoutProposals,
+                    naps: snap.pendingNapProposals,
+                    onChanged: reload
+                )
 
                 longevityGrid(snap)
             }
@@ -62,44 +64,66 @@ struct WhoopBodyEntrySection: View {
             HStack {
                 SectionLabel("WHOOP 5.0 · \(snap.scoredRecoveryDayId)")
                 Spacer()
-                Text("Recovery & sleep ›")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Theme.green)
+                Text("Tap any hoop for details")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundColor(Theme.muted)
             }
 
             HStack(spacing: 8) {
                 ForEach(snap.triad) { hoop in
-                    VStack(spacing: 6) {
-                        RingView(
-                            progress: hoop.progress,
-                            size: 76,
-                            lineWidth: 7,
-                            label: hoop.ringLabel,
-                            subLabel: hoop.ringSubLabel,
-                            color: hoop.tone.color
-                        )
-                        Text(hoop.title.uppercased())
-                            .font(.system(size: 10, weight: .semibold))
-                            .tracking(0.5)
-                            .foregroundColor(Theme.muted)
-                        Text(hoop.footerText)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(Theme.text)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
+                    NavigationLink {
+                        triadDestination(for: hoop.title)
+                    } label: {
+                        VStack(spacing: 6) {
+                            RingView(
+                                progress: hoop.progress,
+                                size: 76,
+                                lineWidth: 7,
+                                label: hoop.ringLabel,
+                                subLabel: hoop.ringSubLabel,
+                                color: hoop.tone.color
+                            )
+                            HStack(spacing: 2) {
+                                Text(hoop.title.uppercased())
+                                    .font(.system(size: 10, weight: .bold))
+                                    .tracking(0.5)
+                                    .foregroundColor(Theme.green)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 8.5, weight: .bold))
+                                    .foregroundColor(Theme.muted)
+                            }
+                            Text(hoop.footerText)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(Theme.text)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 4)
+                        .background(Theme.card2)
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line, lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 4)
-                    .background(Theme.card2)
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.line, lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .buttonStyle(.plain)
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("whoop-triad-\(hoop.title.lowercased())")
                 }
             }
         }
         .card()
+    }
+
+    @ViewBuilder
+    private func triadDestination(for title: String) -> some View {
+        switch title.lowercased() {
+        case "recovery":
+            WhoopRecoveryDetailView(initialDay: shownDay)
+        case "strain":
+            WhoopStrainDetailView(initialDay: shownDay)
+        default:
+            WhoopSleepDetailView(initialDay: shownDay)
+        }
     }
 
     private func longevityGrid(_ snap: WhoopDashboardSnapshot) -> some View {
@@ -217,6 +241,29 @@ struct WhoopBodyEntrySection: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("whoop-open-metrics-explorer")
             }
+
+            NavigationLink {
+                WhoopStepsDetailView(initialDay: shownDay)
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "figure.walk.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(Theme.greenSoft)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Steps & HR Zone 0–5 Calculator")
+                            .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                        Text("\(Format.grouped(Double(snap.steps))) steps · Hourly graph, zone checkmarks & stepTicksPerStep")
+                            .font(.system(size: 10.5)).foregroundColor(Theme.muted).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Theme.muted)
+                }
+                .card(padding: 10)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("whoop-open-steps-detail")
         }
     }
 }
