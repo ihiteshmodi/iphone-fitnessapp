@@ -262,7 +262,7 @@ struct MoreTabView: View {
             .padding(.top, 4)
             .accessibilityIdentifier("whoop-band-row")
             NavigationLink { AppDefaultsView() } label: {
-                MoreRow(title: "Defaults & Cutoffs", subtitle: "Default meal times, pre-sleep & caffeine cutoffs, dynamic sleep need, and manual HR zones") {
+                MoreRow(title: "Defaults & Rules", subtitle: "Profile, HR zones, HIIT presets, step breakdown, meal/sleep cutoffs, warm-up %, PR & deload rules") {
                     Image(systemName: "chevron.right").foregroundColor(Theme.muted)
                 }
                 .contentShape(Rectangle())

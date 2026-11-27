@@ -59,11 +59,11 @@ final class PhaseFUITests: XCTestCase {
         element("coaching-mode-maximizing_vo2_max").tap()
         element("coaching-mode-general_health").tap()
 
-        // More tab: Defaults & Cutoffs + WHOOP Silent Alarms
+        // More tab: Defaults & Rules + WHOOP Silent Alarms
         app.tabBars.buttons["More"].tap()
         let defaultsRow = element("app-defaults-row")
         XCTAssertTrue(defaultsRow.exists || scrollUntilExists(defaultsRow))
         defaultsRow.tap()
-        XCTAssertTrue(app.navigationBars["Defaults & Cutoffs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Defaults & Rules"].waitForExistence(timeout: 5))
     }
 }

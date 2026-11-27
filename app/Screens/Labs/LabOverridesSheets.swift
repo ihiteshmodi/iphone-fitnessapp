@@ -138,3 +138,108 @@ struct MarkerPersonalOverrideSheet: View {
         }
     }
 }
+
+/// Bulk JSON Lab Tests & Genetics Inserter Sheet (paste raw JSON or export AI template for all 115 markers).
+struct LabJsonInserterSheet: View {
+    let db: Database
+    let catalogue: LabCatalogue
+    let today: ISODate
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var jsonText = ""
+    @State private var importBanner: String?
+    @State private var sharedFile: LabShareItem?
+    @State private var errorMessage: String?
+
+    struct LabShareItem: Identifiable {
+        let id = UUID()
+        let url: URL
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Bulk JSON Lab Tests Inserter (115 Markers)") {
+                    Text("Paste an AI-filled or manual JSON payload below to bulk-insert draws, lab results, genotypes, custom SNPs, and personal overrides.")
+                        .font(.system(size: 12)).foregroundColor(Theme.muted)
+
+                    HStack {
+                        Button("Load Sample Payload") {
+                            jsonText = """
+                            {
+                              "schema_version": 1,
+                              "draws": [
+                                {
+                                  "draw_date": "\(today.string)",
+                                  "lab": "Metropolis",
+                                  "fasted_hours": 12,
+                                  "results": [
+                                    { "marker_id": "apob", "value": 71.0, "unit": "mg/dL" },
+                                    { "marker_id": "hs-crp", "value": 0.6, "unit": "mg/L" }
+                                  ]
+                                }
+                              ]
+                            }
+                            """
+                        }
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .accessibilityIdentifier("labs-json-load-sample")
+
+                        Spacer()
+
+                        Button("Export Blank AI Template") {
+                            if let data = try? LabJsonTemplateService(db: db, catalogue: catalogue).exportTemplateJSON(includeExistingDraws: false) {
+                                let url = FileManager.default.temporaryDirectory.appendingPathComponent("labs-ai-template.json")
+                                try? data.write(to: url, options: .atomic)
+                                sharedFile = LabShareItem(url: url)
+                            }
+                        }
+                        .font(.system(size: 12.5, weight: .semibold))
+                    }
+
+                    TextEditor(text: $jsonText)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(minHeight: 190)
+                        .accessibilityIdentifier("labs-json-text-editor")
+
+                    Button("Insert JSON Lab Results") {
+                        insertJson()
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityIdentifier("labs-json-insert-confirm")
+
+                    if let importBanner {
+                        Text(importBanner)
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(Theme.green)
+                            .accessibilityIdentifier("labs-json-import-banner")
+                    }
+                }
+            }
+            .navigationTitle("JSON Lab Inserter")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("labs-json-done-button")
+                }
+            }
+            .sheet(item: $sharedFile) { item in ShareSheet(items: [item.url]) }
+            .errorAlert($errorMessage)
+        }
+    }
+
+    private func insertJson() {
+        let trimmed = jsonText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            errorMessage = "Paste a JSON payload first (or tap Load Sample Payload)."
+            return
+        }
+        do {
+            let summary = try LabJsonTemplateService(db: db, catalogue: catalogue).importFilledJSON(Data(trimmed.utf8))
+            importBanner = "Imported \(summary.resultsImported) marker result(s) (\(summary.drawsCreated) new draw, \(summary.drawsUpdated) updated) ✓"
+        } catch {
+            errorMessage = (error as? ValidationError)?.message ?? error.localizedDescription
+        }
+    }
+}

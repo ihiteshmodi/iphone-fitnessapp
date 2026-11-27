@@ -65,9 +65,10 @@ struct PreSleepTimingHoopRow: View {
     @EnvironmentObject private var session: AppSession
     @State private var report: LastMealToSleepReport?
     @State private var targetBedHm = "23:00"
+    @State private var lateHardSessionWarning: String?
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 6) {
             if let r = report, r.lastMealHm != nil {
                 HStack(spacing: 12) {
                     let gap = r.gapHours ?? 4.5
@@ -98,6 +99,19 @@ struct PreSleepTimingHoopRow: View {
                 .padding(.vertical, 4)
                 .accessibilityIdentifier("checkin-meal-sleep-hoop")
             }
+
+            if let warn = lateHardSessionWarning {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.amber)
+                    Text(warn)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundColor(Theme.amber)
+                }
+                .padding(.vertical, 2)
+                .accessibilityIdentifier("checkin-hard-training-warning")
+            }
         }
         .task(id: "\(date.string)-\(session.revision)") {
             let defaults = (try? services.appDefaults.load()) ?? AppDefaultsSnapshot()
@@ -105,8 +119,22 @@ struct PreSleepTimingHoopRow: View {
             let bedHm = snap?.sleep.targetBedtimeHm ?? "23:00"
             targetBedHm = bedHm
             let sleepEpoch = Self.bedtimeEpoch(hm: bedHm, afterMealOn: date)
-            let _ = defaults
             report = try? LastMealToSleepEvaluator(db: services.db).evaluate(day: date, sleepOnsetEpochSec: sleepEpoch)
+
+            // Evening hard-training cutoff check (`< hardTrainingCutoffHours` before sleep onset)
+            lateHardSessionWarning = nil
+            if let sleepEpoch {
+                let sessionsOnDay = (try? services.workoutSessions.sessions(on: date)) ?? []
+                if let latestEnd = sessionsOnDay.compactMap(\.endTs).max() {
+                    let gapHrs = Double(sleepEpoch - latestEnd) / 3600.0
+                    if gapHrs >= -2.0 && gapHrs < defaults.hardTrainingCutoffHours {
+                        lateHardSessionWarning = String(
+                            format: "Evening training cutoff: session ended %.1fh before %@ (<%.1fh sympathetic cooldown).",
+                            max(0, gapHrs), bedHm, defaults.hardTrainingCutoffHours
+                        )
+                    }
+                }
+            }
         }
     }
 

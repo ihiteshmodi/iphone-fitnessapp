@@ -118,6 +118,7 @@ struct LabsView: View {
     @State private var editingSettings = false
     @State private var editingContext = false
     @State private var showingGuide = false
+    @State private var showingJsonInserter = false
     @State private var exportURL: URL?
 
     init(services: Services, catalogue: LabCatalogue) {
@@ -180,6 +181,9 @@ struct LabsView: View {
         }
         .sheet(isPresented: $showingGuide) {
             BloodworkGuideSheet()
+        }
+        .sheet(isPresented: $showingJsonInserter, onDismiss: model.load) {
+            LabJsonInserterSheet(db: model.services.db, catalogue: model.catalogue, today: model.today)
         }
         .errorAlert($model.errorMessage)
     }
@@ -346,6 +350,19 @@ struct LabsView: View {
             }
             .buttonStyle(PrimaryButtonStyle(ghost: true))
             .font(.system(size: 13))
+            Button {
+                showingJsonInserter = true
+            } label: {
+                HStack {
+                    Image(systemName: "curlybraces")
+                    Text("JSON Lab Tests Inserter (115 markers)")
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.system(size: 12))
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle(ghost: true))
+            .font(.system(size: 13, weight: .semibold))
+            .accessibilityIdentifier("labs-open-json-inserter")
         }
     }
 

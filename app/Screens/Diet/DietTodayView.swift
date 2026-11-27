@@ -12,6 +12,8 @@ struct DietTodayView: View {
     @EnvironmentObject private var session: AppSession
     @State private var selectedProfileMeal: DietMeal?
     @State private var editingMealTime: DietMeal?
+    @State private var catchUpOverrides: [String: String] = [:]
+    @State private var editingCatchUpItem: UnconfirmedMeal?
 
     var body: some View {
         VStack(spacing: 12) {
@@ -63,16 +65,37 @@ struct DietTodayView: View {
                 }
             }
         }
+        .sheet(isPresented: Binding(get: { editingCatchUpItem != nil }, set: { if !$0 { editingCatchUpItem = nil } })) {
+            if let item = editingCatchUpItem {
+                let key = "\(item.date.string)::\(item.meal)"
+                let curHm = catchUpOverrides[key] ?? (try? services.appDefaults.defaultMealTime(forMeal: item.meal)) ?? "19:30"
+                MealTimePickerSheet(date: item.date, mealName: item.meal, initialHm: curHm) {
+                    if let savedDay = try? services.dietDays.day(item.date),
+                       let m = savedDay.meals.first(where: { $0.name == item.meal }),
+                       let hm = m.ateAt {
+                        catchUpOverrides[key] = hm
+                    }
+                }
+            }
+        }
     }
 
     private var unconfirmedCard: some View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel("Did you eat these?")
             ForEach(model.unconfirmed, id: \.self) { item in
-                HStack(spacing: 8) {
-                    Text("\(Format.weekdayDate(item.date)) · \(item.meal)").font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                let key = "\(item.date.string)::\(item.meal)"
+                let resolvedHm = catchUpOverrides[key] ?? (try? services.appDefaults.defaultMealTime(forMeal: item.meal)) ?? "19:30"
+                HStack(spacing: 6) {
+                    Text("\(Format.weekdayDate(item.date)) · \(item.meal)")
+                        .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                    Button("@ \(resolvedHm) ✎") { editingCatchUpItem = item }
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundColor(Theme.green)
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("catchup-time-\(item.date.string)-\(item.meal)")
                     Spacer(minLength: 4)
-                    Button("Ate it") { model.confirmEaten(item) }
+                    Button("Ate it") { model.confirmEaten(item, ateAtOverride: catchUpOverrides[key] ?? resolvedHm) }
                         .buttonStyle(CompactButtonStyle())
                         .accessibilityIdentifier("ate-\(item.date.string)-\(item.meal)")
                     Button("Skipped") { model.confirmSkipped(item) }
