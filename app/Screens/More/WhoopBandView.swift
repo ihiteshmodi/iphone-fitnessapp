@@ -263,25 +263,19 @@ struct WhoopBandView: View {
                     summaryRow("Raw archive frames", Format.grouped(Double(s.rawArchiveCount)))
                     summaryRow("Live step windows", Format.grouped(Double(s.liveCoverageCount)))
                     if let oldest = s.oldestRecTs, let newest = s.latestRecTs {
-
-                Button("Merge older OpenStrap history (.db / .sqlite)") {
-                    isWhoopMergePresented = true
+                        summaryRow("Recorded span", "\(Self.shortDate(oldest)) → \(Self.shortDate(newest))")
+                    }
+                    if let trim = s.strapTrimHex {
+                        summaryRow("Trim cursor", trim)
+                    }
                 }
-                .buttonStyle(PrimaryButtonStyle(ghost: true))
-                .accessibilityIdentifier("merge-whoop-database-button")
-            }
-
-            Button(whoop.hasWhoopDatabase ? "Replace WHOOP database (.db / .sqlite)" : "Import OpenStrap / WHOOP database (.db / .sqlite)") {
-                isWhoopImporterPresented = true
-            }
-            .buttonStyle(PrimaryButtonStyle(ghost: true))
-            .accessibilityIdentifier("import-whoop-database-button")
-
-            if !whoop.foundWhoopFiles.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    SectionLabel("WHOOP files in Documents")
-                    ForEach(whoop.foundWhoopFiles, id: \.self) { url in
-                        Button("Merge / tyIdentifier("whoop-substrate-empty")
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("whoop-substrate-summary")
+            } else {
+                Text("No whoop.sqlite loaded yet. Sync a band or load your OpenStrap database below.")
+                    .font(.system(size: 13))
+                    .foregroundColor(Theme.muted)
+                    .accessibilityIdentifier("whoop-substrate-empty")
             }
         }
         .card()
@@ -311,9 +305,15 @@ struct WhoopBandView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .accessibilityIdentifier("export-whoop-database-button")
+
+                Button("Merge older OpenStrap history (.db / .sqlite)") {
+                    isWhoopMergePresented = true
+                }
+                .buttonStyle(PrimaryButtonStyle(ghost: true))
+                .accessibilityIdentifier("merge-whoop-database-button")
             }
 
-            Button("Import OpenStrap / WHOOP database (.db / .sqlite)") {
+            Button(whoop.hasWhoopDatabase ? "Replace WHOOP database (.db / .sqlite)" : "Import OpenStrap / WHOOP database (.db / .sqlite)") {
                 isWhoopImporterPresented = true
             }
             .buttonStyle(PrimaryButtonStyle(ghost: true))
@@ -323,7 +323,7 @@ struct WhoopBandView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     SectionLabel("WHOOP files in Documents")
                     ForEach(whoop.foundWhoopFiles, id: \.self) { url in
-                        Button("Import \(url.lastPathComponent)") { whoopFileToRestore = url }
+                        Button("Merge / Import \(url.lastPathComponent)") { whoopFileToRestore = url }
                             .buttonStyle(PrimaryButtonStyle(ghost: true))
                             .accessibilityIdentifier("restore-whoop-\(url.lastPathComponent)")
                     }
