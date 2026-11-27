@@ -60,6 +60,7 @@ struct WorkoutWhoopLiveBar: View {
     @State private var completedToday: [WorkoutSessionRecord] = []
     @State private var weeklyZ2CompletedMin: Int = 0
     @State private var weeklyZ45CompletedMin: Int = 0
+    @State private var weeklyZoneWindowLabel: String = "Last 7d"
     @State private var liveZ2Sec: Int = 0
     @State private var liveZ45Sec: Int = 0
     @State private var recentHrSpark: [Double] = []
@@ -212,44 +213,51 @@ struct WorkoutWhoopLiveBar: View {
         let z45Done = weeklyZ45CompletedMin + (liveZ45Sec / 60)
         let z45Left = max(0, 50 - z45Done)
 
-        return HStack(spacing: 10) {
-            HStack(spacing: 8) {
-                RingView(
-                    progress: min(1.0, max(0.06, Double(z2Done) / 150.0)),
-                    size: 36,
-                    lineWidth: 3.5,
-                    label: "\(z2Done)m",
-                    color: Theme.green
-                )
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Zone 2 Target").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.text)
-                    Text("\(z2Done)/150m · \(z2Left)m left").font(.system(size: 10.5)).foregroundColor(Theme.muted)
+        return VStack(alignment: .leading, spacing: 6) {
+            SectionLabel("Rolling 7d HR Zone Targets (\(weeklyZoneWindowLabel))")
+            HStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    RingView(
+                        progress: min(1.0, max(0.06, Double(z2Done) / 150.0)),
+                        size: 36,
+                        lineWidth: 3.5,
+                        label: "\(z2Done)m",
+                        color: Theme.green
+                    )
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Zone 2 (\(zones.boundsBpm[1])–\(zones.boundsBpm[2] - 1))")
+                            .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.text).lineLimit(1)
+                        Text("\(z2Done)/150m · \(z2Left)m left")
+                            .font(.system(size: 10.5)).foregroundColor(Theme.muted)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
-            }
-            .padding(9)
-            .background(Theme.card)
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(9)
+                .background(Theme.card)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
 
-            HStack(spacing: 8) {
-                RingView(
-                    progress: min(1.0, max(0.06, Double(z45Done) / 50.0)),
-                    size: 36,
-                    lineWidth: 3.5,
-                    label: "\(z45Done)m",
-                    color: Theme.gold
-                )
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Zone 4–5 Target").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.text)
-                    Text("\(z45Done)/50m · \(z45Left)m left").font(.system(size: 10.5)).foregroundColor(Theme.muted)
+                HStack(spacing: 8) {
+                    RingView(
+                        progress: min(1.0, max(0.06, Double(z45Done) / 50.0)),
+                        size: 36,
+                        lineWidth: 3.5,
+                        label: "\(z45Done)m",
+                        color: Theme.gold
+                    )
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Zone 4–5 (≥\(zones.boundsBpm[3]))")
+                            .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.text).lineLimit(1)
+                        Text("\(z45Done)/50m · \(z45Left)m left")
+                            .font(.system(size: 10.5)).foregroundColor(Theme.muted)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .padding(9)
+                .background(Theme.card)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .padding(9)
-            .background(Theme.card)
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("workout-zone-progress-strip")
@@ -288,26 +296,13 @@ struct WorkoutWhoopLiveBar: View {
         activeSession = allOnDay.first(where: { $0.endTs == nil })
         completedToday = allOnDay.filter { $0.endTs != nil }
 
-        let weekStart = today.adding(days: -6)
-        let weekDone = ((try? services.workoutSessions.sessions()) ?? []).filter {
-            $0.performedOn >= weekStart && $0.performedOn <= today && $0.endTs != nil
-        }
-        var z2Min = weekDone.reduce(0) { $0 + ($1.zoneSeconds[2] / 60) }
-        let z45Min = weekDone.reduce(0) { $0 + (($1.zoneSeconds[4] + $1.zoneSeconds[5]) / 60) }
-
         if let snap = try? WhoopDashboardPresenter.build(whoopDb: whoop.db, fitnessDb: services.db, on: today) {
             zones = snap.zones
             pendingProposals = snap.pendingWorkoutProposals
-            if z2Min == 0, let db = whoop.db {
-                let active7d = (try? db.query(
-                    "SELECT SUM(value) AS s FROM metric_series WHERE key = 'active_min' AND date BETWEEN ? AND ?",
-                    [.text(weekStart.string), .text(today.string)]
-                ).first?.optionalDouble("s")) ?? 0
-                z2Min = Int((active7d * 0.65).rounded())
-            }
+            weeklyZ2CompletedMin = snap.coaching.weeklyZone2Minutes
+            weeklyZ45CompletedMin = snap.coaching.weeklyZone4And5Minutes
+            weeklyZoneWindowLabel = snap.coaching.weeklyZoneWindowLabel
         }
-        weeklyZ2CompletedMin = z2Min
-        weeklyZ45CompletedMin = z45Min
     }
 
     private func startLiveSession() {

@@ -65,6 +65,10 @@ public struct WhoopCoachingSeriesPoint: Identifiable, Equatable, Sendable {
 
 public struct WhoopCoachingDashboardViewModel: Equatable, Sendable {
     public let evaluation: WhoopCoachingEvaluation
+    public let evaluationsByMode: [WhoopCoachingMode: WhoopCoachingEvaluation]
+    public let weeklyZone2Minutes: Int
+    public let weeklyZone4And5Minutes: Int
+    public let weeklyZoneWindowLabel: String
     public let weeklyLiftingHours: Double
     public let ctlAtlTsb: WhoopCtlAtlTsb?
     public let ctlSeries: [WhoopCoachingSeriesPoint]
@@ -139,7 +143,7 @@ public enum WhoopDashboardPresenter {
             let zones = WhoopReadinessAndStrainEngine.trainingZones(
                 ageYears: ageYears, manualBounds: defaults.manualHrZoneBounds, oneMileMaxHr: defaults.oneMileTrialMaxHr
             )
-            let eval = WhoopCoachingEngine.evaluate(WhoopCoachingInput(
+            let baseInput = WhoopCoachingInput(
                 mode: defaults.whoopCoachingMode,
                 vo2Limiter: defaults.vo2LimiterMode,
                 sleepRestHours: defaults.sleepRestHours,
@@ -147,9 +151,18 @@ public enum WhoopDashboardPresenter {
                 sleepEnduranceHours: defaults.sleepEnduranceHours,
                 targetWakeHm: defaults.targetWakeHm,
                 oneMileTrialMaxHr: defaults.oneMileTrialMaxHr,
+                weeklyZone2Min: weeklyZ2MinFromSessions,
+                weeklyZone4And5Min: weeklyZ45MinFromSessions,
                 weeklyLiftingMin: weeklyLiftingMin,
                 scheduledDeloadWeeks: defaults.deloadScheduleWeeks
-            ))
+            )
+            let eval = WhoopCoachingEngine.evaluate(baseInput)
+            let byMode = Dictionary(uniqueKeysWithValues: WhoopCoachingMode.allCases.map { m -> (WhoopCoachingMode, WhoopCoachingEvaluation) in
+                var copy = baseInput
+                copy.mode = m
+                return (m, WhoopCoachingEngine.evaluate(copy))
+            })
+            let winLbl = "\(day.adding(days: -6).string.suffix(5)) → \(day.string.suffix(5))"
             let emptyTriad = makeTriad(readiness: nil, readinessTone: .muted, rmssd: nil, rhr: nil,
                                        strain: 0, steps: 0, sleepMin: 0, effPct: 0, targetBedHm: eval.targetBedtimeHm)
             let emptyWake = WhoopWakeAndNapComplianceEngine.evaluateWakeConsistency([])
@@ -170,7 +183,16 @@ public enum WhoopDashboardPresenter {
                 ),
                 illnessDay: nil, pendingNapProposals: [], pendingWorkoutProposals: [], effectiveNaps: [],
                 longevity: WhoopLongevityViewModel(chronoAge: ageYears, waistCm: waistCm, fitnessAge: nil, vitality: nil, treadmillLogs: treadmillLogs),
-                coaching: WhoopCoachingDashboardViewModel(evaluation: eval, weeklyLiftingHours: weeklyLiftingMin / 60.0, ctlAtlTsb: nil, ctlSeries: []),
+                coaching: WhoopCoachingDashboardViewModel(
+                    evaluation: eval,
+                    evaluationsByMode: byMode,
+                    weeklyZone2Minutes: Int(weeklyZ2MinFromSessions.rounded()),
+                    weeklyZone4And5Minutes: Int(weeklyZ45MinFromSessions.rounded()),
+                    weeklyZoneWindowLabel: winLbl,
+                    weeklyLiftingHours: weeklyLiftingMin / 60.0,
+                    ctlAtlTsb: nil,
+                    ctlSeries: []
+                ),
                 zones: zones
             )
         }
@@ -330,8 +352,8 @@ public enum WhoopDashboardPresenter {
         let effectiveNaps = try analyticsStore.effectiveNaps(for: day.string)
         let validNapMin = effectiveNaps.reduce(0) { $0 + ($1.durationSec / 60) } + Int((todayMetrics["nap_min"] ?? 0).rounded())
         let pendingAll = try analyticsStore.activityProposals(status: "pending")
-        let pendingNaps = Array(pendingAll.filter { $0.kind == "nap" }.prefix(3))
-        let pendingWorkouts = Array(pendingAll.filter { $0.kind == "workout" }.prefix(3))
+        let pendingNaps = Array(pendingAll.filter { $0.kind == "nap" }.prefix(5))
+        let pendingWorkouts = Array(pendingAll.filter { $0.kind == "workout" }.prefix(5))
 
         // Day load kind for dynamic sleep need
         let todayHasEndurance = weekCardio.contains { $0.performedOn == day }
@@ -342,11 +364,21 @@ public enum WhoopDashboardPresenter {
         let prevDayId = (ISODate(scoredDayId)?.adding(days: -1) ?? day.adding(days: -1)).string
         let yesterdayStrain = byDate[prevDayId]?["strain"]
 
-        // Estimate Zone 2 weekly minutes from metric_series `active_min` if explicit cardio sessions are empty
-        let activeMin7d = sortedDates.suffix(7).reduce(0.0) { $0 + (byDate[$1]?["active_min"] ?? 0) }
-        let resolvedWeeklyZ2 = weeklyZ2MinFromSessions > 0 ? weeklyZ2MinFromSessions : activeMin7d * 0.65
+        // Compute HR zones BEFORE coaching so weekly Zone 2 / Zone 4–5 minutes use genuine heart-rate zones (never active_min!)
+        let ceilingObs = WhoopReadinessAndStrainEngine.valuesBefore(key: "hr_ceiling_bpm", dayId: day.string, history: datedHistory).max().map(Int.init)
+        let rhr28 = WhoopReadinessAndStrainEngine.valuesBefore(key: "rhr", dayId: day.string, history: datedHistory)
+        let zones = WhoopReadinessAndStrainEngine.trainingZones(
+            ageYears: ageYears, manualBounds: defaults.manualHrZoneBounds,
+            oneMileMaxHr: defaults.oneMileTrialMaxHr, observedCeilingBpm: ceilingObs, rhrHistory28d: rhr28
+        )
 
-        let coachEval = WhoopCoachingEngine.evaluate(WhoopCoachingInput(
+        let trueZoneSummary = try WhoopDetailPresenters.trueWeeklyZoneMinutes(
+            whoopDb: whoopDb, fitnessDb: fitnessDb, endingOn: ISODate(scoredDayId) ?? day, zones: zones, calendar: calendar
+        )
+        let resolvedWeeklyZ2 = Double(trueZoneSummary.zone2Minutes)
+        let resolvedWeeklyZ45 = Double(trueZoneSummary.zone4And5Minutes)
+
+        let baseCoachingInput = WhoopCoachingInput(
             mode: defaults.whoopCoachingMode,
             vo2Limiter: defaults.vo2LimiterMode,
             readinessScore: readinessInt,
@@ -366,8 +398,8 @@ public enum WhoopDashboardPresenter {
             wakeDriftMinutes: wakeReport.weekendDriftMinutes,
             oneMileTrialMaxHr: defaults.oneMileTrialMaxHr,
             weeklyZone2Min: resolvedWeeklyZ2,
-            weeklyZone4And5Min: weeklyZ45MinFromSessions,
-            weeklyTotalCardioMin: max(weeklyCardioMin, resolvedWeeklyZ2),
+            weeklyZone4And5Min: resolvedWeeklyZ45,
+            weeklyTotalCardioMin: max(weeklyCardioMin, resolvedWeeklyZ2 + resolvedWeeklyZ45),
             priorWeekCardioMin: priorCardioMin,
             weeklyLiftingMin: weeklyLiftingMin,
             recentCardioSessions: weekCardio.map {
@@ -380,7 +412,13 @@ public enum WhoopDashboardPresenter {
             },
             todaySteps: liveSteps,
             scheduledDeloadWeeks: defaults.deloadScheduleWeeks
-        ))
+        )
+        let coachEval = WhoopCoachingEngine.evaluate(baseCoachingInput)
+        let evaluationsByMode = Dictionary(uniqueKeysWithValues: WhoopCoachingMode.allCases.map { m -> (WhoopCoachingMode, WhoopCoachingEvaluation) in
+            var copy = baseCoachingInput
+            copy.mode = m
+            return (m, WhoopCoachingEngine.evaluate(copy))
+        })
 
         // Readiness tone & copy
         let rTone: WhoopHoopTone
@@ -534,18 +572,11 @@ public enum WhoopDashboardPresenter {
                 ctl += lCtl * (v - ctl)
                 atl += lAtl * (v - atl)
                 let dStr = trimpDates[idx]
-                let shortLbl = String(dStr.suffix(5)) // MM-DD
+                let shortLbl = String(dStr.suffix(5))
                 allPts.append(WhoopCoachingSeriesPoint(id: dStr, label: shortLbl, ctl: ctl, atl: atl))
             }
             ctlPoints = Array(allPts.suffix(8))
         }
-
-        let ceilingObs = WhoopReadinessAndStrainEngine.valuesBefore(key: "hr_ceiling_bpm", dayId: day.string, history: datedHistory).max().map(Int.init)
-        let rhr28 = WhoopReadinessAndStrainEngine.valuesBefore(key: "rhr", dayId: day.string, history: datedHistory)
-        let zones = WhoopReadinessAndStrainEngine.trainingZones(
-            ageYears: ageYears, manualBounds: defaults.manualHrZoneBounds,
-            oneMileMaxHr: defaults.oneMileTrialMaxHr, observedCeilingBpm: ceilingObs, rhrHistory28d: rhr28
-        )
 
         let totalKcal = (todayMetrics["calories_total"] ?? curMetrics["calories_total"]).map { Int($0.rounded()) }
         let activeKcal = (todayMetrics["calories"] ?? curMetrics["calories"]).map { Int($0.rounded()) }
@@ -592,6 +623,10 @@ public enum WhoopDashboardPresenter {
             ),
             coaching: WhoopCoachingDashboardViewModel(
                 evaluation: coachEval,
+                evaluationsByMode: evaluationsByMode,
+                weeklyZone2Minutes: trueZoneSummary.zone2Minutes,
+                weeklyZone4And5Minutes: trueZoneSummary.zone4And5Minutes,
+                weeklyZoneWindowLabel: trueZoneSummary.windowLabel,
                 weeklyLiftingHours: weeklyLiftingMin / 60.0,
                 ctlAtlTsb: ctlAtl,
                 ctlSeries: ctlPoints
