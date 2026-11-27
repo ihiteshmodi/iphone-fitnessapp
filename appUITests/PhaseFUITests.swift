@@ -40,6 +40,18 @@ final class PhaseFUITests: XCTestCase {
         element("whoop-open-longevity").tap()
         XCTAssertTrue(app.navigationBars["Longevity & VO2"].waitForExistence(timeout: 5))
         XCTAssertTrue(element("whoop-acsm-card").exists || scrollUntilExists(element("whoop-acsm-card")))
+        XCTAssertTrue(element("whoop-gps-vo2-card").exists || scrollUntilExists(element("whoop-gps-vo2-card")))
+        app.navigationBars.buttons.firstMatch.tap()
+
+        XCTAssertTrue(element("whoop-open-breathe-stress").waitForExistence(timeout: 5))
+        element("whoop-open-breathe-stress").tap()
+        XCTAssertTrue(app.navigationBars["Stress & Breathe"].waitForExistence(timeout: 5))
+        XCTAssertTrue(element("whoop-breathing-studio-card").exists)
+        app.navigationBars.buttons.firstMatch.tap()
+
+        XCTAssertTrue(element("whoop-open-metrics-explorer").waitForExistence(timeout: 5))
+        element("whoop-open-metrics-explorer").tap()
+        XCTAssertTrue(app.navigationBars["24-Metric Trends"].waitForExistence(timeout: 5))
     }
 
     func testWorkoutHiitDualModeProgressCoachingModesAndMoreDefaultsLoadCleanly() {
