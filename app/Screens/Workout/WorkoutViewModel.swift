@@ -46,26 +46,33 @@ final class WorkoutViewModel: ObservableObject {
 
     var today: ISODate { services.clock.today() }
 
-    func refreshExerciseHr(whoopDb: Database?) {
-        guard let whoopDb else {
-            exerciseHrById = [:]
-            return
-        }
+    func refreshExerciseHr(whoopDb: Database?, liveSamples: [(tsSec: Int64, bpm: Int)] = []) {
         let setsToday = (try? services.logSets.sets(on: today)) ?? []
         let tsList = setsToday.compactMap(\.loggedAtTs)
         guard let minTs = tsList.min(), let maxTs = tsList.max() else {
             exerciseHrById = [:]
             return
         }
-        let rows = (try? whoopDb.query(
-            "SELECT rec_ts, hr FROM decoded_onehz WHERE rec_ts BETWEEN ? AND ? AND hr IS NOT NULL ORDER BY rec_ts ASC",
-            [.int(minTs - 60), .int(maxTs + 120)]
-        )) ?? []
-        let hrSamples: [(tsSec: Int64, bpm: Int)] = rows.compactMap { r in
-            guard let ts = r.optionalInt64("rec_ts") else { return nil }
-            let b = WhoopSubstrateGates.plausibleHrOrZero(r.optionalInt("hr"))
-            return b > 0 ? (ts, b) : nil
+        var hrSamples: [(tsSec: Int64, bpm: Int)] = []
+        if let whoopDb {
+            let rows = (try? whoopDb.query(
+                "SELECT rec_ts, hr FROM decoded_onehz WHERE rec_ts BETWEEN ? AND ? AND hr IS NOT NULL ORDER BY rec_ts ASC",
+                [.int(minTs - 60), .int(maxTs + 120)]
+            )) ?? []
+            hrSamples = rows.compactMap { r in
+                guard let ts = r.optionalInt64("rec_ts") else { return nil }
+                let b = WhoopSubstrateGates.plausibleHrOrZero(r.optionalInt("hr"))
+                return b > 0 ? (ts, b) : nil
+            }
         }
+        for live in liveSamples where live.tsSec >= (minTs - 60) && live.tsSec <= (maxTs + 120) {
+            hrSamples.append(live)
+        }
+        guard !hrSamples.isEmpty else {
+            exerciseHrById = [:]
+            return
+        }
+        hrSamples.sort { $0.tsSec < $1.tsSec }
         let zones = WhoopReadinessAndStrainEngine.trainingZones(ageYears: 30)
         let summaries = WorkoutSessionService.correlateExerciseHeartRates(sets: setsToday, hrSamples: hrSamples, zones: zones)
         exerciseHrById = Dictionary(uniqueKeysWithValues: summaries.map { ($0.exerciseId, $0) })

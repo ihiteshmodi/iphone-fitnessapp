@@ -283,9 +283,10 @@ public final class AcsmTreadmillVo2Service {
         self.db = db
     }
 
-    /// ACSM running metabolic equation:
-    /// `VO2 = 0.2 * speed_m_min + 0.9 * speed_m_min * grade + 3.5`
-    /// When submaximal (`steadyHr < maxHr` with known `restingHr`), scales via `%HRR`:
+    /// ACSM walking (`< 7.2 km/h` = `2.0 m/s`) vs running (`>= 7.2 km/h`) metabolic equation:
+    /// - Walk: `VO2 = 0.1 * speed_m_min + 1.8 * speed_m_min * grade + 3.5`
+    /// - Run:  `VO2 = 0.2 * speed_m_min + 0.9 * speed_m_min * grade + 3.5`
+    /// When submaximal (`steadyHr < maxHr` with known `restingHr`), scales via Swain & Leutholtz `%HRR`:
     /// `VO2_max = (VO2 - 3.5) / %HRR + 3.5`.
     public static func calculate(
         speedKmh: Double,
@@ -296,7 +297,10 @@ public final class AcsmTreadmillVo2Service {
     ) -> (vo2MlKgMin: Double, estimatedVo2Max: Double) {
         let speedMPerMin = (speedKmh * 1000.0) / 60.0
         let grade = max(0.0, gradePct) / 100.0
-        let vo2 = 0.2 * speedMPerMin + 0.9 * speedMPerMin * grade + 3.5
+        let isRunning = speedKmh >= 7.2 // 2.0 m/s ACSM walk/run threshold
+        let vo2 = isRunning
+            ? (0.2 * speedMPerMin + 0.9 * speedMPerMin * grade + 3.5)
+            : (0.1 * speedMPerMin + 1.8 * speedMPerMin * grade + 3.5)
         if let shr = steadyHr, let rhr = restingHr, let mhr = maxHr, mhr > rhr, shr > rhr && shr < mhr {
             let hrrFrac = min(1.0, max(0.30, Double(shr - rhr) / Double(mhr - rhr)))
             let estMax = (vo2 - 3.5) / hrrFrac + 3.5
@@ -376,5 +380,83 @@ public final class AcsmTreadmillVo2Service {
     private static func clean(_ text: String?) -> String? {
         guard let t = text?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else { return nil }
         return t
+    }
+}
+
+// MARK: - Spec §5.3.2: GPS Outdoor 1-km Split Submaximal VO2 Max (`vo2maxSubmaxEstimate`)
+
+public struct WhoopGpsSplit: Equatable, Sendable {
+    public let meters: Double
+    public let durationSec: Double
+    public let avgHrBpm: Int
+    public let startAltM: Double?
+    public let endAltM: Double?
+
+    public init(meters: Double, durationSec: Double, avgHrBpm: Int, startAltM: Double? = nil, endAltM: Double? = nil) {
+        self.meters = meters
+        self.durationSec = durationSec
+        self.avgHrBpm = avgHrBpm
+        self.startAltM = startAltM
+        self.endAltM = endAltM
+    }
+
+    public var gradePercent: Double {
+        guard meters > 0, let s = startAltM, let e = endAltM else { return 0.0 }
+        return ((e - s) / meters) * 100.0
+    }
+}
+
+public struct WhoopGpsVo2Result: Equatable, Sendable {
+    public let vo2MaxMlKgMin: Double
+    public let submaxVo2MlKgMin: Double
+    public let hrrFraction: Double
+    public let confidence: Double
+}
+
+public enum WhoopOutdoorGpsVo2Engine {
+    public static let minBoutSec: Double = 300.0
+    public static let minHrr: Double = 0.40
+    public static let maxHrr: Double = 0.90
+    public static let runThresholdMps: Double = 2.0
+
+    public static func estimateSubmax(
+        boutDurationSec: Double,
+        speedMps: Double,
+        gradePercent: Double = 0.0,
+        avgHrBpm: Int,
+        restingHrBpm: Int,
+        hrMaxBpm: Int
+    ) -> WhoopGpsVo2Result? {
+        guard boutDurationSec >= minBoutSec,
+              speedMps.isFinite && speedMps > 0,
+              (hrMaxBpm - restingHrBpm) >= 20 else {
+            return nil
+        }
+        let hrr = Double(avgHrBpm - restingHrBpm) / Double(hrMaxBpm - restingHrBpm)
+        guard hrr >= minHrr && hrr <= maxHrr else { return nil }
+
+        let v = 60.0 * speedMps
+        let g = gradePercent / 100.0
+        let vo2Sub = speedMps >= runThresholdMps
+            ? (0.2 * v + 0.9 * v * g + 3.5)
+            : (0.1 * v + 1.8 * v * g + 3.5)
+        let vo2Max = 3.5 + (vo2Sub - 3.5) / hrr
+        guard vo2Max > 3.5 && vo2Max <= 95.0 else { return nil }
+        let conf = min(0.60, max(0.25, 0.60 - 0.25 * (abs(hrr - 0.65) / 0.25)))
+        return WhoopGpsVo2Result(vo2MaxMlKgMin: vo2Max, submaxVo2MlKgMin: vo2Sub, hrrFraction: hrr, confidence: conf)
+    }
+
+    /// Selects the full 1-km split (`meters >= 999 m`) with the longest steady `durationSec` (`>= 300 s`) and computes `vo2maxSubmaxEstimate`.
+    public static func fromOneKmSplits(_ splits: [WhoopGpsSplit], restingHrBpm: Int, hrMaxBpm: Int) -> WhoopGpsVo2Result? {
+        let full = splits.filter { $0.meters >= 999.0 && $0.durationSec >= minBoutSec }
+        guard let best = full.max(by: { $0.durationSec < $1.durationSec }) else { return nil }
+        return estimateSubmax(
+            boutDurationSec: best.durationSec,
+            speedMps: best.meters / best.durationSec,
+            gradePercent: best.gradePercent,
+            avgHrBpm: best.avgHrBpm,
+            restingHrBpm: restingHrBpm,
+            hrMaxBpm: hrMaxBpm
+        )
     }
 }

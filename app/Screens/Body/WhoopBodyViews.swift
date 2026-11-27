@@ -1,3 +1,4 @@
+import CoreLocation
 import FitnessCore
 import SwiftUI
 
@@ -597,6 +598,15 @@ struct WhoopLongevityView: View {
                         vitalityDriversGrid(vit)
                     }
                     acsmCalculatorCard(snap)
+                    OutdoorGpsVo2Card(
+                        loggedOn: initialDay,
+                        rhrBpm: snap.longevity.fitnessAge.map { Int($0.medianRhr.rounded()) } ?? 52,
+                        maxHrBpm: snap.zones.maxHrBpm,
+                        onLogged: {
+                            reload()
+                            session.didChange()
+                        }
+                    )
                 }
             }
             .padding(16)
@@ -713,22 +723,35 @@ struct WhoopLongevityView: View {
 
             HStack(spacing: 10) {
                 stepperTile("Speed", value: "\(Format.number(speedKmh, maxDecimals: 1)) km/h",
-                            minus: { speedKmh = max(4.0, speedKmh - 0.5) },
+                            minus: { speedKmh = max(3.5, speedKmh - 0.5) },
                             plus: { speedKmh = min(24.0, speedKmh + 0.5) })
                 stepperTile("Incline", value: "\(Format.number(gradePct, maxDecimals: 1)) %",
                             minus: { gradePct = max(0.0, gradePct - 0.5) },
                             plus: { gradePct = min(20.0, gradePct + 0.5) })
             }
 
-            HStack {
-                Text("Steady HR (optional)").font(.system(size: 13)).foregroundColor(Theme.muted)
-                Spacer()
-                TextField("BPM", text: $steadyHrText)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(Theme.text)
-                    .frame(width: 72)
+            HStack(spacing: 10) {
+                stepperTile("Duration", value: "\(Int(durationMin.rounded())) min",
+                            minus: { durationMin = max(5.0, durationMin - 5.0) },
+                            plus: { durationMin = min(180.0, durationMin + 5.0) })
+
+                VStack(spacing: 6) {
+                    SectionLabel("Steady HR")
+                    HStack {
+                        TextField("BPM", text: $steadyHrText)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                            .font(.system(size: 16, weight: .heavy))
+                            .foregroundColor(Theme.text)
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .background(Theme.card)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+                .padding(10)
+                .background(Theme.card2)
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.line))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
             }
 
             Button("+ Log steady treadmill run") {
@@ -986,5 +1009,177 @@ struct TreadmillVo2EditSheet: View {
             }
             .errorAlert($errorMessage)
         }
+    }
+}
+
+// MARK: - Outdoor GPS 1-km Split Submaximal VO2 Max (`vo2maxSubmaxEstimate`)
+
+@MainActor
+final class OutdoorGpsSplitRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published private(set) var isRecording = false
+    @Published private(set) var currentSplitMeters: Double = 0
+    @Published private(set) var completedSplits: [WhoopGpsSplit] = []
+
+    private let manager = CLLocationManager()
+    private var lastLocation: CLLocation?
+    private var splitStartTime: Date?
+    private var splitStartAlt: Double?
+    private var splitHrSamples: [Int] = []
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.activityType = .fitness
+    }
+
+    func start() {
+        manager.requestWhenInUseAuthorization()
+        completedSplits.removeAll()
+        currentSplitMeters = 0
+        lastLocation = nil
+        splitStartTime = Date()
+        splitStartAlt = nil
+        splitHrSamples.removeAll()
+        isRecording = true
+        manager.startUpdatingLocation()
+    }
+
+    func stop() {
+        manager.stopUpdatingLocation()
+        isRecording = false
+    }
+
+    func recordHr(_ bpm: Int?) {
+        guard isRecording, let bpm, bpm > 30 else { return }
+        splitHrSamples.append(bpm)
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        Task { @MainActor in
+            guard self.isRecording else { return }
+            for loc in locations where loc.horizontalAccuracy >= 0 && loc.horizontalAccuracy <= 50 {
+                if self.splitStartAlt == nil { self.splitStartAlt = loc.altitude }
+                if let prev = self.lastLocation {
+                    let dt = loc.timestamp.timeIntervalSince(prev.timestamp)
+                    let dist = loc.distance(from: prev)
+                    if dt > 0 && (dist / dt) <= 12.0 {
+                        self.currentSplitMeters += dist
+                    }
+                }
+                self.lastLocation = loc
+                if self.currentSplitMeters >= 1000.0, let st = self.splitStartTime {
+                    let dur = max(1.0, loc.timestamp.timeIntervalSince(st))
+                    let avgHr = self.splitHrSamples.isEmpty ? 152 : (self.splitHrSamples.reduce(0, +) / self.splitHrSamples.count)
+                    self.completedSplits.append(WhoopGpsSplit(
+                        meters: self.currentSplitMeters,
+                        durationSec: dur,
+                        avgHrBpm: avgHr,
+                        startAltM: self.splitStartAlt,
+                        endAltM: loc.altitude
+                    ))
+                    self.currentSplitMeters = 0
+                    self.splitStartTime = loc.timestamp
+                    self.splitStartAlt = loc.altitude
+                    self.splitHrSamples.removeAll()
+                }
+            }
+        }
+    }
+}
+
+struct OutdoorGpsVo2Card: View {
+    let loggedOn: ISODate
+    let rhrBpm: Int
+    let maxHrBpm: Int
+    let onLogged: () -> Void
+
+    @EnvironmentObject private var services: Services
+    @EnvironmentObject private var whoop: WhoopBLEManager
+    @StateObject private var gps = OutdoorGpsSplitRecorder()
+
+    @State private var splitSecText = "330" // 5:30 / km (>= 300s steady gate)
+    @State private var netElevMText = "4"
+    @State private var avgHrText = "150"
+    @State private var banner: String?
+
+    var body: some View {
+        let durSec = Double(splitSecText.trimmingCharacters(in: .whitespaces)) ?? 330
+        let netElev = Double(netElevMText.trimmingCharacters(in: .whitespaces)) ?? 0
+        let avgHr = Int(avgHrText.trimmingCharacters(in: .whitespaces)) ?? 150
+        let manualSplit = WhoopGpsSplit(meters: 1000.0, durationSec: durSec, avgHrBpm: avgHr, startAltM: 0, endAltM: netElev)
+        let activeSplits = gps.completedSplits.isEmpty ? [manualSplit] : gps.completedSplits
+        let est = WhoopOutdoorGpsVo2Engine.fromOneKmSplits(activeSplits, restingHrBpm: rhrBpm, hrMaxBpm: maxHrBpm)
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                SectionLabel("GPS Outdoor Run · 1-km Split VO2 Max")
+                Spacer()
+                if let est {
+                    Pill(text: "VO2 \(Format.number(est.vo2MaxMlKgMin, maxDecimals: 1))", tone: .green)
+                } else {
+                    Pill(text: "40–90% HRR gate", tone: .grey)
+                }
+            }
+
+            Text("Uses CoreLocation 1-km splits (≥5 min steady bout, net elevation Δalt, Swain %HRR extrapolation) or manual 1-km outdoor split entry.")
+                .font(.system(size: 11.5)).foregroundColor(Theme.muted)
+
+            HStack(spacing: 8) {
+                Button(gps.isRecording ? "Stop GPS (\(Int(gps.currentSplitMeters))m)" : "Start Live GPS Run") {
+                    if gps.isRecording { gps.stop() } else {
+                        whoop.toggleLiveHeartRate(true)
+                        gps.start()
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle(ghost: gps.isRecording))
+                .accessibilityIdentifier("whoop-gps-toggle-button")
+            }
+
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    SectionLabel("1-km Split (sec)")
+                    TextField("330", text: $splitSecText).keyboardType(.numberPad)
+                        .font(.system(size: 14, weight: .bold)).foregroundColor(Theme.text)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    SectionLabel("Net Elev (m)")
+                    TextField("0", text: $netElevMText).keyboardType(.numbersAndPunctuation)
+                        .font(.system(size: 14, weight: .bold)).foregroundColor(Theme.text)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    SectionLabel("Avg HR")
+                    TextField("150", text: $avgHrText).keyboardType(.numberPad)
+                        .font(.system(size: 14, weight: .bold)).foregroundColor(Theme.text)
+                }
+            }
+            .padding(10)
+            .background(Theme.card2)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            if let est {
+                Button("+ Save Outdoor GPS VO2 Estimate (\(Format.number(est.vo2MaxMlKgMin, maxDecimals: 1)))") {
+                    let speedKmh = (1000.0 / max(1.0, durSec)) * 3.6
+                    let gradePct = (netElev / 1000.0) * 100.0
+                    _ = try? services.treadmillVo2.addLog(TreadmillVo2Draft(
+                        loggedOn: loggedOn, speedKmh: speedKmh, gradePct: max(0, gradePct),
+                        durationMin: durSec / 60.0, steadyHr: avgHr, restingHr: rhrBpm, maxHr: maxHrBpm,
+                        notes: "GPS 1-km outdoor split"
+                    ))
+                    banner = "Saved outdoor GPS VO2 max (\(Format.number(est.vo2MaxMlKgMin, maxDecimals: 1)) mL/kg/min)."
+                    onLogged()
+                }
+                .buttonStyle(PrimaryButtonStyle(ghost: true))
+                .accessibilityIdentifier("whoop-save-gps-vo2-button")
+            }
+
+            if let banner {
+                Text(banner).font(.system(size: 12)).foregroundColor(Theme.green)
+            }
+        }
+        .card()
+        .onChange(of: whoop.liveHrBpm) { bpm in gps.recordHr(bpm) }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("whoop-gps-vo2-card")
     }
 }

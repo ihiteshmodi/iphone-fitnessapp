@@ -160,4 +160,86 @@ public enum WhoopStepsEngine {
         }
         return countSteps(samples: samples, stepTicksPerStep: stepTicksPerStep)
     }
+
+    public struct StepBreakdown: Equatable, Sendable {
+        public let walkSteps: Int
+        public let runSteps: Int
+        public let unclassedSteps: Int
+        public let rejectedNonGaitTicks: Int
+        public let zoneSteps: [Int] // [zone0, zone1, zone2, zone3, zone4, zone5]
+        public let totalSteps: Int
+        public let divisorUsed: Double
+    }
+
+    /// Computes a full daily breakdown of Gen5 steps across firmware `activity_class` (`0 = rejected non-gait`, `1 = walk`, `2 = run`)
+    /// and Heart Rate Zones `0..5`.
+    public static func stepBreakdownFromDatabase(
+        whoopDb: Database,
+        startSec: Int64,
+        endSec: Int64,
+        zones: WhoopTrainingZones,
+        stepTicksPerStep: Double = 1.0,
+        filterGaitOnly: Bool = true
+    ) throws -> StepBreakdown {
+        let divisor = min(30.0, max(0.5, stepTicksPerStep))
+        let rows = try whoopDb.query("""
+            SELECT rec_ts, hr, step_count, activity_class
+            FROM decoded_onehz
+            WHERE rec_ts >= ? AND rec_ts < ? AND step_count IS NOT NULL
+            ORDER BY rec_ts ASC, counter ASC
+            """, [.int(startSec), .int(endSec)])
+        guard rows.count >= 2 else {
+            return StepBreakdown(walkSteps: 0, runSteps: 0, unclassedSteps: 0, rejectedNonGaitTicks: 0,
+                                 zoneSteps: [0, 0, 0, 0, 0, 0], totalSteps: 0, divisorUsed: divisor)
+        }
+
+        let hasActivityClass = rows.contains { $0.optionalInt("activity_class") != nil }
+        var walkTicks = 0
+        var runTicks = 0
+        var unclassedTicks = 0
+        var rejectedTicks = 0
+        var zTicks = [0, 0, 0, 0, 0, 0]
+
+        for i in 1..<rows.count {
+            let prev = rows[i - 1]
+            let cur = rows[i]
+            let prevTs = Int64(prev.int("rec_ts"))
+            let curTs = Int64(cur.int("rec_ts"))
+            guard curTs > prevTs,
+                  let pCnt = prev.optionalInt("step_count"),
+                  let cCnt = cur.optionalInt("step_count") else { continue }
+            let delta = u16WrapDelta(prev: pCnt, cur: cCnt)
+            guard isPlausibleDelta(delta, elapsedSec: curTs - prevTs) else { continue }
+
+            let cls = cur.optionalInt("activity_class")
+            if filterGaitOnly && hasActivityClass && cls == 0 {
+                rejectedTicks += delta
+                continue
+            }
+
+            switch cls {
+            case 1: walkTicks += delta
+            case 2: runTicks += delta
+            default: unclassedTicks += delta
+            }
+
+            let bpm = WhoopSubstrateGates.plausibleHrOrZero(cur.optionalInt("hr"))
+            let zIdx = bpm > 0 ? WorkoutSessionService.zoneIndex(forBpm: bpm, zones: zones) : 0
+            zTicks[zIdx] += delta
+        }
+
+        func scale(_ ticks: Int) -> Int { Int((Double(ticks) / divisor).rounded()) }
+        let walkS = scale(walkTicks)
+        let runS = scale(runTicks)
+        let uncS = scale(unclassedTicks)
+        return StepBreakdown(
+            walkSteps: walkS,
+            runSteps: runS,
+            unclassedSteps: uncS,
+            rejectedNonGaitTicks: rejectedTicks,
+            zoneSteps: zTicks.map(scale),
+            totalSteps: walkS + runS + uncS,
+            divisorUsed: divisor
+        )
+    }
 }

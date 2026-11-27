@@ -57,6 +57,11 @@ struct WorkoutWhoopLiveBar: View {
     @EnvironmentObject private var whoop: WhoopBLEManager
 
     @State private var activeSession: WorkoutSessionRecord?
+    @State private var completedToday: [WorkoutSessionRecord] = []
+    @State private var weeklyZ2CompletedMin: Int = 0
+    @State private var weeklyZ45CompletedMin: Int = 0
+    @State private var liveZ2Sec: Int = 0
+    @State private var liveZ45Sec: Int = 0
     @State private var recentHrSpark: [Double] = []
     @State private var zones = WhoopTrainingZones(source: "tanaka", boundsBpm: [100, 120, 140, 160, 175], maxHrBpm: 190)
     @State private var zoneThrottle = WorkoutZoneNotificationThrottle(minIntervalSec: 30)
@@ -71,6 +76,10 @@ struct WorkoutWhoopLiveBar: View {
     var body: some View {
         VStack(spacing: 10) {
             liveStrip
+            zoneTargetStrip
+            if !completedToday.isEmpty {
+                completedSessionsCard
+            }
             ForEach(pendingProposals) { prop in
                 proposalCard(prop)
             }
@@ -81,9 +90,13 @@ struct WorkoutWhoopLiveBar: View {
             if let bpm = whoop.liveHrBpm, bpm > 0 {
                 recentHrSpark.append(Double(bpm))
                 if recentHrSpark.count > 20 { recentHrSpark.removeFirst() }
-                if activeSession != nil,
-                   let ev = zoneThrottle.onBpmSample(tsSec: Int64(Date().timeIntervalSince1970), bpm: bpm, zones: zones) {
-                    LiveWorkoutNotificationDispatcher.shared.postZoneEvent(ev)
+                if activeSession != nil {
+                    let z = WorkoutSessionService.zoneIndex(forBpm: bpm, zones: zones)
+                    if z == 2 { liveZ2Sec += 1 }
+                    if z >= 4 { liveZ45Sec += 1 }
+                    if let ev = zoneThrottle.onBpmSample(tsSec: Int64(Date().timeIntervalSince1970), bpm: bpm, zones: zones) {
+                        LiveWorkoutNotificationDispatcher.shared.postZoneEvent(ev)
+                    }
                 }
             }
         }
@@ -193,17 +206,114 @@ struct WorkoutWhoopLiveBar: View {
         .accessibilityIdentifier("workout-auto-proposal-\(prop.id)")
     }
 
+    private var zoneTargetStrip: some View {
+        let z2Done = weeklyZ2CompletedMin + (liveZ2Sec / 60)
+        let z2Left = max(0, 150 - z2Done)
+        let z45Done = weeklyZ45CompletedMin + (liveZ45Sec / 60)
+        let z45Left = max(0, 50 - z45Done)
+
+        return HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                RingView(
+                    progress: min(1.0, max(0.06, Double(z2Done) / 150.0)),
+                    size: 36,
+                    lineWidth: 3.5,
+                    label: "\(z2Done)m",
+                    color: Theme.green
+                )
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Zone 2 Target").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.text)
+                    Text("\(z2Done)/150m · \(z2Left)m left").font(.system(size: 10.5)).foregroundColor(Theme.muted)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(9)
+            .background(Theme.card)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            HStack(spacing: 8) {
+                RingView(
+                    progress: min(1.0, max(0.06, Double(z45Done) / 50.0)),
+                    size: 36,
+                    lineWidth: 3.5,
+                    label: "\(z45Done)m",
+                    color: Theme.gold
+                )
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Zone 4–5 Target").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.text)
+                    Text("\(z45Done)/50m · \(z45Left)m left").font(.system(size: 10.5)).foregroundColor(Theme.muted)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(9)
+            .background(Theme.card)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("workout-zone-progress-strip")
+    }
+
+    private var completedSessionsCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel("Logged sessions today (\(completedToday.count)) · tap for Timeline × HR")
+            ForEach(completedToday) { rec in
+                Button {
+                    editingSession = rec
+                } label: {
+                    HStack {
+                        Text("\(rec.sport) · \(hm(rec.startTs))–\(rec.endTs.map(hm) ?? "now")")
+                            .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                        Spacer()
+                        if let st = rec.strain {
+                            Pill(text: String(format: "Strain %.1f", st), tone: .gold)
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .bold)).foregroundColor(Theme.muted)
+                    }
+                    .padding(.vertical, 3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("workout-completed-session-\(rec.id)")
+            }
+        }
+        .card(padding: 11)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("workout-completed-sessions-list")
+    }
+
     private func reload() {
         let allOnDay = (try? services.workoutSessions.sessions(on: today)) ?? []
         activeSession = allOnDay.first(where: { $0.endTs == nil })
+        completedToday = allOnDay.filter { $0.endTs != nil }
+
+        let weekStart = today.adding(days: -6)
+        let weekDone = ((try? services.workoutSessions.sessions()) ?? []).filter {
+            $0.performedOn >= weekStart && $0.performedOn <= today && $0.endTs != nil
+        }
+        var z2Min = weekDone.reduce(0) { $0 + ($1.zoneSeconds[2] / 60) }
+        let z45Min = weekDone.reduce(0) { $0 + (($1.zoneSeconds[4] + $1.zoneSeconds[5]) / 60) }
+
         if let snap = try? WhoopDashboardPresenter.build(whoopDb: whoop.db, fitnessDb: services.db, on: today) {
             zones = snap.zones
             pendingProposals = snap.pendingWorkoutProposals
+            if z2Min == 0, let db = whoop.db {
+                let active7d = (try? db.query(
+                    "SELECT SUM(value) AS s FROM metric_series WHERE key = 'active_min' AND date BETWEEN ? AND ?",
+                    [.text(weekStart.string), .text(today.string)]
+                ).first?.optionalDouble("s")) ?? 0
+                z2Min = Int((active7d * 0.65).rounded())
+            }
         }
+        weeklyZ2CompletedMin = z2Min
+        weeklyZ45CompletedMin = z45Min
     }
 
     private func startLiveSession() {
         let nowSec = Int64(Date().timeIntervalSince1970)
+        liveZ2Sec = 0
+        liveZ45Sec = 0
         LiveWorkoutNotificationDispatcher.shared.requestAuthorizationIfNeeded()
         if let res = try? services.workoutSessions.startSession(
             performedOn: today, kind: .lifting, sport: "Strength", startTs: nowSec, profile: whoop.activeBandProfile
@@ -223,6 +333,7 @@ struct WorkoutWhoopLiveBar: View {
             _ = whoop.sendRawCommandFrame(res.toggleHrFrame)
             whoop.toggleLiveHeartRate(false)
             activeSession = nil
+            reload()
             editingSession = res.session
         }
     }
@@ -245,16 +356,23 @@ struct WorkoutWhoopLiveBar: View {
     }
 
     private func loadHrSamples(from startTs: Int64, to endTs: Int64) -> [(tsSec: Int64, bpm: Int)] {
-        guard let db = whoop.db else { return [] }
-        let rows = (try? db.query(
-            "SELECT rec_ts, hr FROM decoded_onehz WHERE rec_ts BETWEEN ? AND ? AND hr IS NOT NULL ORDER BY rec_ts ASC",
-            [.int(startTs), .int(endTs)]
-        )) ?? []
-        return rows.compactMap { r in
-            guard let ts = r.optionalInt64("rec_ts") else { return nil }
-            let b = WhoopSubstrateGates.plausibleHrOrZero(r.optionalInt("hr"))
-            return b > 0 ? (ts, b) : nil
+        var samples: [(tsSec: Int64, bpm: Int)] = []
+        if let db = whoop.db {
+            let rows = (try? db.query(
+                "SELECT rec_ts, hr FROM decoded_onehz WHERE rec_ts BETWEEN ? AND ? AND hr IS NOT NULL ORDER BY rec_ts ASC",
+                [.int(startTs), .int(endTs)]
+            )) ?? []
+            samples = rows.compactMap { r in
+                guard let ts = r.optionalInt64("rec_ts") else { return nil }
+                let b = WhoopSubstrateGates.plausibleHrOrZero(r.optionalInt("hr"))
+                return b > 0 ? (ts, b) : nil
+            }
         }
+        for live in whoop.liveSessionHrSamples where live.tsSec >= startTs && live.tsSec <= endTs {
+            samples.append(live)
+        }
+        samples.sort { $0.tsSec < $1.tsSec }
+        return samples
     }
 
     private func formatElapsed(_ sec: Int) -> String {
@@ -597,9 +715,57 @@ struct WorkoutSessionEditorSheet: View {
                     }
                 }
 
-                Section("Timing & modality") {
+                Section("Timeline × Heart Rate & Exercise Pins (✓)") {
+                    let sTs = Int64(startDate.timeIntervalSince1970)
+                    let eTs = max(sTs + 60, Int64(endDate.timeIntervalSince1970))
+                    let samples = loadHrSamples(from: sTs, to: eTs)
+                    let sets = (try? services.logSets.sets(on: sessionRecord.performedOn)) ?? []
+                    let pins = WorkoutSessionService.exerciseTimelinePins(sets: sets, hrSamples: samples, startTs: sTs, endTs: eTs)
+                    let exSummaries = WorkoutSessionService.correlateExerciseHeartRates(sets: sets, hrSamples: samples, zones: zones)
+
+                    WorkoutTimelineHrChartView(startTs: sTs, endTs: eTs, samples: samples, pins: pins)
+                        .accessibilityIdentifier("workout-timeline-hr-chart")
+
+                    if !pins.isEmpty {
+                        ForEach(pins.prefix(8)) { pin in
+                            HStack {
+                                Text("✓ \(pin.exerciseName)")
+                                    .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.green)
+                                Text(pin.setSummary)
+                                    .font(.system(size: 12)).foregroundColor(Theme.muted)
+                                Spacer()
+                                Text("\(pin.bpmAtPin) bpm @ \(hm(pin.tsSec))")
+                                    .font(.system(size: 12, weight: .bold)).foregroundColor(Theme.gold)
+                            }
+                        }
+                    } else if !exSummaries.isEmpty {
+                        ForEach(exSummaries) { ex in
+                            HStack {
+                                Text("✓ \(ex.exerciseName)").font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.green)
+                                Spacer()
+                                Text("Avg \(ex.avgHr ?? 0) · Peak \(ex.peakHr ?? 0) bpm")
+                                    .font(.system(size: 12, weight: .bold)).foregroundColor(Theme.gold)
+                            }
+                        }
+                    }
+                }
+
+                Section("Timing & modality (late-stop trim)") {
                     DatePicker("Start time", selection: $startDate)
                     DatePicker("End time", selection: $endDate)
+                    HStack(spacing: 8) {
+                        Text("Quick trim:")
+                            .font(.system(size: 12)).foregroundColor(Theme.muted)
+                        ForEach([5, 10, 15], id: \.self) { mins in
+                            Button("−\(mins)m") {
+                                let candidate = endDate.addingTimeInterval(TimeInterval(-mins * 60))
+                                if candidate > startDate.addingTimeInterval(60) {
+                                    endDate = candidate
+                                }
+                            }
+                            .buttonStyle(CompactButtonStyle(ghost: true))
+                        }
+                    }
                     Picker("Kind", selection: $kind) {
                         Text("Lifting").tag(WhoopCardioSessionKind.lifting)
                         Text("Easy Cardio (Z1–2)").tag(WhoopCardioSessionKind.easyCardio)
@@ -669,21 +835,115 @@ struct WorkoutSessionEditorSheet: View {
     }
 
     private func loadHrSamples(from startTs: Int64, to endTs: Int64) -> [(tsSec: Int64, bpm: Int)] {
-        guard let db = whoop.db else { return [] }
-        let rows = (try? db.query(
-            "SELECT rec_ts, hr FROM decoded_onehz WHERE rec_ts BETWEEN ? AND ? AND hr IS NOT NULL ORDER BY rec_ts ASC",
-            [.int(startTs), .int(endTs)]
-        )) ?? []
-        return rows.compactMap { r in
-            guard let ts = r.optionalInt64("rec_ts") else { return nil }
-            let b = WhoopSubstrateGates.plausibleHrOrZero(r.optionalInt("hr"))
-            return b > 0 ? (ts, b) : nil
+        var samples: [(tsSec: Int64, bpm: Int)] = []
+        if let db = whoop.db {
+            let rows = (try? db.query(
+                "SELECT rec_ts, hr FROM decoded_onehz WHERE rec_ts BETWEEN ? AND ? AND hr IS NOT NULL ORDER BY rec_ts ASC",
+                [.int(startTs), .int(endTs)]
+            )) ?? []
+            samples = rows.compactMap { r in
+                guard let ts = r.optionalInt64("rec_ts") else { return nil }
+                let b = WhoopSubstrateGates.plausibleHrOrZero(r.optionalInt("hr"))
+                return b > 0 ? (ts, b) : nil
+            }
         }
+        for live in whoop.liveSessionHrSamples where live.tsSec >= startTs && live.tsSec <= endTs {
+            samples.append(live)
+        }
+        samples.sort { $0.tsSec < $1.tsSec }
+        return samples
     }
 
     private func hm(_ epochSec: Int64) -> String {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
         return f.string(from: Date(timeIntervalSince1970: TimeInterval(epochSec)))
+    }
+}
+
+/// Custom SwiftUI Timeline × Heart Rate Line Chart with overlaid `✓` Exercise Check-Mark Pins.
+struct WorkoutTimelineHrChartView: View {
+    let startTs: Int64
+    let endTs: Int64
+    let samples: [(tsSec: Int64, bpm: Int)]
+    let pins: [WorkoutExerciseTimelinePin]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if samples.count >= 2 {
+                let bpms = samples.map(\.bpm)
+                let loBpm = Double(max(45, (bpms.min() ?? 90) - 8))
+                let hiBpm = Double(min(220, (bpms.max() ?? 165) + 8))
+                let spanSec = Double(max(60, endTs - startTs))
+
+                GeometryReader { geo in
+                    let w = geo.size.width
+                    let h = geo.size.height
+
+                    ZStack(alignment: .topLeading) {
+                        // Horizontal reference lines
+                        ForEach([0.25, 0.5, 0.75], id: \.self) { frac in
+                            Path { p in
+                                let y = h * frac
+                                p.move(to: CGPoint(x: 0, y: y))
+                                p.addLine(to: CGPoint(x: w, y: y))
+                            }
+                            .stroke(Theme.line, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        }
+
+                        // HR Line Path
+                        Path { path in
+                            let step = max(1, samples.count / 120)
+                            var started = false
+                            for idx in stride(from: 0, to: samples.count, by: step) {
+                                let pt = samples[idx]
+                                let x = min(w, max(0, CGFloat(Double(pt.tsSec - startTs) / spanSec) * w))
+                                let yFrac = (Double(pt.bpm) - loBpm) / max(10.0, hiBpm - loBpm)
+                                let y = h - CGFloat(min(1.0, max(0.0, yFrac))) * h
+                                if !started {
+                                    path.move(to: CGPoint(x: x, y: y))
+                                    started = true
+                                } else {
+                                    path.addLine(to: CGPoint(x: x, y: y))
+                                }
+                            }
+                        }
+                        .stroke(Theme.green, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+
+                        // Overlaid ✓ Exercise Check-Mark Pins
+                        ForEach(pins) { pin in
+                            let x = min(w - 10, max(10, CGFloat(Double(pin.tsSec - startTs) / spanSec) * w))
+                            let yFrac = (Double(pin.bpmAtPin) - loBpm) / max(10.0, hiBpm - loBpm)
+                            let y = min(h - 10, max(10, h - CGFloat(min(1.0, max(0.0, yFrac))) * h))
+
+                            ZStack {
+                                Circle()
+                                    .fill(Theme.gold)
+                                    .frame(width: 18, height: 18)
+                                Text("✓")
+                                    .font(.system(size: 10, weight: .black))
+                                    .foregroundColor(Color.black)
+                            }
+                            .position(x: x, y: y)
+                        }
+                    }
+                }
+                .frame(height: 145)
+                .padding(.vertical, 4)
+
+                HStack {
+                    Text("Min \(bpms.min() ?? 0) bpm").font(.system(size: 11)).foregroundColor(Theme.muted)
+                    Spacer()
+                    Text("\(pins.count) exercise set pin(s) ✓").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.gold)
+                    Spacer()
+                    Text("Peak \(bpms.max() ?? 0) bpm").font(.system(size: 11)).foregroundColor(Theme.muted)
+                }
+            } else {
+                Text("Stream 0x28 live HR or sync 1 Hz strap data across this workout window to plot the HR timeline and overlaid ✓ exercise pins.")
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.muted)
+                    .padding(.vertical, 4)
+            }
+        }
     }
 }

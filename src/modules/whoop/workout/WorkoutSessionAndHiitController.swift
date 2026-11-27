@@ -28,6 +28,15 @@ public struct ExerciseHeartRateSummary: Identifiable, Equatable, Sendable {
     public let zoneSeconds: [Int]
 }
 
+public struct WorkoutExerciseTimelinePin: Identifiable, Equatable, Sendable {
+    public let id: Int
+    public let exerciseId: Int
+    public let exerciseName: String
+    public let tsSec: Int64
+    public let setSummary: String
+    public let bpmAtPin: Int
+}
+
 public struct WorkoutZoneNotificationEvent: Equatable, Sendable {
     public let tsSec: Int64
     public let zoneIndex: Int // 0..5
@@ -298,6 +307,42 @@ public final class WorkoutSessionService {
                 avgHr: avg,
                 peakHr: peak,
                 zoneSeconds: zSecs
+            )
+        }
+    }
+
+    /// Builds overlaid exercise check-mark pins (`✓`) along a workout's `[startTs, endTs]` HR timeline.
+    public static func exerciseTimelinePins(
+        sets: [LoggedSet],
+        hrSamples: [(tsSec: Int64, bpm: Int)],
+        startTs: Int64,
+        endTs: Int64
+    ) -> [WorkoutExerciseTimelinePin] {
+        let validSamples = hrSamples.filter { WhoopSubstrateGates.plausibleHrOrZero($0.bpm) > 0 }
+        guard !validSamples.isEmpty else { return [] }
+        let sortedSets = sets
+            .filter { ($0.loggedAtTs ?? 0) >= (startTs - 300) && ($0.loggedAtTs ?? 0) <= (endTs + 300) }
+            .sorted { ($0.loggedAtTs ?? 0) < ($1.loggedAtTs ?? 0) }
+
+        return sortedSets.compactMap { s -> WorkoutExerciseTimelinePin? in
+            guard let ts = s.loggedAtTs else { return nil }
+            let near = validSamples.filter { abs($0.tsSec - ts) <= 45 }
+            let bpm: Int
+            if let peakNear = near.map(\.bpm).max() {
+                bpm = peakNear
+            } else if let closest = validSamples.min(by: { abs($0.tsSec - ts) < abs($1.tsSec - ts) }) {
+                bpm = closest.bpm
+            } else {
+                return nil
+            }
+            let summary = "\(Int(s.weightKg.rounded()))kg × \(s.reps)"
+            return WorkoutExerciseTimelinePin(
+                id: s.id,
+                exerciseId: s.exerciseId,
+                exerciseName: s.exerciseName,
+                tsSec: ts,
+                setSummary: summary,
+                bpmAtPin: bpm
             )
         }
     }

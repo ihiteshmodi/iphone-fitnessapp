@@ -49,9 +49,9 @@ struct WorkoutDayScreen: View {
                 ExerciseDetailView(exerciseId: route.exerciseId, dayId: route.dayId)
             }
         }
-        .task(id: session.revision) {
+        .task(id: "\(session.revision)-\(session.whoop.liveSessionHrSamples.count)") {
             vm.reload(preferredDayId: storedDayId)
-            vm.refreshExerciseHr(whoopDb: session.whoop.db)
+            vm.refreshExerciseHr(whoopDb: session.whoop.db, liveSamples: session.whoop.liveSessionHrSamples)
         }
         .sheet(isPresented: $showingEditor, onDismiss: { session.didChange() }) {
             if let dayId = vm.selectedDayId {
