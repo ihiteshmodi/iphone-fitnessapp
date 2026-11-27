@@ -46,7 +46,9 @@ private struct BodyScreen: View {
                     dayPicker
                     if let period = model.currentBreak { onBreakCard(period) }
                     beforeBreakCard
+                    WhoopBodyEntrySection(shownDay: model.shownDay)
                     ringCard
+                    if !model.isShowingPastDay { LabsEntryCard() }
                     Button("Open today's diet") { session.openDiet(on: model.today) }
                         .buttonStyle(PrimaryButtonStyle(ghost: true))
                         .font(.system(size: 14))
@@ -67,7 +69,6 @@ private struct BodyScreen: View {
                     weeksSection
                     if model.weights.isEmpty { emptyWeightCard } else { weightCard }
                     balanceCard
-                    if !model.isShowingPastDay { LabsEntryCard() }
                     macrosCard
                     if !model.weights.isEmpty { recentCard }
                     recentCaloriesCard

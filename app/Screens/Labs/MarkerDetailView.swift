@@ -351,6 +351,8 @@ struct MarkerDetailView: View {
     let marker: LabMarker
     @State private var history: [LabResult] = []
     @State private var latestDrawResults: [LabResult] = []
+    @State private var personalOverride: LabMarkerOverride?
+    @State private var editingOverride = false
     @State private var editingResult: LabResult?
 
     private var prefs: LabPreferences { model.preferences ?? LabPreferences(sex: model.sex, showDrugNotes: model.showDrugNotes) }
@@ -360,7 +362,10 @@ struct MarkerDetailView: View {
         return model.draws.first { $0.id == latest.drawID }?.draft
     }
     private var reading: LabReading? {
-        latest.map { LabReader.read(result: $0, marker: marker, preferences: prefs, draw: latestDrawDraft, genotypes: model.genotypes) }
+        latest.map {
+            LabReader.read(result: $0, marker: marker, preferences: prefs, draw: latestDrawDraft,
+                           genotypes: model.genotypes, personalOverride: personalOverride)
+        }
     }
     private var rangeBar: LabRangeBarModel? {
         LabRangeBarModel.build(marker: marker, sex: model.sex, reading: reading, latestResult: latest,
@@ -429,7 +434,22 @@ struct MarkerDetailView: View {
         .screenBackground()
         .navigationTitle(marker.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(personalOverride == nil ? "Target" : "Target ✓") {
+                    editingOverride = true
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .accessibilityIdentifier("labs-marker-override-button")
+            }
+        }
         .onAppear(perform: reloadHistory)
+        .sheet(isPresented: $editingOverride, onDismiss: {
+            reloadHistory()
+            model.load()
+        }) {
+            MarkerPersonalOverrideSheet(marker: marker, existing: personalOverride, service: model.services.markerOverrides)
+        }
         .sheet(item: $editingResult) { target in
             EditResultSheet(existing: target, marker: marker, draws: model.draw, sex: model.sex) {
                 reloadHistory()
@@ -441,6 +461,7 @@ struct MarkerDetailView: View {
     private func reloadHistory() {
         let loaded = (try? model.draw.history(of: marker.id)) ?? []
         history = loaded
+        personalOverride = try? model.services.markerOverrides.override(for: marker.id)
         if let first = loaded.first {
             latestDrawResults = (try? model.draw.results(inDraw: first.drawID)) ?? []
         } else {

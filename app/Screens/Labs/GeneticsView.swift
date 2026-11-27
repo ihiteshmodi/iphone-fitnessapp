@@ -157,6 +157,9 @@ struct GeneticsView: View {
     @State private var quickFilter: GeneticsQuickFilter = .all
     @State private var search = ""
     @State private var editingContext = false
+    @State private var customGenes: [CustomGeneEntry] = []
+    @State private var addingCustomGene = false
+    @State private var editingCustomGene: CustomGeneEntry?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -266,6 +269,30 @@ struct GeneticsView: View {
                 }
             }
 
+            Section("Custom non-catalogue genes (\(customGenes.count))") {
+                ForEach(customGenes) { item in
+                    Button {
+                        editingCustomGene = item
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
+                                if let v = item.variant {
+                                    Text(v).font(.system(size: 11)).foregroundColor(Theme.muted)
+                                }
+                            }
+                            Spacer()
+                            Pill(text: shortGenotype(item.genotype), tone: .green)
+                        }
+                    }
+                    .accessibilityIdentifier("labs-custom-gene-\(item.id)")
+                }
+                Button("+ Add custom gene / SNP") { addingCustomGene = true }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Theme.green)
+                    .accessibilityIdentifier("labs-add-custom-gene")
+            }
+
             if !catalogue.geneticsGuide.isEmpty {
                 Section {
                     DisclosureGroup("Foundational genetics rules (\(catalogue.geneticsGuide.count) notes)") {
@@ -297,6 +324,12 @@ struct GeneticsView: View {
             labsModel.load()
         }) {
             LabClinicalContextSheet(settings: services.labSettings)
+        }
+        .sheet(isPresented: $addingCustomGene, onDismiss: load) {
+            CustomGeneSheet(existing: nil, service: services.genetics, today: services.clock.today())
+        }
+        .sheet(item: $editingCustomGene, onDismiss: load) { item in
+            CustomGeneSheet(existing: item, service: services.genetics, today: services.clock.today())
         }
         .onAppear(perform: load)
         .errorAlert($errorMessage)
@@ -413,6 +446,7 @@ struct GeneticsView: View {
             screenVM = try GeneticsPresenter.screen(
                 catalogue: catalogue, db: services.db, today: services.clock.today(),
                 search: search, quickFilter: quickFilter)
+            customGenes = (try? services.genetics?.customGenes()) ?? []
         } catch {
             errorMessage = error.localizedDescription
         }
