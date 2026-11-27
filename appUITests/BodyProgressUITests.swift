@@ -11,8 +11,16 @@ final class BodyProgressUITests: XCTestCase {
         app.launch()
     }
 
+    private func revealProgressRings() {
+        let calf = app.buttons["measurement-ring-Left Calf"]
+        for _ in 0..<4 where !calf.exists {
+            app.swipeUp()
+        }
+    }
+
     func testProgressRingsShowGainAndLose() {
         openTab("Progress")
+        revealProgressRings()
 
         let calf = app.buttons["measurement-ring-Left Calf"]
         XCTAssertTrue(calf.waitForExistence(timeout: 10))
@@ -20,12 +28,14 @@ final class BodyProgressUITests: XCTestCase {
         XCTAssertTrue(calf.label.contains("to gain"), "Left Calf label was: \(calf.label)")
 
         let waist = app.buttons["measurement-ring-Waist"]
+        for _ in 0..<3 where !waist.exists { app.swipeUp() }
         XCTAssertTrue(waist.exists)
         XCTAssertTrue(waist.label.contains("to lose"), "Waist label was: \(waist.label)")
     }
 
     func testChangingTargetUpdatesWhatIsLeftToGain() {
         openTab("Progress")
+        revealProgressRings()
         let calf = app.buttons["measurement-ring-Left Calf"]
         XCTAssertTrue(calf.waitForExistence(timeout: 10))
         calf.tap()
@@ -45,11 +55,13 @@ final class BodyProgressUITests: XCTestCase {
 
     func testRingsShowThePercentFromTargetAndTheToleranceCanBeChanged() {
         openTab("Progress")
+        revealProgressRings()
         let calf = app.buttons["measurement-ring-Left Calf"]
         XCTAssertTrue(calf.waitForExistence(timeout: 15))
         XCTAssertTrue(calf.label.contains("−8.6%"), "Left Calf label was: \(calf.label)")
 
         let tolerance = app.buttons["tolerance-button"]
+        for _ in 0..<2 where !tolerance.isHittable { app.swipeDown() }
         XCTAssertTrue(tolerance.exists)
         XCTAssertTrue(tolerance.label.contains("3"), "the default tolerance is 3%")
         tolerance.tap()

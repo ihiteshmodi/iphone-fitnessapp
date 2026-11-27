@@ -8,9 +8,11 @@ final class PhaseBUITests: XCTestCase {
     private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any)[id].firstMatch }
 
     private func tap(_ id: String, file: StaticString = #filePath, line: UInt = #line) {
-        let target = element(id)
-        XCTAssertTrue(target.waitForExistence(timeout: 10) || scrollUntilHittable(target), "missing \(id)", file: file, line: line)
-        for _ in 0..<10 where !(target.isHittable && target.frame.maxY < app.frame.maxY - 110) { app.swipeUp() }
+        let anyEl = element(id)
+        XCTAssertTrue(anyEl.waitForExistence(timeout: 10) || scrollUntilHittable(anyEl), "missing \(id)", file: file, line: line)
+        let target = app.buttons[id].exists ? app.buttons[id].firstMatch : anyEl
+        for _ in 0..<6 where target.exists && target.frame.minY < 100 { app.swipeDown() }
+        for _ in 0..<6 where target.exists && target.frame.maxY >= app.frame.maxY - 110 { app.swipeUp() }
         target.tap()
     }
 

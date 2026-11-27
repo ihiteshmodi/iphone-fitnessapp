@@ -19,6 +19,11 @@ final class PhaseFUITests: XCTestCase {
         return target.exists
     }
 
+    private func goBack() {
+        app.navigationBars.buttons.firstMatch.tap()
+        sleep(1)
+    }
+
     func testBodyShowsThreeHoopTriadInRecoveryStrainSleepOrderAndOpensDrilldowns() {
         launch(tab: 1)
         let recHoop = element("whoop-triad-recovery")
@@ -34,38 +39,38 @@ final class PhaseFUITests: XCTestCase {
         element("whoop-triad-recovery").tap()
         XCTAssertTrue(app.navigationBars["Recovery"].waitForExistence(timeout: 5))
         XCTAssertTrue(element("whoop-recovery-31d-bars-card").exists || scrollUntilExists(element("whoop-recovery-31d-bars-card")))
-        app.navigationBars.buttons.firstMatch.tap()
+        goBack()
 
         XCTAssertTrue(element("whoop-triad-strain").waitForExistence(timeout: 5))
         element("whoop-triad-strain").tap()
-        XCTAssertTrue(app.navigationBars["Strain"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Day Strain"].waitForExistence(timeout: 5))
         XCTAssertTrue(element("whoop-strain-zones-card").exists || scrollUntilExists(element("whoop-strain-zones-card")))
-        app.navigationBars.buttons.firstMatch.tap()
+        goBack()
 
         XCTAssertTrue(element("whoop-triad-sleep").waitForExistence(timeout: 5))
         element("whoop-triad-sleep").tap()
         XCTAssertTrue(app.navigationBars["Sleep"].waitForExistence(timeout: 5))
         XCTAssertTrue(element("whoop-sleep-hypnogram-card").exists || scrollUntilExists(element("whoop-sleep-hypnogram-card")))
-        app.navigationBars.buttons.firstMatch.tap()
+        goBack()
 
         XCTAssertTrue(element("whoop-open-steps-detail").waitForExistence(timeout: 5))
         element("whoop-open-steps-detail").tap()
         XCTAssertTrue(app.navigationBars["Steps & Zones"].waitForExistence(timeout: 5))
         XCTAssertTrue(element("whoop-steps-zone-calculator-card").exists || scrollUntilExists(element("whoop-steps-zone-calculator-card")))
-        app.navigationBars.buttons.firstMatch.tap()
+        goBack()
 
         XCTAssertTrue(element("whoop-open-longevity").waitForExistence(timeout: 5))
         element("whoop-open-longevity").tap()
         XCTAssertTrue(app.navigationBars["Longevity & VO2"].waitForExistence(timeout: 5))
         XCTAssertTrue(element("whoop-acsm-card").exists || scrollUntilExists(element("whoop-acsm-card")))
         XCTAssertTrue(element("whoop-gps-vo2-card").exists || scrollUntilExists(element("whoop-gps-vo2-card")))
-        app.navigationBars.buttons.firstMatch.tap()
+        goBack()
 
         XCTAssertTrue(element("whoop-open-breathe-stress").waitForExistence(timeout: 5))
         element("whoop-open-breathe-stress").tap()
         XCTAssertTrue(app.navigationBars["Stress & Breathe"].waitForExistence(timeout: 5))
         XCTAssertTrue(element("whoop-breathing-studio-card").exists)
-        app.navigationBars.buttons.firstMatch.tap()
+        goBack()
 
         XCTAssertTrue(element("whoop-open-metrics-explorer").waitForExistence(timeout: 5))
         element("whoop-open-metrics-explorer").tap()
