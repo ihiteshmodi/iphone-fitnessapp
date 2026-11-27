@@ -96,6 +96,10 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
         fileService?.exists == true
     }
 
+    public var db: Database? {
+        store?.db
+    }
+
     // MARK: Database Management (Independent of fitness.sqlite)
 
     public func openExistingStoreIfAvailable() {
