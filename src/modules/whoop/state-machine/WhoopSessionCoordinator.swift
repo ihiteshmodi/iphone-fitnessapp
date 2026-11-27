@@ -1,5 +1,11 @@
 import Foundation
 
+public enum WhoopBleChannel: String, Equatable, Sendable {
+    case cmd
+    case events
+    case data
+}
+
 public struct WhoopCoordinatorOutput: Equatable, Sendable {
     public let txFrames: [[UInt8]]
     public let liveHr: WhoopRealtimeHr?
@@ -38,7 +44,9 @@ public struct WhoopSessionCoordinator: Sendable {
     public private(set) var nackCount = 0
 
     private var seq = WhoopSeqAllocator()
-    internal private(set) var accumulator: WhoopFrameAccumulator
+    internal private(set) var cmdAccumulator: WhoopFrameAccumulator
+    internal private(set) var eventsAccumulator: WhoopFrameAccumulator
+    internal private(set) var dataAccumulator: WhoopFrameAccumulator
     internal private(set) var burstStats = WhoopBurstStats()
     private var trimGuard = WhoopBurstTrimGuard()
     private var recordGate = WhoopRecordGate()
@@ -50,15 +58,19 @@ public struct WhoopSessionCoordinator: Sendable {
     private var liveImuFrames: [WhoopImuFrame] = []
     private var liveWindowStartSec: Int?
 
-    public init(profile: WhoopBandProfile, deviceID: String) {
+    public init(profile: WhoopBandProfile, deviceID: String = "") {
         self.profile = profile
         self.deviceID = deviceID
-        self.accumulator = WhoopFrameAccumulator(profile: profile)
+        self.cmdAccumulator = WhoopFrameAccumulator(profile: profile)
+        self.eventsAccumulator = WhoopFrameAccumulator(profile: profile)
+        self.dataAccumulator = WhoopFrameAccumulator(profile: profile)
     }
 
     public mutating func onLinkReady() -> [[UInt8]] {
         seq.reset()
-        accumulator.clearBuffer()
+        cmdAccumulator.clearBuffer()
+        eventsAccumulator.clearBuffer()
+        dataAccumulator.clearBuffer()
         offloadActive = false
         pendingBatch = nil
         if profile.isGen5 {
@@ -69,7 +81,9 @@ public struct WhoopSessionCoordinator: Sendable {
                 WhoopCommands.cmdGetClock(seq: clockSeq, profile: .gen5),
             ]
         } else {
-            return WhoopCommands.gen4InitPackets()
+            return WhoopCommands.gen4InitPackets() + [
+                WhoopCommands.cmdToggleRealtimeHr(seq: seq.nextLive(), on: true, profile: .gen4),
+            ]
         }
     }
 
@@ -97,8 +111,14 @@ public struct WhoopSessionCoordinator: Sendable {
         }
     }
 
-    public mutating func receiveRawDataFromStrap(_ bytes: [UInt8], store: WhoopStore, nowMs: Int64) throws -> WhoopCoordinatorOutput {
-        let frames = accumulator.feed(bytes)
+    public mutating func receiveRawDataFromStrap(_ bytes: [UInt8], channel: WhoopBleChannel = .data,
+                                                 store: WhoopStore, nowMs: Int64) throws -> WhoopCoordinatorOutput {
+        let frames: [WhoopFrame]
+        switch channel {
+        case .cmd: frames = cmdAccumulator.feed(bytes)
+        case .events: frames = eventsAccumulator.feed(bytes)
+        case .data: frames = dataAccumulator.feed(bytes)
+        }
         var tx: [[UInt8]] = []
         var latestHr: WhoopRealtimeHr?
         var completed = false
@@ -109,13 +129,13 @@ public struct WhoopSessionCoordinator: Sendable {
                 corruptionTripped = true
             }
             guard frame.decodable, let pktByte = frame.inner.first else {
-                if offloadActive {
+                if offloadActive && channel == .data {
                     trimGuard.discardOpenChunk()
                 }
                 continue
             }
 
-            let route = WhoopFrameRoutePolicy.route(packetType: pktByte, isDataRole: true, offloadActive: offloadActive)
+            let route = WhoopFrameRoutePolicy.route(packetType: pktByte, isDataRole: channel == .data, offloadActive: offloadActive)
             if route == .immediateAndCount {
                 burstStats.recordInlineTrafficMember()
             }

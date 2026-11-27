@@ -22,6 +22,7 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
     @Published public private(set) var phase: WhoopConnPhase = .idle
     @Published public private(set) var discoveredDevices: [DiscoveredWhoopDevice] = []
     @Published public private(set) var connectedName: String?
+    @Published public private(set) var peripheralUUID: String?
     @Published public private(set) var serialNumber: String?
     @Published public private(set) var isMaverick = false
     @Published public private(set) var liveHrBpm: Int?
@@ -32,6 +33,9 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
     @Published public private(set) var lastSyncNote = "Not synced this session"
     @Published public private(set) var faultWarning: String?
     @Published public private(set) var substrateSummary: WhoopSubstrateSummary?
+    @Published public private(set) var handshake = WhoopHandshakeTelemetry()
+    @Published public private(set) var burst = WhoopBurstTelemetry()
+    @Published public private(set) var sqliteInspection: WhoopSqliteInspectionSnapshot?
     @Published public private(set) var lastWhoopExport: ISODate?
     @Published public private(set) var foundWhoopFiles: [URL] = []
 
@@ -42,6 +46,7 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
     private var notifyChars: [CBCharacteristic] = []
     private var pendingSubscribeCount = 0
     private var restoreNeedsResubscribe = false
+    private var manualDisconnect = false
 
     private var coordinator: WhoopSessionCoordinator?
     private var store: WhoopStore?
@@ -60,9 +65,23 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
         self.fileService = location.map { WhoopDatabaseFileService(location: $0) }
         self.clock = clock
         self.lastWhoopExport = UserDefaults.standard.string(forKey: Self.lastWhoopExportKey).flatMap { ISODate($0) }
+        self.peripheralUUID = UserDefaults.standard.string(forKey: Self.savedUUIDKey)
         super.init()
         // Open existing whoop.sqlite if already unlocked & on disk so UI shows counts immediately without touching BLE in UI tests.
         openExistingStoreIfAvailable()
+    }
+
+    public var centralStateLabel: String {
+        guard central != nil else { return "notStarted (tap Connect)" }
+        switch bluetoothState {
+        case .unknown: return "unknown"
+        case .resetting: return "resetting"
+        case .unsupported: return "unsupported"
+        case .unauthorized: return "unauthorized"
+        case .poweredOff: return "poweredOff"
+        case .poweredOn: return "poweredOn"
+        @unknown default: return "unknown"
+        }
     }
 
     public static var bundledWhoopDatabaseURL: URL? {
@@ -91,6 +110,7 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
             let opened = try fileService.openLiveStore()
             store = opened
             substrateSummary = try opened?.summary()
+            sqliteInspection = try opened?.inspect(limit: 5)
             if let pct = substrateSummary?.latestBatteryPct { batteryPct = pct }
             if let chg = substrateSummary?.latestCharging { charging = chg }
         } catch {
@@ -105,7 +125,42 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
             openExistingStoreIfAvailable()
         } else if let store {
             substrateSummary = try? store.summary()
+            sqliteInspection = try? store.inspect(limit: 5)
         }
+    }
+
+    /// Initializes `Documents/whoop.sqlite` if not created yet and refreshes the 5-row SQLite diagnostic inspector.
+    public func refreshDiagnosticInspection(createIfMissing: Bool = true) {
+        guard let fileService else { return }
+        if store == nil {
+            if fileService.exists || createIfMissing {
+                store = try? fileService.openOrCreateLiveStore()
+            }
+        }
+        if let store {
+            substrateSummary = try? store.summary()
+            sqliteInspection = try? store.inspect(limit: 5)
+        }
+    }
+
+    /// Runs `PRAGMA wal_checkpoint(TRUNCATE)` on `whoop.sqlite` and exports the checkpointed SQLite file for Mac inspection.
+    public func exportCheckpointedDiagnosticDatabase() throws -> URL {
+        guard let fileService else { throw ValidationError("App data folder unavailable") }
+        if store == nil {
+            store = try fileService.openOrCreateLiveStore()
+        }
+        guard let store else { throw ValidationError("Could not open whoop.sqlite") }
+
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("whoop-diag-export-\(UUID().uuidString)")
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        let tag = formatter.string(from: Date())
+        let out = try fileService.exportCheckpointedSnapshot(from: store, timestampTag: tag, to: directory)
+        let today = clock.today()
+        lastWhoopExport = today
+        UserDefaults.standard.set(today.string, forKey: Self.lastWhoopExportKey)
+        refreshDiagnosticInspection(createIfMissing: false)
+        return out
     }
 
     public func loadBundledWhoopData() throws {
@@ -174,44 +229,85 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
     }
 
     public func connect(to device: DiscoveredWhoopDevice) {
+        manualDisconnect = false
         stopScan()
         guard let peripheral = peripheralsByID[device.id] else { return }
         saveTarget(uuid: device.id, profile: device.profile)
         engageStandingConnect(peripheral: peripheral, profile: device.profile)
     }
 
+    public func connectButtonTapped() {
+        manualDisconnect = false
+        faultWarning = nil
+        bondGiveUp.reset()
+        ensureCentralStarted()
+        guard let central, central.state == .poweredOn else {
+            phase = .scanning
+            lastSyncNote = "Starting CoreBluetooth central…"
+            return
+        }
+        connectCore(central: central)
+    }
+
+    public func disconnectButtonTapped() {
+        manualDisconnect = true
+        scanRotationTask?.cancel()
+        scanRotationTask = nil
+        central?.stopScan()
+        if let p = activePeripheral {
+            central?.cancelPeripheralConnection(p)
+        }
+        cmdToStrapChar = nil
+        notifyChars.removeAll()
+        pendingSubscribeCount = 0
+        phase = .idle
+        liveHrBpm = nil
+        offloadActive = false
+        lastSyncNote = "Disconnected (manual)"
+    }
+
     public func reconnectSavedBand() {
+        manualDisconnect = false
         ensureCentralStarted()
         guard let central, central.state == .poweredOn else { return }
         connectCore(central: central)
     }
 
     public func disconnectAndForget() {
+        manualDisconnect = true
         scanRotationTask?.cancel()
         scanRotationTask = nil
+        central?.stopScan()
         if let p = activePeripheral {
             central?.cancelPeripheralConnection(p)
         }
         activePeripheral = nil
         cmdToStrapChar = nil
         notifyChars.removeAll()
+        pendingSubscribeCount = 0
         UserDefaults.standard.removeObject(forKey: Self.savedUUIDKey)
+        peripheralUUID = nil
         phase = .idle
         connectedName = nil
         liveHrBpm = nil
         offloadActive = false
-        lastSyncNote = "Disconnected"
+        lastSyncNote = "Disconnected & forgot saved strap"
     }
 
-    public func triggerManualSync() {
+    public func forceHistoryDrain() {
         guard let char = cmdToStrapChar, let p = activePeripheral, var coord = coordinator else {
-            reconnectSavedBand()
+            lastSyncNote = "Not connected yet — connecting first…"
+            connectButtonTapped()
             return
         }
         let frame = coord.buildManualBackfillRequest()
         coordinator = coord
         writeFrame(frame, to: char, on: p)
-        lastSyncNote = "Requested historical backfill (0x16)…"
+        lastSyncNote = "Sent 0x16 SEND_HISTORICAL_DATA"
+    }
+
+    public func triggerManualSync() {
+        forceHistoryDrain()
     }
 
     public func toggleLiveHeartRate(_ enabled: Bool) {
@@ -274,13 +370,18 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
 
     private func engageStandingConnect(peripheral: CBPeripheral, profile: WhoopBandProfile) {
         activePeripheral = peripheral
+        peripheralUUID = peripheral.identifier.uuidString
         peripheral.delegate = self
         connectedName = peripheral.name ?? "WHOOP Strap"
-        if coordinator?.deviceID != peripheral.identifier.uuidString {
-            coordinator = WhoopSessionCoordinator(profile: profile, deviceID: peripheral.identifier.uuidString)
+        if coordinator == nil || coordinator?.profile != profile {
+            coordinator = WhoopSessionCoordinator(profile: profile, deviceID: "")
         }
         if store == nil, let fileService {
             store = try? fileService.openOrCreateLiveStore()
+            if let store {
+                substrateSummary = try? store.summary()
+                sqliteInspection = try? store.inspect(limit: 5)
+            }
         }
         if peripheral.state == .connected {
             phase = .discovering
@@ -313,8 +414,24 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
     }
 
     private func saveTarget(uuid: UUID, profile: WhoopBandProfile) {
+        peripheralUUID = uuid.uuidString
         UserDefaults.standard.set(uuid.uuidString, forKey: Self.savedUUIDKey)
         UserDefaults.standard.set(profile.isGen5 ? "gen5" : "gen4", forKey: Self.savedProfileKey)
+    }
+
+    private static func channelForCharacteristic(_ uuidString: String) -> WhoopBleChannel {
+        let u = uuidString.uppercased()
+        if u == WhoopGattProfile.gen5.cmdFrom.uppercased()
+            || u == WhoopGattProfile.maverick.cmdFrom.uppercased()
+            || u == WhoopGattProfile.gen4.cmdFrom.uppercased() {
+            return .cmd
+        }
+        if u == WhoopGattProfile.gen5.events.uppercased()
+            || u == WhoopGattProfile.maverick.events.uppercased()
+            || u == WhoopGattProfile.gen4.events.uppercased() {
+            return .events
+        }
+        return .data
     }
 
     private func writeFrame(_ bytes: [UInt8], to characteristic: CBCharacteristic, on peripheral: CBPeripheral) {
@@ -356,6 +473,7 @@ extension WhoopBLEManager: CBCentralManagerDelegate {
             for p in restored {
                 self.peripheralsByID[p.identifier] = p
                 self.activePeripheral = p
+                self.peripheralUUID = p.identifier.uuidString
                 p.delegate = self
                 self.restoreNeedsResubscribe = true
             }
@@ -373,6 +491,7 @@ extension WhoopBLEManager: CBCentralManagerDelegate {
                 return
             }
             self.openExistingStoreIfAvailable()
+            guard !self.manualDisconnect else { return }
             if self.phase == .scanning {
                 self.scanWithCurrentFamilyWindow()
             } else if self.activePeripheral != nil || UserDefaults.standard.string(forKey: Self.savedUUIDKey) != nil {
@@ -399,7 +518,8 @@ extension WhoopBLEManager: CBCentralManagerDelegate {
                 self.discoveredDevices.append(item)
             }
 
-            if let saved = UserDefaults.standard.string(forKey: Self.savedUUIDKey),
+            if !self.manualDisconnect,
+               let saved = UserDefaults.standard.string(forKey: Self.savedUUIDKey),
                saved == peripheral.identifier.uuidString {
                 self.stopScan()
                 self.engageStandingConnect(peripheral: peripheral, profile: profile)
@@ -410,7 +530,10 @@ extension WhoopBLEManager: CBCentralManagerDelegate {
     nonisolated public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         Task { @MainActor in
             self.faultWarning = nil
+            self.peripheralUUID = peripheral.identifier.uuidString
             self.connectedName = peripheral.name ?? "WHOOP Strap"
+            self.pendingSubscribeCount = 0
+            self.notifyChars.removeAll()
             self.phase = .discovering
             peripheral.delegate = self
             peripheral.discoverServices(Self.allWhoopServiceCBUUIDs)
@@ -426,6 +549,10 @@ extension WhoopBLEManager: CBCentralManagerDelegate {
                 self.phase = .error
                 return
             }
+            guard !self.manualDisconnect else {
+                self.phase = .idle
+                return
+            }
             // StandingConnect: re-issue connect() so CoreBluetooth auto-completes when strap returns in range
             self.phase = .reconnecting
             central.connect(peripheral, options: [
@@ -438,13 +565,18 @@ extension WhoopBLEManager: CBCentralManagerDelegate {
     nonisolated public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
             self.coordinator?.discardActiveBurstOnDisconnect()
+            if let coord = self.coordinator {
+                self.burst = coord.burstTelemetry
+            }
             self.offloadActive = false
             self.liveHrBpm = nil
             self.cmdToStrapChar = nil
             self.notifyChars.removeAll()
+            self.pendingSubscribeCount = 0
 
-            // StandingConnect: immediately post zero-radio-duty pending connect unless user explicitly forgot the strap
-            if UserDefaults.standard.string(forKey: Self.savedUUIDKey) == peripheral.identifier.uuidString,
+            // StandingConnect: immediately post zero-radio-duty pending connect unless user explicitly disconnected/forgot
+            if !self.manualDisconnect,
+               UserDefaults.standard.string(forKey: Self.savedUUIDKey) == peripheral.identifier.uuidString,
                !self.bondGiveUp.stillPaused(now: Date()) {
                 self.phase = .reconnecting
                 self.lastSyncNote = "Waiting for WHOOP in range (StandingConnect)…"
@@ -466,10 +598,14 @@ extension WhoopBLEManager: CBPeripheralDelegate {
             for svc in services {
                 let idUpper = svc.uuid.uuidString.uppercased()
                 if idUpper == WhoopGattProfile.gen5.service.uppercased() || idUpper == WhoopGattProfile.maverick.service.uppercased() {
-                    self.coordinator = WhoopSessionCoordinator(profile: .gen5, deviceID: peripheral.identifier.uuidString)
+                    if self.coordinator?.profile != .gen5 {
+                        self.coordinator = WhoopSessionCoordinator(profile: .gen5, deviceID: "")
+                    }
                     self.saveTarget(uuid: peripheral.identifier, profile: .gen5)
                 } else if idUpper == WhoopGattProfile.gen4.service.uppercased() {
-                    self.coordinator = WhoopSessionCoordinator(profile: .gen4, deviceID: peripheral.identifier.uuidString)
+                    if self.coordinator?.profile != .gen4 {
+                        self.coordinator = WhoopSessionCoordinator(profile: .gen4, deviceID: "")
+                    }
                     self.saveTarget(uuid: peripheral.identifier, profile: .gen4)
                 }
                 peripheral.discoverCharacteristics(nil, for: svc)
@@ -499,7 +635,7 @@ extension WhoopBLEManager: CBPeripheralDelegate {
                 let u = c.uuid.uuidString.uppercased()
                 if cmdToSet.contains(u) {
                     self.cmdToStrapChar = c
-                } else if notifySet.contains(u) || c.properties.contains(.notify) {
+                } else if notifySet.contains(u) {
                     self.notifyChars.append(c)
                     if self.restoreNeedsResubscribe && c.isNotifying {
                         // Force fresh CCCD write after state restoration (`setNotifyValue(false)` -> `true`)
@@ -529,11 +665,13 @@ extension WhoopBLEManager: CBPeripheralDelegate {
                 self.phase = .settingUp
                 let bootFrames = coord.onLinkReady()
                 self.coordinator = coord
+                self.handshake = coord.handshakeTelemetry
+                self.burst = coord.burstTelemetry
                 for f in bootFrames {
                     self.writeFrame(f, to: cmdChar, on: peripheral)
                 }
                 self.phase = .listening
-                self.lastSyncNote = "Connected · syncing telemetry"
+                self.lastSyncNote = "Connected · sent handshake"
             }
         }
     }
@@ -541,15 +679,19 @@ extension WhoopBLEManager: CBPeripheralDelegate {
     nonisolated public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard error == nil, let data = characteristic.value, !data.isEmpty else { return }
         let bytes = [UInt8](data)
+        let charUUID = characteristic.uuid.uuidString
         Task { @MainActor in
             if self.store == nil, let fileService = self.fileService {
                 self.store = try? fileService.openOrCreateLiveStore()
             }
             guard let store = self.store, var coord = self.coordinator else { return }
             let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+            let channel = Self.channelForCharacteristic(charUUID)
             do {
-                let out = try coord.receiveRawDataFromStrap(bytes, store: store, nowMs: nowMs)
+                let out = try coord.receiveRawDataFromStrap(bytes, channel: channel, store: store, nowMs: nowMs)
                 self.coordinator = coord
+                self.handshake = coord.handshakeTelemetry
+                self.burst = coord.burstTelemetry
                 self.isMaverick = coord.isMaverick
                 if let s = coord.serialNumber { self.serialNumber = s }
                 if let pct = coord.batteryPct { self.batteryPct = pct }
@@ -571,8 +713,13 @@ extension WhoopBLEManager: CBPeripheralDelegate {
                 }
                 if out.historyCompleted || !out.txFrames.isEmpty {
                     self.substrateSummary = try? store.summary()
+                    self.sqliteInspection = try? store.inspect(limit: 5)
                     if out.historyCompleted {
-                        self.lastSyncNote = "Caught up · \(self.substrateSummary?.oneHzCount ?? 0) 1 Hz rows"
+                        self.lastSyncNote = "HISTORY_COMPLETE · \(self.substrateSummary?.oneHzCount ?? 0) 1 Hz rows"
+                    } else if coord.burstTelemetry.lastAckWasNack == false {
+                        self.lastSyncNote = "Committed burst · ACK 0x17 OK (\(self.substrateSummary?.oneHzCount ?? 0) rows)"
+                    } else if coord.burstTelemetry.lastAckWasNack == true {
+                        self.lastSyncNote = "Burst rejected · NACK 0x17 (\(coord.burstTelemetry.lastAckVerdict))"
                     }
                 }
             } catch {

@@ -73,7 +73,8 @@ final class PhaseCUITests: XCTestCase {
         XCTAssertTrue(element("labs-core-pending-card").exists)
 
         tap("labs-marker-library")
-        XCTAssertTrue(app.navigationBars["Markers"].waitForExistence(timeout: 5))
+        let markersNav = app.navigationBars.matching(NSPredicate(format: "identifier BEGINSWITH 'Markers'")).firstMatch
+        XCTAssertTrue(markersNav.waitForExistence(timeout: 5))
         let firstMarker = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'labs-marker-row-'")).firstMatch
         XCTAssertTrue(firstMarker.waitForExistence(timeout: 5))
         firstMarker.tap()

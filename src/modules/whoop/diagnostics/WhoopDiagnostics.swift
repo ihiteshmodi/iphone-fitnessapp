@@ -165,8 +165,9 @@ extension WhoopSessionCoordinator {
     }
 
     public var burstTelemetry: WhoopBurstTelemetry {
-        let hdrErrs = accumulator.headerCrcErrors
-        let pldErrs = accumulator.lostFrames
+        let hdrErrs = cmdAccumulator.headerCrcErrors + eventsAccumulator.headerCrcErrors + dataAccumulator.headerCrcErrors
+        let pldErrs = cmdAccumulator.lostFrames + eventsAccumulator.lostFrames + dataAccumulator.lostFrames
+        let resyncs = cmdAccumulator.resyncs + eventsAccumulator.resyncs + dataAccumulator.resyncs
         return WhoopBurstTelemetry(
             liveHrBpm: lastLiveHr?.hrBpm,
             liveRrMs: lastLiveHr?.rrMs ?? [],
@@ -174,7 +175,7 @@ extension WhoopSessionCoordinator {
             rollingCrcErrorCount: hdrErrs + pldErrs,
             headerCrcErrors: hdrErrs,
             payloadCrc32Errors: pldErrs,
-            resyncCount: accumulator.resyncs,
+            resyncCount: resyncs,
             offloadActive: offloadActive,
             currentBurstDataPackets: burstStats.dataPackets,
             currentBurstInlinePackets: burstStats.inlineTrafficPackets,

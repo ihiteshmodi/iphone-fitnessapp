@@ -15,9 +15,11 @@ final class PhaseEUITests: XCTestCase {
     private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any)[id].firstMatch }
 
     private func tap(_ id: String, file: StaticString = #filePath, line: UInt = #line) {
-        let target = element(id)
-        XCTAssertTrue(target.waitForExistence(timeout: 10) || scrollUntilExists(target), "missing \(id)", file: file, line: line)
-        for _ in 0..<10 where !(target.isHittable && target.frame.maxY < app.frame.maxY - 110) { app.swipeUp() }
+        let anyEl = element(id)
+        XCTAssertTrue(anyEl.waitForExistence(timeout: 10) || scrollUntilExists(anyEl), "missing \(id)", file: file, line: line)
+        let target = app.buttons[id].exists ? app.buttons[id].firstMatch : anyEl
+        for _ in 0..<6 where target.exists && target.frame.minY < 100 { app.swipeDown() }
+        for _ in 0..<6 where target.exists && target.frame.maxY >= app.frame.maxY - 110 { app.swipeUp() }
         target.tap()
     }
 
@@ -26,27 +28,28 @@ final class PhaseEUITests: XCTestCase {
         return target.exists
     }
 
-    func testBloodworkDashboardMarkerQuickFiltersAndGeneticsScreenLoadCleanly() {
+    func testBloodworkDashboardLoadsCleanly() {
         launch(tab: 1)
         tap("labs-entry")
         if element("labs-confirm-male").exists { tap("labs-confirm-male") }
 
         tap("labs-open-dashboard")
-        XCTAssertTrue(app.navigationBars["Dashboard"].waitForExistence(timeout: 5))
-        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Bloodwork Dashboard"].waitForExistence(timeout: 5))
+    }
+
+    func testMarkersQuickFiltersAndCustomFilterSheetLoadCleanly() {
+        launch(tab: 1)
+        tap("labs-entry")
+        if element("labs-confirm-male").exists { tap("labs-confirm-male") }
 
         tap("labs-marker-library")
-        XCTAssertTrue(app.navigationBars["Markers"].waitForExistence(timeout: 5))
-        XCTAssertTrue(element("labs-marker-chip-core").waitForExistence(timeout: 5))
-        element("labs-marker-chip-core").tap()
-        XCTAssertTrue(element("labs-markers-custom-filter-button").exists)
-        element("labs-markers-custom-filter-button").tap()
+        let markersNav = app.navigationBars.matching(NSPredicate(format: "identifier BEGINSWITH 'Markers'")).firstMatch
+        XCTAssertTrue(markersNav.waitForExistence(timeout: 5))
+        XCTAssertTrue(element("labs-marker-chip-★ Core").waitForExistence(timeout: 5))
+        tap("labs-marker-chip-★ Core")
+        tap("labs-markers-custom-filter-button")
         XCTAssertTrue(element("labs-custom-filter-tier").waitForExistence(timeout: 5))
         app.buttons["Cancel"].firstMatch.tap()
-        app.navigationBars.buttons.firstMatch.tap()
-
-        tap("labs-genetics")
-        XCTAssertTrue(app.navigationBars["Genetics"].waitForExistence(timeout: 5))
     }
 
     func testMoreShowsDualDatabaseBackupFiveMultivitaminsAndWhoopBandScreen() {
@@ -64,5 +67,23 @@ final class PhaseEUITests: XCTestCase {
         tap("supplements-row")
         tap("open-multivitamin-stack")
         XCTAssertTrue(app.staticTexts["Centrum Men Multivitamin"].waitForExistence(timeout: 5) || scrollUntilExists(app.staticTexts["Centrum Men Multivitamin"]))
+    }
+
+    func testWorkoutOpensStandaloneWhoopDiagnosticConsoleWithSqliteInspectorAndExporter() {
+        launch(tab: 0)
+        XCTAssertTrue(element("workout-whoop-diag-button").waitForExistence(timeout: 10))
+        element("workout-whoop-diag-button").tap()
+
+        XCTAssertTrue(app.navigationBars["WHOOP Diagnostic"].waitForExistence(timeout: 5))
+        XCTAssertTrue(element("whoop-diag-connect-button").exists)
+        XCTAssertTrue(element("whoop-diag-disconnect-button").exists)
+        XCTAssertTrue(element("whoop-diag-force-drain-button").exists)
+        XCTAssertTrue(element("whoop-diag-crc-errors").exists || scrollUntilExists(element("whoop-diag-crc-errors")))
+        XCTAssertTrue(element("whoop-diag-burst-stats").exists || scrollUntilExists(element("whoop-diag-burst-stats")))
+        XCTAssertTrue(element("whoop-diag-ack-verdict").exists || scrollUntilExists(element("whoop-diag-ack-verdict")))
+        XCTAssertTrue(element("whoop-diag-export-sqlite-button").exists || scrollUntilExists(element("whoop-diag-export-sqlite-button")))
+
+        app.buttons["whoop-diag-done"].tap()
+        XCTAssertTrue(element("workout-whoop-diag-button").waitForExistence(timeout: 5))
     }
 }

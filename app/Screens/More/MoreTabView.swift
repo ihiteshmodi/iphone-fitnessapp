@@ -226,6 +226,15 @@ struct MoreTabView: View {
             .buttonStyle(.plain)
             .padding(.top, 4)
             .accessibilityIdentifier("sweaty-activity-row")
+            NavigationLink { WhoopDiagnosticView() } label: {
+                MoreRow(title: "WHOOP Diagnostic", subtitle: "Hardware verification console: 0x91 handshake, 0x28 live HR/RR, CRC/BurstStats, 0x17 verdict & SQLite WAL export") {
+                    Image(systemName: "waveform.path.ecg.rectangle").foregroundColor(Theme.green)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityIdentifier("whoop-diagnostic-row")
             NavigationLink { WhoopBandView() } label: {
                 MoreRow(title: "WHOOP Band", subtitle: "WHOOP 4.0 / 5.0 / MG BLE sync, live heart rate, and whoop.sqlite substrate") {
                     Image(systemName: "chevron.right").foregroundColor(Theme.muted)

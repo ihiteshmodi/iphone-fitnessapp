@@ -6,6 +6,7 @@ struct WorkoutDayScreen: View {
     @StateObject private var vm: WorkoutViewModel
     @AppStorage("selectedDayId") private var storedDayId = 0
     @State private var showingEditor = false
+    @State private var showingWhoopDiag = false
 
     init(services: Services) {
         _vm = StateObject(wrappedValue: WorkoutViewModel(services: services))
@@ -53,6 +54,13 @@ struct WorkoutDayScreen: View {
                 NavigationStack { EditPlanView(focusDayId: dayId) }
             }
         }
+        .sheet(isPresented: $showingWhoopDiag) {
+            NavigationStack {
+                WhoopDiagnosticView(showsCloseButton: true)
+            }
+            .environmentObject(session.whoop)
+            .preferredColorScheme(.dark)
+        }
         .errorAlert($vm.errorMessage)
     }
 
@@ -63,13 +71,30 @@ struct WorkoutDayScreen: View {
                 Text("Workout").font(.system(size: 30, weight: .bold)).foregroundColor(Theme.text)
             }
             Spacer()
-            if vm.selectedDayId != nil {
-                Button("Edit day") { showingEditor = true }
-                    .font(.system(size: 14, weight: .semibold))
+            HStack(spacing: 12) {
+                Button {
+                    showingWhoopDiag = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "waveform.path.ecg")
+                        Text("WHOOP Diag")
+                    }
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Theme.green)
-                    .padding(.top, 18)
-                    .accessibilityIdentifier("edit-day-button")
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Theme.green.opacity(0.14).cornerRadius(8))
+                }
+                .accessibilityIdentifier("workout-whoop-diag-button")
+
+                if vm.selectedDayId != nil {
+                    Button("Edit day") { showingEditor = true }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Theme.green)
+                        .accessibilityIdentifier("edit-day-button")
+                }
             }
+            .padding(.top, 14)
         }
         .padding(.top, 8)
     }

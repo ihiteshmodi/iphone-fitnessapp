@@ -193,4 +193,39 @@ final class WhoopDiagnosticTests: XCTestCase {
         let exportedCount = try verifyDB.query("SELECT COUNT(*) AS c FROM decoded_onehz").first?.int("c")
         XCTAssertEqual(exportedCount, 7)
     }
+
+    func testInterleavedNotificationsAcrossDataAndEventsCharacteristicsDoNotCorruptSplitMtuFrames() throws {
+        let store = try WhoopStore.inMemory()
+        var coord = WhoopSessionCoordinator(profile: .gen5)
+        let nowSec = 1_795_750_500
+        let nowMs = Int64(nowSec) * 1000
+        _ = coord.onLinkReady()
+
+        var v18 = [UInt8](repeating: 0, count: 112)
+        v18[0] = WhoopPacketType.historicalData
+        v18[1] = 18
+        v18[3] = 5
+        let recTs = UInt32(nowSec - 2)
+        v18[7] = UInt8(recTs & 0xFF); v18[8] = UInt8((recTs >> 8) & 0xFF)
+        v18[9] = UInt8((recTs >> 16) & 0xFF); v18[10] = UInt8((recTs >> 24) & 0xFF)
+        v18[14] = 59
+        let fullDataFrame = WhoopFraming.buildFrame(v18, profile: .gen5)
+        let halfA = Array(fullDataFrame.prefix(40))
+        let halfB = Array(fullDataFrame.dropFirst(40))
+
+        var rtInner = [UInt8](repeating: 0, count: 20)
+        rtInner[0] = WhoopPacketType.realtimeData
+        rtInner[8] = 72
+        rtInner[18] = 1
+        let liveHrFrame = WhoopFraming.buildFrame(rtInner, profile: .gen5)
+
+        // Feed first half of v18 on .data, then a complete 0x28 live HR on .events mid-frame, then second half of v18 on .data!
+        _ = try coord.receiveRawDataFromStrap(halfA, channel: .data, store: store, nowMs: nowMs)
+        let midOut = try coord.receiveRawDataFromStrap(liveHrFrame, channel: .events, store: store, nowMs: nowMs)
+        XCTAssertEqual(midOut.liveHr?.hrBpm, 72)
+        _ = try coord.receiveRawDataFromStrap(halfB, channel: .data, store: store, nowMs: nowMs)
+
+        XCTAssertEqual(coord.burstTelemetry.rollingCrcErrorCount, 0)
+        XCTAssertEqual(coord.burstTelemetry.currentBurstDataPackets, 1)
+    }
 }
