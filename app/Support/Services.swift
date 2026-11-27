@@ -30,6 +30,10 @@ final class Services: ObservableObject {
     let insights: InsightService
     let checkIn: CheckInService
     let refeeds: RefeedService
+    let appDefaults: AppDefaultsStore
+    let workoutSessions: WorkoutSessionService
+    let treadmillVo2: AcsmTreadmillVo2Service
+    let markerOverrides: LabMarkerOverrideService
     /// The vault's supplement library, bundled from output/supplement-library.json when present.
     let supplementLibrary: SupplementLibrary?
     /// The bloodwork and genetics catalogue, bundled from output/labs-catalogue.json when present; Labs is hidden without it.
@@ -74,6 +78,10 @@ final class Services: ObservableObject {
                                   labs: labs.map { [LabInsightsRule(catalogue: $0)] } ?? [])
         checkIn = CheckInService(db)
         refeeds = RefeedService(db)
+        appDefaults = AppDefaultsStore(db)
+        workoutSessions = WorkoutSessionService(fitnessDb: db)
+        treadmillVo2 = AcsmTreadmillVo2Service(db)
+        markerOverrides = LabMarkerOverrideService(db)
     }
 
     var labDraws: LabDrawService? { labCatalogue.map { LabDrawService(db, catalogue: $0) } }

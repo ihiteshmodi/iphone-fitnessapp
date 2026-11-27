@@ -101,6 +101,10 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
     public func openExistingStoreIfAvailable() {
         guard let fileService else { return }
         foundWhoopFiles = fileService.filesInDocuments()
+        let isUITesting = ProcessInfo.processInfo.arguments.contains("--uitesting")
+        if !fileService.exists, !isUITesting, let bundled = Self.bundledWhoopDatabaseURL {
+            try? fileService.importDatabase(from: bundled, today: clock.today())
+        }
         guard fileService.exists else {
             store = nil
             substrateSummary = nil
@@ -108,6 +112,10 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
         }
         do {
             let opened = try fileService.openLiveStore()
+            if !isUITesting, let opened, let bundled = Self.bundledWhoopDatabaseURL,
+               let preSum = try? opened.summary(), preSum.oneHzCount < 500_000 {
+                _ = try? fileService.mergeDatabase(from: bundled, into: opened, nowSec: Int64(Date().timeIntervalSince1970))
+            }
             store = opened
             substrateSummary = try opened?.summary()
             sqliteInspection = try opened?.inspect(limit: 5)
