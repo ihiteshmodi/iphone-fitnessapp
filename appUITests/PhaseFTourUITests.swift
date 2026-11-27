@@ -41,140 +41,140 @@ final class PhaseFTourUITests: XCTestCase {
         return true
     }
 
-    func testF1_BodyThreeHoopTriadRecoverySleepTempAndLongevityGps() {
+    func testF1_BodyClickableHoopsReviewBannerAndStepsCalculator() {
         launch(tab: 1)
-        snap("f01-body-three-hoop-triad-and-quick-tiles")
-        if open("whoop-body-triad-card", snap: "f02-recovery-temp-c-f-and-illness", swipes: 3) {
+        snap("h01-body-triad-review-banner-and-steps-tile")
+
+        if open("whoop-triad-recovery", snap: "h02-recovery-detail-drivers-and-illness", swipes: 3) {
             app.swipeUp()
-            snap("f03-sleep-stages-wake-consistency-and-naps")
+            snap("h03-recovery-31d-rated-bars")
             app.navigationBars.buttons.firstMatch.tap()
             sleep(1)
         }
-        if open("whoop-open-longevity", snap: "f04-longevity-vo2-and-vitality-hoops", swipes: 3) {
-            app.swipeUp()
-            snap("f05-acsm-duration-and-gps-1km-vo2max")
-        }
-    }
 
-    func testF2_BreatheBiofeedbackStressAlertnessAnd24MetricExplorer() {
-        launch(tab: 1)
-        if open("whoop-open-breathe-stress", snap: "f06-guided-breathing-physiological-sigh", swipes: 4) {
-            app.swipeUp()
-            snap("f07-24h-baevsky-stress-and-alertness-forecast")
+        if open("whoop-triad-strain", snap: "h04-strain-detail-intraday-curve-and-zones", swipes: 3) {
             app.navigationBars.buttons.firstMatch.tap()
             sleep(1)
         }
-        if open("whoop-open-metrics-explorer", snap: "f08-24-metric-trends-normal-bands", swipes: 4) {
+
+        if open("whoop-triad-sleep", snap: "h05-sleep-detail-openstrap-hypnogram", swipes: 3) {
             app.swipeUp()
-            snap("f09-24-metric-all-variables-grid")
+            snap("h06-sleep-detail-stage-ranges-and-against-usual")
+            app.swipeUp()
+            snap("h07-sleep-detail-4-overnight-signals")
+            app.navigationBars.buttons.firstMatch.tap()
+            sleep(1)
+        }
+
+        if open("whoop-open-steps-detail", snap: "h08-steps-detail-hourly-bars-and-zone-checkmarks", swipes: 4) {
+            app.swipeUp()
+            snap("h09-steps-detail-divisor-explainer")
+            app.navigationBars.buttons.firstMatch.tap()
+            sleep(1)
         }
     }
 
-    func testF3_WorkoutLiveZonesConcentricHiitAndTimelineExercisePins() {
+    func testF2_LiveTreadmillVo2BreatheHapticsAndClean24MetricTrends() {
+        launch(tab: 1)
+        if open("whoop-open-longevity", snap: "h10-longevity-overview", swipes: 3) {
+            app.swipeUp()
+            snap("h11-longevity-live-treadmill-vo2-idle")
+            if reveal("whoop-start-live-treadmill-button", swipes: 4) {
+                element("whoop-start-live-treadmill-button").tap()
+                sleep(2)
+                snap("h12-longevity-live-treadmill-running")
+                if reveal("whoop-stop-live-treadmill-button", swipes: 3) {
+                    element("whoop-stop-live-treadmill-button").tap()
+                    sleep(1)
+                    snap("h13-longevity-treadmill-conclude-display-distance")
+                    if app.buttons["Discard"].exists {
+                        app.buttons["Discard"].firstMatch.tap()
+                        sleep(1)
+                    }
+                }
+            }
+            app.navigationBars.buttons.firstMatch.tap()
+            sleep(1)
+        }
+
+        if open("whoop-open-breathe-stress", snap: "h14-breathe-spaced-wrist-haptic-legend", swipes: 4) {
+            app.navigationBars.buttons.firstMatch.tap()
+            sleep(1)
+        }
+
+        if open("whoop-open-metrics-explorer", snap: "h15-24-metric-clean-single-dropdown-30d", swipes: 4) {
+            // Confirm no duplicate grid below when swiping
+            app.swipeUp()
+            snap("h16-24-metric-clean-bottom-no-duplicate-grid")
+        }
+    }
+
+    func testF3_WorkoutTrue7dZoneTargetsAndHiitHrDurationOpenModes() {
         launch(tab: 0)
         if app.buttons["day-1"].waitForExistence(timeout: 5) {
             app.buttons["day-1"].tap()
             sleep(1)
         }
-        snap("f10-workout-idle-bar-and-zone-targets")
+        snap("h17-workout-true-7d-zone-targets")
         if element("workout-open-hiit-button").waitForExistence(timeout: 5) {
             element("workout-open-hiit-button").tap()
             sleep(1)
-            snap("f11-concentric-hiit-hr-threshold-mode")
-            if element("hiit-mode-time").exists {
-                element("hiit-mode-time").tap()
+            if element("hiit-hr-goal-total_duration").exists {
+                element("hiit-hr-goal-total_duration").tap()
                 sleep(1)
-                snap("f12-concentric-hiit-time-intervals-mode")
+                snap("h18-hiit-hr-threshold-total-duration-mode")
+            }
+            if element("hiit-hr-goal-open_unlimited").exists {
+                element("hiit-hr-goal-open_unlimited").tap()
+                sleep(1)
+                snap("h19-hiit-hr-threshold-open-unlimited-mode")
             }
             if element("hiit-done-button").exists {
                 element("hiit-done-button").tap()
                 sleep(1)
             }
         }
-        if element("workout-start-session-button").exists {
-            element("workout-start-session-button").tap()
-            sleep(1)
-            snap("f13-workout-live-0x03-session-hoop")
-            if element("workout-finish-session-button").exists {
-                element("workout-finish-session-button").tap()
-                sleep(1)
-                snap("f14-post-workout-timeline-hr-pins-and-trim")
-            }
-        }
     }
 
-    func testF4_DietMealTimeChipsAndPreSleepCheckInCutoffs() {
-        launch(tab: 2)
-        snap("f15-diet-today-meal-time-chips")
-        for _ in 0..<4 { app.swipeUp() }
-        snap("f16-diet-checkin-pre-sleep-carbs-and-cutoffs")
-    }
-
-    func testF5_ProgressFourModeCoachingRulesMatrixAndSeasonalReview() {
+    func testF4_CoachingActiveVsPreviewCtlProvenanceAndLiveMaxHrTest() {
         launch(tab: 3)
-        snap("f17-progress-general-health-rules-matrix")
-        if element("coaching-seasonal-check-button").exists {
-            element("coaching-seasonal-check-button").tap()
-            sleep(1)
-        }
+        snap("h20-coaching-active-focus-and-true-z2")
         if element("coaching-mode-maximizing_vo2_max").exists {
             element("coaching-mode-maximizing_vo2_max").tap()
             sleep(1)
-            snap("f18-progress-vo2max-and-90d-seasonal-prompt")
-        }
-        if element("coaching-mode-maximizing_hrv").exists {
-            element("coaching-mode-maximizing_hrv").tap()
-            sleep(1)
-            snap("f19-progress-maximizing-hrv-rebound-rules")
+            snap("h21-coaching-previewing-vo2max-without-overwriting-active")
         }
         if element("coaching-mode-reducing_rhr").exists {
             element("coaching-mode-reducing_rhr").tap()
             sleep(1)
-            snap("f20-progress-reducing-rhr-step-microcycle")
+            snap("h22-coaching-previewing-reducing-rhr")
         }
-        if open("progress-open-principles", snap: "f21-coaching-principles-and-vo2-limiter", swipes: 2) {
-            app.swipeUp()
-            snap("f22-coaching-principles-bottom")
-        }
-    }
-
-    func testF6_MoreSyncProgressNormalSmartAlarmsBatteryAndDefaultsRules() {
-        launch(tab: 4)
-        if open("whoop-band-row", snap: "f23-whoop-band-sync-progress-and-controls", swipes: 6) {
-            app.swipeUp()
-            snap("f24-whoop-band-normal-and-smart-alarms")
-            if element("whoop-alarm-day-1").exists {
-                element("whoop-alarm-day-1").tap()
-                sleep(1)
-                snap("f25-alarm-editor-normal-vs-smart-wake-sheet")
-                if app.buttons["Cancel"].exists {
-                    app.buttons["Cancel"].firstMatch.tap()
-                    sleep(1)
-                }
-            }
-            app.swipeUp()
-            snap("f26-whoop-band-battery-drain-history-chart")
-            app.navigationBars.buttons.firstMatch.tap()
+        if element("coaching-cancel-preview-button").exists {
+            element("coaching-cancel-preview-button").tap()
             sleep(1)
         }
-        if open("app-defaults-row", snap: "f27-defaults-rules-profile-and-hr-zones", swipes: 6) {
-            app.swipeUp()
-            snap("f28-defaults-rules-step-breakdown-and-hiit")
-            app.swipeUp()
-            snap("f29-defaults-rules-cutoffs-warmup-pr-deload")
+        app.swipeUp()
+        snap("h23-coaching-ctl-atl-live-provenance")
+
+        // Scroll back up to open Principles & Max HR
+        app.swipeDown()
+        if open("progress-open-principles", snap: "h24-principles-live-maxhr-calibration-idle", swipes: 2) {
+            if element("principles-start-maxhr-test").exists {
+                element("principles-start-maxhr-test").tap()
+                sleep(1)
+                snap("h25-principles-live-maxhr-calibration-active")
+                if element("principles-stop-maxhr-test").exists {
+                    element("principles-stop-maxhr-test").tap()
+                }
+            }
         }
     }
 
-    func testF7_BloodworkDirectJsonInserterAndCustomGenes() {
-        launch(tab: 1)
-        if open("labs-entry", snap: "f30-bloodwork-overview-with-json-inserter", swipes: 6) {
-            if open("labs-open-json-inserter", snap: "f31-labs-direct-json-inserter-sheet", swipes: 4) {
-                if element("labs-json-load-sample").exists {
-                    element("labs-json-load-sample").tap()
-                    sleep(1)
-                    snap("f32-labs-json-sample-loaded")
-                }
-            }
+    func testF5_DefaultsAutoSyncedReadOnlyWaist() {
+        launch(tab: 4)
+        if open("app-defaults-row", snap: "h26-defaults-auto-synced-readonly-waist", swipes: 6) {
+            app.swipeUp()
+            snap("h27-defaults-hr-zones-and-maxhr-test-link")
         }
     }
 }

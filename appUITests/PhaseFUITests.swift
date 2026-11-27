@@ -31,9 +31,27 @@ final class PhaseFUITests: XCTestCase {
         XCTAssertLessThan(recHoop.frame.minX, strainHoop.frame.minX)
         XCTAssertLessThan(strainHoop.frame.minX, sleepHoop.frame.minX)
 
-        element("whoop-body-triad-card").tap()
-        XCTAssertTrue(app.navigationBars["Recovery & Sleep"].waitForExistence(timeout: 5))
-        XCTAssertTrue(element("whoop-sleep-card").exists || scrollUntilExists(element("whoop-sleep-card")))
+        element("whoop-triad-recovery").tap()
+        XCTAssertTrue(app.navigationBars["Recovery"].waitForExistence(timeout: 5))
+        XCTAssertTrue(element("whoop-recovery-31d-bars-card").exists || scrollUntilExists(element("whoop-recovery-31d-bars-card")))
+        app.navigationBars.buttons.firstMatch.tap()
+
+        XCTAssertTrue(element("whoop-triad-strain").waitForExistence(timeout: 5))
+        element("whoop-triad-strain").tap()
+        XCTAssertTrue(app.navigationBars["Strain"].waitForExistence(timeout: 5))
+        XCTAssertTrue(element("whoop-strain-zones-card").exists || scrollUntilExists(element("whoop-strain-zones-card")))
+        app.navigationBars.buttons.firstMatch.tap()
+
+        XCTAssertTrue(element("whoop-triad-sleep").waitForExistence(timeout: 5))
+        element("whoop-triad-sleep").tap()
+        XCTAssertTrue(app.navigationBars["Sleep"].waitForExistence(timeout: 5))
+        XCTAssertTrue(element("whoop-sleep-hypnogram-card").exists || scrollUntilExists(element("whoop-sleep-hypnogram-card")))
+        app.navigationBars.buttons.firstMatch.tap()
+
+        XCTAssertTrue(element("whoop-open-steps-detail").waitForExistence(timeout: 5))
+        element("whoop-open-steps-detail").tap()
+        XCTAssertTrue(app.navigationBars["Steps & Zones"].waitForExistence(timeout: 5))
+        XCTAssertTrue(element("whoop-steps-zone-calculator-card").exists || scrollUntilExists(element("whoop-steps-zone-calculator-card")))
         app.navigationBars.buttons.firstMatch.tap()
 
         XCTAssertTrue(element("whoop-open-longevity").waitForExistence(timeout: 5))
