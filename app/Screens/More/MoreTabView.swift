@@ -261,6 +261,15 @@ struct MoreTabView: View {
             .buttonStyle(.plain)
             .padding(.top, 4)
             .accessibilityIdentifier("whoop-band-row")
+            NavigationLink { AppDefaultsView() } label: {
+                MoreRow(title: "Defaults & Cutoffs", subtitle: "Default meal times, pre-sleep & caffeine cutoffs, dynamic sleep need, and manual HR zones") {
+                    Image(systemName: "chevron.right").foregroundColor(Theme.muted)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+            .accessibilityIdentifier("app-defaults-row")
         }
         .card()
     }

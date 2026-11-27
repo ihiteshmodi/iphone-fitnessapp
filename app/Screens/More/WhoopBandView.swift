@@ -27,6 +27,7 @@ struct WhoopBandView: View {
                     faultCard(warning)
                 }
                 syncProvenanceCard
+                WhoopSilentAlarmsSection()
                 liveTelemetryCard
                 substrateSummaryCard
                 whoopDatabaseCard

@@ -19,6 +19,24 @@ struct CheckInCard: View {
                 Spacer()
                 Text("skip any").font(.system(size: 11)).foregroundColor(Theme.muted)
             }
+            PreSleepTimingHoopRow(date: date)
+            Text("Pre-sleep cutoffs").font(.system(size: 12)).foregroundColor(Theme.muted)
+            HStack(spacing: 6) {
+                chip(
+                    answers.caffeineBeforeNoon == true ? "Caffeine ≤100mg pre-12 ✓" : "Caffeine ≤100mg pre-12",
+                    on: answers.caffeineBeforeNoon == true,
+                    id: "caffeine-ok"
+                ) {
+                    save { try services.checkIn.setCaffeineBeforeNoon(answers.caffeineBeforeNoon == true ? nil : true, on: date) }
+                }
+                chip(
+                    answers.noAlcoholWithin3h == true ? "No alcohol <3h ✓" : "No alcohol <3h",
+                    on: answers.noAlcoholWithin3h == true,
+                    id: "alcohol-ok"
+                ) {
+                    save { try services.checkIn.setNoAlcoholWithin3h(answers.noAlcoholWithin3h == true ? nil : true, on: date) }
+                }
+            }
             Text("Urine colour").font(.system(size: 12)).foregroundColor(Theme.muted)
             HStack(spacing: 6) {
                 ForEach(UrineColour.allCases, id: \.self) { colour in

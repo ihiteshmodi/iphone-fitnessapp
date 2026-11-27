@@ -73,7 +73,7 @@ final class DietViewModel: ObservableObject {
     }
 
     func confirmEaten(_ item: UnconfirmedMeal) {
-        perform { try self.services.dietDays.setMealEaten(true, meal: item.meal, on: item.date) }
+        perform { try self.services.dietDays.confirmRetroactiveMeal(item.meal, on: item.date, confirmedOn: self.today, ateAtOverride: nil) }
     }
 
     func confirmSkipped(_ item: UnconfirmedMeal) {

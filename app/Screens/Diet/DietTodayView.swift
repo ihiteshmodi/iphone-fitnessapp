@@ -9,7 +9,9 @@ struct DietTodayView: View {
     let onEditExtra: (DietExtra) -> Void
     let onEditPlan: () -> Void
     @EnvironmentObject private var services: Services
+    @EnvironmentObject private var session: AppSession
     @State private var selectedProfileMeal: DietMeal?
+    @State private var editingMealTime: DietMeal?
 
     var body: some View {
         VStack(spacing: 12) {
@@ -51,6 +53,14 @@ struct DietTodayView: View {
         .sheet(isPresented: Binding(get: { selectedProfileMeal != nil }, set: { if !$0 { selectedProfileMeal = nil } })) {
             if let meal = selectedProfileMeal {
                 MealProfileSheet(meal: meal, services: services)
+            }
+        }
+        .sheet(isPresented: Binding(get: { editingMealTime != nil }, set: { if !$0 { editingMealTime = nil } })) {
+            if let meal = editingMealTime {
+                MealTimePickerSheet(date: model.date, mealName: meal.name, initialHm: meal.ateAt) {
+                    model.load()
+                    session.didChange()
+                }
             }
         }
     }
@@ -205,6 +215,20 @@ struct DietTodayView: View {
                 .accessibilityValue(meal.tickState == .all ? "all" : (meal.tickState == .some ? "some" : "none"))
 
                 if meal.isRealMeal {
+                    Button {
+                        editingMealTime = meal
+                    } label: {
+                        Text("\(meal.ateAt ?? "Time") ✎")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(meal.ateAt != nil ? Theme.green : Theme.muted)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(meal.ateAt != nil ? Theme.green.opacity(0.14) : Theme.card2)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("diet-meal-time-\(meal.name)")
+
                     let glVal = meal.eatenCalories > 0 ? meal.eatenGlycemicLoad : meal.plannedGlycemicLoad
                     Button {
                         selectedProfileMeal = meal

@@ -30,6 +30,7 @@ private struct ProgressScreen: View {
                     if let loadError = model.loadError {
                         Text(loadError).font(.system(size: 13)).foregroundColor(Theme.red).card()
                     }
+                    WhoopCoachingSection()
                     toleranceRow
                     ringGrid
                     Button("+ Add a body site") { addingSite = true }
