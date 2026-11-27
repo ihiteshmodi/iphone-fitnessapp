@@ -16,6 +16,18 @@ public struct GeneRowViewModel: Equatable, Identifiable {
     public var requiresClinicalGradeAssay: Bool = false
 }
 
+public enum GeneticsQuickFilter: String, CaseIterable, Equatable, Identifiable {
+    case all = "All"
+    case worthKnowing = "Worth knowing"
+    case conditionalTriggered = "Conditional · Triggered"
+    case conditionalAll = "Conditional"
+    case logged = "Logged"
+    case notTested = "Not tested"
+    case skipDoNotBuy = "Skip / Do Not Buy"
+
+    public var id: String { rawValue }
+}
+
 public struct GeneSectionViewModel: Equatable, Identifiable {
     public let id: String
     public let title: String
@@ -30,6 +42,8 @@ public struct GeneticsScreenViewModel: Equatable {
     public let activeFindings: [Insight]
     public let reverseRecommendations: [LabReverseGeneticRecommendation]
     public let sections: [GeneSectionViewModel]
+    public var quickCounts: [GeneticsQuickFilter: Int] = [:]
+    public var totalMatched: Int = 0
 }
 
 public struct VerifierRowViewModel: Equatable, Identifiable {
@@ -82,7 +96,8 @@ public enum GeneticsPresenter {
         ("ignore", "Changes nothing")
     ]
 
-    public static func screen(catalogue: LabCatalogue, db: Database, today: ISODate) throws -> GeneticsScreenViewModel {
+    public static func screen(catalogue: LabCatalogue, db: Database, today: ISODate,
+                              search: String = "", quickFilter: GeneticsQuickFilter = .all) throws -> GeneticsScreenViewModel {
         let prefs = try LabSettings(db).load()
         let genotypes = try GeneticsService(db, catalogue: catalogue).entries()
         let entryByID = Dictionary(uniqueKeysWithValues: genotypes.map { ($0.gene.id, $0) })
@@ -97,14 +112,15 @@ public enum GeneticsPresenter {
         let reverseRecs = GeneticsModifierEvaluator.evaluateReverseTriggers(
             catalogue: catalogue, db: db, today: today, genotypes: genotypes,
             preferences: prefs, latestResults: latestResults)
+        let triggeredIDs = Set(reverseRecs.map(\.geneID))
 
-        var sections: [GeneSectionViewModel] = []
+        var rawSections: [GeneSectionViewModel] = []
         let categorizedGenes = catalogue.genes.filter { $0.actionCategory != nil }
         if !categorizedGenes.isEmpty {
             for cat in categoryOrder {
                 let matching = catalogue.genes.filter { $0.actionCategory?.rawValue == cat.id }
                 guard !matching.isEmpty else { continue }
-                sections.append(GeneSectionViewModel(
+                rawSections.append(GeneSectionViewModel(
                     id: cat.id, title: cat.title, subtitle: cat.subtitle,
                     genes: matching.map { rowVM($0, entry: entryByID[$0.id]) }))
             }
@@ -114,11 +130,30 @@ public enum GeneticsPresenter {
             for b in legacyBuckets {
                 let matching = uncategorized.filter { $0.bucket == b.id }
                 guard !matching.isEmpty else { continue }
-                sections.append(GeneSectionViewModel(
+                rawSections.append(GeneSectionViewModel(
                     id: b.id, title: b.title, subtitle: nil,
                     genes: matching.map { rowVM($0, entry: entryByID[$0.id]) }))
             }
         }
+
+        let trimmedSearch = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let searchMatchedSections: [GeneSectionViewModel] = rawSections.map { sec in
+            let rows = sec.genes.filter { matchesSearch($0, query: trimmedSearch) }
+            return GeneSectionViewModel(id: sec.id, title: sec.title, subtitle: sec.subtitle, genes: rows)
+        }
+        let allSearchMatchedRows = searchMatchedSections.flatMap(\.genes)
+
+        var quickCounts: [GeneticsQuickFilter: Int] = [:]
+        for q in GeneticsQuickFilter.allCases {
+            quickCounts[q] = allSearchMatchedRows.filter { matchesQuickFilter($0, filter: q, triggeredIDs: triggeredIDs) }.count
+        }
+
+        let filteredSections: [GeneSectionViewModel] = searchMatchedSections.compactMap { sec in
+            let rows = sec.genes.filter { matchesQuickFilter($0, filter: quickFilter, triggeredIDs: triggeredIDs) }
+            guard !rows.isEmpty else { return nil }
+            return GeneSectionViewModel(id: sec.id, title: sec.title, subtitle: sec.subtitle, genes: rows)
+        }
+        let totalMatched = filteredSections.reduce(0) { $0 + $1.genes.count }
 
         return GeneticsScreenViewModel(
             needsContextPrompt: !prefs.isContextConfirmed,
@@ -126,7 +161,40 @@ public enum GeneticsPresenter {
             preferences: prefs,
             activeFindings: findings,
             reverseRecommendations: reverseRecs,
-            sections: sections)
+            sections: filteredSections,
+            quickCounts: quickCounts,
+            totalMatched: totalMatched)
+    }
+
+    private static func matchesSearch(_ row: GeneRowViewModel, query: String) -> Bool {
+        guard !query.isEmpty else { return true }
+        if row.gene.name.localizedCaseInsensitiveContains(query) { return true }
+        if row.gene.id.localizedCaseInsensitiveContains(query) { return true }
+        if let v = row.gene.variant, v.localizedCaseInsensitiveContains(query) { return true }
+        if row.gene.symbols.contains(where: { $0.localizedCaseInsensitiveContains(query) }) { return true }
+        return false
+    }
+
+    private static func matchesQuickFilter(_ row: GeneRowViewModel, filter: GeneticsQuickFilter, triggeredIDs: Set<String>) -> Bool {
+        let isSkip = row.gene.changeNothingMandate || row.gene.actionCategory == .changeNothing
+        let isConditional = row.triageBadge == "Conditional — Test If Triggered" || triggeredIDs.contains(row.id)
+        let isWorth = row.triageBadge == "Worth Knowing Once" && !isSkip
+        switch filter {
+        case .all:
+            return true
+        case .worthKnowing:
+            return isWorth
+        case .conditionalTriggered:
+            return triggeredIDs.contains(row.id)
+        case .conditionalAll:
+            return isConditional && !isSkip
+        case .logged:
+            return row.pickedGenotype != nil
+        case .notTested:
+            return row.pickedGenotype == nil
+        case .skipDoNotBuy:
+            return isSkip
+        }
     }
 
     public static func formatContextSummary(_ prefs: LabPreferences) -> String {

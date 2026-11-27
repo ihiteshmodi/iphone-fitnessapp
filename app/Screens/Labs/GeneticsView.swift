@@ -154,6 +154,8 @@ struct GeneticsView: View {
     let services: Services
     @ObservedObject var labsModel: LabsModel
     @State private var screenVM: GeneticsScreenViewModel?
+    @State private var quickFilter: GeneticsQuickFilter = .all
+    @State private var search = ""
     @State private var editingContext = false
     @State private var errorMessage: String?
 
@@ -161,12 +163,15 @@ struct GeneticsView: View {
         List {
             if let vm = screenVM {
                 Section {
-                    contextCard(vm)
-                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-                        .listRowBackground(Color.clear)
+                    VStack(alignment: .leading, spacing: 10) {
+                        contextCard(vm)
+                        quickFilterBar(vm)
+                    }
+                    .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                    .listRowBackground(Color.clear)
                 }
 
-                if !vm.reverseRecommendations.isEmpty {
+                if (quickFilter == .all || quickFilter == .conditionalTriggered || quickFilter == .conditionalAll) && !vm.reverseRecommendations.isEmpty {
                     Section("Consider genetic test (\(vm.reverseRecommendations.count))") {
                         ForEach(vm.reverseRecommendations) { rec in
                             VStack(alignment: .leading, spacing: 5) {
@@ -203,7 +208,7 @@ struct GeneticsView: View {
                     }
                 }
 
-                if !vm.activeFindings.isEmpty {
+                if (quickFilter == .all || quickFilter == .logged) && !vm.activeFindings.isEmpty {
                     Section("Active genetic findings (\(vm.activeFindings.count))") {
                         ForEach(vm.activeFindings) { item in
                             VStack(alignment: .leading, spacing: 4) {
@@ -224,22 +229,37 @@ struct GeneticsView: View {
                     }
                 }
 
-                ForEach(vm.sections) { section in
+                if vm.sections.isEmpty {
                     Section {
-                        ForEach(section.genes) { item in
-                            NavigationLink {
-                                GeneDetailView(gene: item.gene, catalogue: catalogue, labsModel: labsModel,
-                                               service: services.genetics, initialPicked: item.pickedGenotype, changed: load)
-                            } label: {
-                                geneRow(item)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("No genes match this filter.")
+                                .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                            Button("Reset filters") {
+                                quickFilter = .all
+                                search = ""
                             }
-                            .accessibilityIdentifier("labs-gene-row-\(item.id)")
+                            .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.green)
                         }
-                    } header: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(section.title)
-                            if let sub = section.subtitle {
-                                Text(sub).font(.system(size: 11, weight: .regular)).foregroundColor(Theme.muted).textCase(nil)
+                        .padding(.vertical, 6)
+                    }
+                } else {
+                    ForEach(vm.sections) { section in
+                        Section {
+                            ForEach(section.genes) { item in
+                                NavigationLink {
+                                    GeneDetailView(gene: item.gene, catalogue: catalogue, labsModel: labsModel,
+                                                   service: services.genetics, initialPicked: item.pickedGenotype, changed: load)
+                                } label: {
+                                    geneRow(item)
+                                }
+                                .accessibilityIdentifier("labs-gene-row-\(item.id)")
+                            }
+                        } header: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(section.title) (\(section.genes.count))")
+                                if let sub = section.subtitle {
+                                    Text(sub).font(.system(size: 11, weight: .regular)).foregroundColor(Theme.muted).textCase(nil)
+                                }
                             }
                         }
                     }
@@ -259,6 +279,9 @@ struct GeneticsView: View {
         }
         .scrollContentBackground(.hidden)
         .screenBackground()
+        .searchable(text: $search, prompt: "Gene or variant")
+        .onChange(of: quickFilter) { _ in load() }
+        .onChange(of: search) { _ in load() }
         .navigationTitle("Genetics")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -345,9 +368,33 @@ struct GeneticsView: View {
         }
     }
 
-    private func shortGenotype(_ raw: String) -> String {
-        if let paren = raw.firstIndex(of: "("), paren > raw.startIndex {
-            let prefix = raw[..<paren].trimmingCharacters(in: .whitespaces)
+    private func quickFilterBar(_ vm: GeneticsScreenViewModel) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(GeneticsQuickFilter.allCases) { option in
+                    let isSelected = quickFilter == option
+                    let count = vm.quickCounts[option] ?? 0
+                    Button("\(option.rawValue) (\(count))") {
+                        quickFilter = option
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .padding(.horizontal, 11).padding(.vertical, 6)
+                    .background(isSelected ? Theme.green : Theme.card)
+                    .foregroundColor(isSelected ? Theme.onGreen : Theme.muted)
+                    .overlay(Capsule().stroke(isSelected ? .clear : Theme.line))
+                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("labs-genetics-chip-\(option.rawValue)")
+                }
+            }
+        }
+    }
+
+    private func load() {
+        do {
+            screenVM = try GeneticsPresenter.screen(
+                catalogue: catalogue, db: services.db, today: services.clock.today(),
+                search: search, quickFilter: quickFilter
             if !prefix.isEmpty && prefix.count <= 26 { return prefix }
         }
         return raw.count > 26 ? String(raw.prefix(24)) + "…" : raw

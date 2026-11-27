@@ -228,4 +228,39 @@ final class ReverseGeneticsTests: XCTestCase {
         XCTAssertTrue(apobBar.optimalLabel.contains("60"), apobBar.optimalLabel)
         XCTAssertTrue(apobBar.geneticShiftSummary?.contains("80") == true && apobBar.geneticShiftSummary?.contains("60") == true)
     }
+
+    func testGeneticsQuickFiltersAndSearchFilterByWorthKnowingConditionalTriggeredLoggedAndDoNotBuy() throws {
+        // Log MTHFR and trigger HFE via iron overload draw
+        try genetics.set("mthfr", genotype: "C677T TT", on: today)
+        let d = try draws.addDraw(LabDrawDraft(date: date("2026-11-20")))
+        try draws.addResult(drawID: d, markerID: "ferritin", value: 360, unit: "ng/mL")
+        try draws.addResult(drawID: d, markerID: "tsat", value: 50, unit: "%")
+        try draws.addResult(drawID: d, markerID: "hs-crp", value: 0.6, unit: "mg/L")
+
+        let allVM = try GeneticsPresenter.screen(catalogue: catalogue, db: db, today: today, quickFilter: .all)
+        XCTAssertEqual(allVM.quickCounts[.all], 15)
+        XCTAssertEqual(allVM.quickCounts[.logged], 1)
+        XCTAssertEqual(allVM.quickCounts[.notTested], 14)
+        XCTAssertEqual(allVM.quickCounts[.skipDoNotBuy], 6)
+        XCTAssertEqual(allVM.quickCounts[.conditionalTriggered], 1) // HFE triggered
+
+        let worthVM = try GeneticsPresenter.screen(catalogue: catalogue, db: db, today: today, quickFilter: .worthKnowing)
+        let worthIDs = Set(worthVM.sections.flatMap { $0.genes.map(\.id) })
+        XCTAssertEqual(worthIDs, ["mthfr", "hfe", "fut2", "apoe"])
+
+        let trigVM = try GeneticsPresenter.screen(catalogue: catalogue, db: db, today: today, quickFilter: .conditionalTriggered)
+        let trigIDs = trigVM.sections.flatMap { $0.genes.map(\.id) }
+        XCTAssertEqual(trigIDs, ["hfe"])
+
+        let condAllVM = try GeneticsPresenter.screen(catalogue: catalogue, db: db, today: today, quickFilter: .conditionalAll)
+        let condIDs = Set(condAllVM.sections.flatMap { $0.genes.map(\.id) })
+        XCTAssertEqual(condIDs, ["f5-f2", "g6pd", "cyp2d6-cyp2c19", "hla-dq2-dq8", "lct-mcm6", "hfe"])
+
+        let skipVM = try GeneticsPresenter.screen(catalogue: catalogue, db: db, today: today, quickFilter: .skipDoNotBuy)
+        let skipIDs = Set(skipVM.sections.flatMap { $0.genes.map(\.id) })
+        XCTAssertEqual(skipIDs, ["lpa-gene", "vdr", "actn3-ace", "gstm1-gstt1", "sod2", "salt-sensitivity"])
+
+        let searchVM = try GeneticsPresenter.screen(catalogue: catalogue, db: db, today: today, search: "Prothrombin", quickFilter: .all)
+        XCTAssertEqual(searchVM.sections.flatMap { $0.genes.map(\.id) }, ["f5-f2"])
+    }
 }

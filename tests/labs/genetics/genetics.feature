@@ -91,5 +91,10 @@ Feature: Genotypes, read the vault's way
     When LabRangeBarModel builds for Homocysteine (standard <= 8 umol/L) and ApoB (standard <= 80 mg/dL)
     Then Homocysteine shows Standard optimal <= 8 -> MTHFR target < 7 umol/L and ApoB shows Standard optimal <= 80 -> APOE e4 target <= 60 mg/dL
 
+  Scenario: Genetics quick filter chips and search filter genes by triage, trigger status, and logged status
+    Given 14 genes spanning Worth Knowing Once, Conditional (with HFE triggered by iron overload labs), and Skip / Do Not Buy, with MTHFR logged
+    When GeneticsPresenter builds with quickFilter "Worth knowing", "Conditional · Triggered", "Conditional", "Logged", "Not tested", and "Skip / Do Not Buy"
+    Then each quickFilter returns strictly the matching genes with accurate per-chip counts across all chips, and search filters by gene name or variant
+
 
 
