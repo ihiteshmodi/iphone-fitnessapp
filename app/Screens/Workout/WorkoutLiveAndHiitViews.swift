@@ -139,6 +139,7 @@ struct WorkoutWhoopLiveBar: View {
                 }
             }
             .card(padding: 12, highlighted: true)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("workout-live-session-bar")
         } else {
             HStack(spacing: 10) {
@@ -165,6 +166,7 @@ struct WorkoutWhoopLiveBar: View {
                     .accessibilityIdentifier("workout-start-session-button")
             }
             .card(padding: 11)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("workout-idle-session-bar")
         }
     }

@@ -22,6 +22,7 @@ output/*
 .uitest-results*/
 .shots/
 .shots-ui/
+.lavish/
 .ipa-work/
 .ipa-check/
 DerivedData/

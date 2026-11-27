@@ -323,6 +323,7 @@ struct WhoopRecoverySleepView: View {
             stageBar(title: "WASO (\(s.awakenings) awakening\(s.awakenings == 1 ? "" : "s"))", minutes: s.wasoMinutes, total: max(60, s.totalSleepMinutes), color: Theme.amber)
         }
         .card()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("whoop-sleep-card")
     }
 
@@ -631,6 +632,7 @@ struct WhoopLongevityView: View {
             }
         }
         .card()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("whoop-acsm-card")
     }
 

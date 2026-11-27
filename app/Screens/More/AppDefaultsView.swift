@@ -61,6 +61,7 @@ struct WhoopSilentAlarmsSection: View {
                 }
             }
             .card()
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("whoop-silent-alarms-card")
 
             VStack(alignment: .leading, spacing: 8) {
