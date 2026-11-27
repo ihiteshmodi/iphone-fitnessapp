@@ -245,7 +245,19 @@ public enum WhoopSubstrateSchema {
             offset_ts INTEGER NOT NULL,
             source TEXT NOT NULL,
             created_at INTEGER NOT NULL,
-            note TEXT
+            note TEXT,
+            stages_json TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS breathing_session (
+            started_at INTEGER PRIMARY KEY,
+            ended_at   INTEGER NOT NULL,
+            pattern    TEXT NOT NULL,
+            seconds    INTEGER NOT NULL,
+            coherence  REAL,
+            confidence REAL,
+            pre_rmssd  REAL,
+            post_rmssd REAL
         );
 
         CREATE TABLE IF NOT EXISTS sleep_nap (
@@ -303,6 +315,9 @@ public enum WhoopSubstrateSchema {
         let ovCols = Set(try db.query("PRAGMA table_info(sleep_override)").map { $0.text("name") })
         if !ovCols.contains("note") {
             try db.execute("ALTER TABLE sleep_override ADD COLUMN note TEXT")
+        }
+        if !ovCols.contains("stages_json") {
+            try db.execute("ALTER TABLE sleep_override ADD COLUMN stages_json TEXT")
         }
 
         let drCols = Set(try db.query("PRAGMA table_info(day_result)").map { $0.text("name") })

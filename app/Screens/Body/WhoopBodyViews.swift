@@ -174,6 +174,48 @@ struct WhoopBodyEntrySection: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("whoop-vitality-tile")
             }
+
+            HStack(spacing: 10) {
+                NavigationLink {
+                    WhoopBreatheAndStressView(initialDay: shownDay)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "wind.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(Theme.green)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Stress & Breathe")
+                                .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                            Text("24h Stress · Alertness · 23 Pacers")
+                                .font(.system(size: 10.5)).foregroundColor(Theme.muted).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .card(padding: 10)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("whoop-open-breathe-stress")
+
+                NavigationLink {
+                    WhoopMetricsExplorerView(initialDay: shownDay)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "chart.xyaxis.line")
+                            .font(.system(size: 20))
+                            .foregroundColor(Theme.gold)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("24-Metric Trends")
+                                .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                            Text("7d / 30d / Custom + Normal Bands")
+                                .font(.system(size: 10.5)).foregroundColor(Theme.muted).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .card(padding: 10)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("whoop-open-metrics-explorer")
+            }
         }
     }
 }
@@ -199,6 +241,7 @@ struct WhoopRecoverySleepView: View {
                     if !snap.contributors.isEmpty {
                         contributorsCard(snap)
                     }
+                    skinTempAndIllnessCard(snap)
                     sleepCard(snap)
                     napsCard(snap)
                     energyAndStrainCard(snap)
@@ -283,11 +326,68 @@ struct WhoopRecoverySleepView: View {
         .card()
     }
 
+    private func skinTempAndIllnessCard(_ snap: WhoopDashboardSnapshot) -> some View {
+        let unit = snap.temperatureUnit
+        let illness = snap.illnessDay
+        let flag = illness?.flag ?? .normal
+        let zVal = illness?.z ?? 0.0
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionLabel("Nightly Skin Temp & 21d Illness Early Warning")
+                Spacer()
+                HStack(spacing: 4) {
+                    ForEach(TemperatureUnitPreference.allCases, id: \.rawValue) { u in
+                        Button(u.label) {
+                            if var def = try? services.appDefaults.load() {
+                                def.temperatureUnit = u
+                                try? services.appDefaults.save(def)
+                                reload()
+                                session.didChange()
+                            }
+                        }
+                        .font(.system(size: 11.5, weight: unit == u ? .bold : .semibold))
+                        .foregroundColor(unit == u ? Theme.onGreen : Theme.muted)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(unit == u ? Theme.green : Theme.card2)
+                        .clipShape(Capsule())
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("whoop-temp-unit-\(u.rawValue)")
+                    }
+                }
+            }
+
+            HStack(spacing: 12) {
+                RingView(
+                    progress: flag == .elevated ? 0.35 : 0.90,
+                    size: 54,
+                    lineWidth: 5,
+                    label: String(format: "%+.1fσ", zVal),
+                    subLabel: unit.label,
+                    color: flag == .elevated ? Theme.red : Theme.green
+                )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(snap.skinTempCelsius.map { unit.format(celsius: $0) } ?? "Calibrating skin temp")
+                        .font(.system(size: 16, weight: .bold)).foregroundColor(Theme.text)
+                    Text(flag == .elevated
+                         ? "Elevated z ≥ 2.0 across ≥ 2 consecutive nights vs 21-day baseline — prioritize recovery."
+                         : "Within 21-day modified z-score baseline (alerts only when z ≥ 2.0 for ≥ 2 nights).")
+                        .font(.system(size: 11.5)).foregroundColor(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .card()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("whoop-skin-temp-illness-card")
+    }
+
     private func sleepCard(_ snap: WhoopDashboardSnapshot) -> some View {
         let s = snap.sleep
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                SectionLabel("4-stage sleep · \(s.scoredDayId)\(s.hasManualOverride ? " · manual span" : "")")
+                SectionLabel("4-stage sleep · \(s.scoredDayId)\(s.hasManualOverride ? " · manual re-staged" : "")")
                 Spacer()
                 Button("Edit span") { editingSleep = true }
                     .font(.system(size: 12.5, weight: .semibold))
@@ -313,6 +413,10 @@ struct WhoopRecoverySleepView: View {
                     Text("Tonight target bedtime: \(s.targetBedtimeHm) (\(Format.number(s.dynamicSleepNeedHours, maxDecimals: 1))h need)")
                         .font(.system(size: 12))
                         .foregroundColor(Theme.green)
+                    if let trimSec = s.bandOffsetTrimSec, trimSec > 0 {
+                        Text("Gen5 lie-in wake trim applied: −\(trimSec / 60)m morning wake tail")
+                            .font(.system(size: 11)).foregroundColor(Theme.muted)
+                    }
                 }
                 Spacer(minLength: 0)
             }
@@ -321,6 +425,16 @@ struct WhoopRecoverySleepView: View {
             stageBar(title: "REM", minutes: s.remMinutes, total: max(1, s.totalSleepMinutes), color: Theme.greenSoft)
             stageBar(title: "Light", minutes: s.lightMinutes, total: max(1, s.totalSleepMinutes), color: Theme.green)
             stageBar(title: "WASO (\(s.awakenings) awakening\(s.awakenings == 1 ? "" : "s"))", minutes: s.wasoMinutes, total: max(60, s.totalSleepMinutes), color: Theme.amber)
+
+            HStack {
+                Pill(
+                    text: s.wakeConsistency.weekendJetLagFlagged ? "Jet Lag ≥2h" : (s.wakeConsistency.withinThirtyMinTarget ? "Wake ≤30m ✓" : "Wake ±\(s.wakeConsistency.wakeStdDevMinutes)m"),
+                    tone: s.wakeConsistency.weekendJetLagFlagged ? .red : (s.wakeConsistency.withinThirtyMinTarget ? .green : .amber)
+                )
+                Text(s.wakeConsistency.summaryText)
+                    .font(.system(size: 11.5)).foregroundColor(Theme.muted)
+            }
+            .padding(.top, 2)
         }
         .card()
         .accessibilityElement(children: .contain)
@@ -382,13 +496,27 @@ struct WhoopRecoverySleepView: View {
             }
 
             ForEach(snap.effectiveNaps, id: \.startTs) { nap in
-                HStack {
-                    Text("\(hmString(nap.startTs)) – \(hmString(nap.endTs)) · \(nap.durationSec / 60) min (\(nap.source))")
-                        .font(.system(size: 13, weight: .medium)).foregroundColor(Theme.text)
-                    Spacer()
-                    Button("Edit") { editingNap = nap }
-                        .font(.system(size: 12.5, weight: .semibold)).foregroundColor(Theme.green)
+                let durMin = nap.durationSec / 60
+                let startDt = Date(timeIntervalSince1970: TimeInterval(nap.startTs))
+                let startMinOfDay = Calendar.current.component(.hour, from: startDt) * 60 + Calendar.current.component(.minute, from: startDt)
+                let sleepDeprived = Double(snap.sleep.totalSleepMinutes) / 60.0 < (snap.sleep.dynamicSleepNeedHours - 0.75)
+                let compliance = WhoopWakeAndNapComplianceEngine.evaluateNap(
+                    durationMin: durMin, startMinuteOfDay: startMinOfDay, sleepDeprived: sleepDeprived
+                )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text("\(hmString(nap.startTs)) – \(hmString(nap.endTs)) · \(durMin) min")
+                            .font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.text)
+                        Pill(text: compliance.badgeText, tone: compliance.compliant ? .green : .amber)
+                        Spacer()
+                        Button("Edit") { editingNap = nap }
+                            .font(.system(size: 12.5, weight: .semibold)).foregroundColor(Theme.green)
+                    }
+                    Text(compliance.guidanceText)
+                        .font(.system(size: 11)).foregroundColor(Theme.muted)
                 }
+                .padding(.vertical, 3)
             }
         }
         .card()
@@ -695,11 +823,29 @@ struct WhoopSleepOverrideSheet: View {
                     Button("Save") {
                         guard let whoopDb else { dismiss(); return }
                         do {
+                            let sTs = Int64(onsetDate.timeIntervalSince1970)
+                            let eTs = Int64(offsetDate.timeIntervalSince1970)
+                            let restaged: WhoopRecalculatedStages? = {
+                                guard let store = try? WhoopStore(whoopDb),
+                                      let seg = try? store.stageSleepFromSubstrate(onsetSec: sTs, offsetSec: eTs, sleepSource: "override") else {
+                                    return nil
+                                }
+                                return WhoopRecalculatedStages(
+                                    tstMin: seg.tstSec / 60,
+                                    deepMin: seg.deepSec / 60,
+                                    remMin: seg.remSec / 60,
+                                    lightMin: seg.lightSec / 60,
+                                    wasoMin: seg.wasoSec / 60,
+                                    efficiencyPct: Int(seg.efficiencyPct.rounded()),
+                                    awakenings: seg.sustainedAwakenings
+                                )
+                            }()
                             try WhoopAnalyticsStore(whoopDb).upsertSleepOverride(
                                 dayId: dayId,
-                                startTs: Int64(onsetDate.timeIntervalSince1970),
-                                endTs: Int64(offsetDate.timeIntervalSince1970),
+                                startTs: sTs,
+                                endTs: eTs,
                                 note: note.isEmpty ? nil : note,
+                                recalculatedStages: restaged,
                                 nowSec: Int64(Date().timeIntervalSince1970)
                             )
                             dismiss()

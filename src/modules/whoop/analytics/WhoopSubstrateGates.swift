@@ -181,12 +181,42 @@ public struct WhoopDatedMetric: Equatable, Sendable {
     }
 }
 
+public struct WhoopRecalculatedStages: Codable, Equatable, Sendable {
+    public let tstMin: Int
+    public let deepMin: Int
+    public let remMin: Int
+    public let lightMin: Int
+    public let wasoMin: Int
+    public let efficiencyPct: Int
+    public let awakenings: Int
+
+    public init(tstMin: Int, deepMin: Int, remMin: Int, lightMin: Int, wasoMin: Int, efficiencyPct: Int, awakenings: Int) {
+        self.tstMin = tstMin
+        self.deepMin = deepMin
+        self.remMin = remMin
+        self.lightMin = lightMin
+        self.wasoMin = wasoMin
+        self.efficiencyPct = efficiencyPct
+        self.awakenings = awakenings
+    }
+}
+
 public struct WhoopSleepOverrideRecord: Equatable, Sendable {
     public let dayId: String
     public let startTs: Int64
     public let endTs: Int64
     public let source: String
     public let note: String?
+    public let recalculatedStages: WhoopRecalculatedStages?
+
+    public init(dayId: String, startTs: Int64, endTs: Int64, source: String, note: String?, recalculatedStages: WhoopRecalculatedStages? = nil) {
+        self.dayId = dayId
+        self.startTs = startTs
+        self.endTs = endTs
+        self.source = source
+        self.note = note
+        self.recalculatedStages = recalculatedStages
+    }
 }
 
 public struct WhoopNapRecord: Equatable, Sendable {
@@ -223,27 +253,47 @@ public final class WhoopAnalyticsStore {
     // MARK: Sleep Overrides (Edit / Clear)
 
     public func sleepOverride(for dayId: String) throws -> WhoopSleepOverrideRecord? {
-        try db.query("SELECT day_id, onset_ts, offset_ts, source, note FROM sleep_override WHERE day_id = ?", [.text(dayId)]).first.map { row in
-            WhoopSleepOverrideRecord(dayId: row.text("day_id"), startTs: row.optionalInt64("onset_ts") ?? 0,
-                                     endTs: row.optionalInt64("offset_ts") ?? 0, source: row.text("source"),
-                                     note: row.optionalText("note"))
+        try db.query("SELECT day_id, onset_ts, offset_ts, source, note, stages_json FROM sleep_override WHERE day_id = ?", [.text(dayId)]).first.map { row in
+            let stages: WhoopRecalculatedStages? = row.optionalText("stages_json").flatMap { json in
+                try? JSONDecoder().decode(WhoopRecalculatedStages.self, from: Data(json.utf8))
+            }
+            return WhoopSleepOverrideRecord(
+                dayId: row.text("day_id"),
+                startTs: row.optionalInt64("onset_ts") ?? 0,
+                endTs: row.optionalInt64("offset_ts") ?? 0,
+                source: row.text("source"),
+                note: row.optionalText("note"),
+                recalculatedStages: stages
+            )
         }
     }
 
-    public func upsertSleepOverride(dayId: String, startTs: Int64, endTs: Int64, source: String = "manual", note: String? = nil, nowSec: Int64 = 0) throws {
+    public func upsertSleepOverride(
+        dayId: String,
+        startTs: Int64,
+        endTs: Int64,
+        source: String = "manual",
+        note: String? = nil,
+        recalculatedStages: WhoopRecalculatedStages? = nil,
+        nowSec: Int64 = 0
+    ) throws {
         let dur = endTs - startTs
         guard dur >= 1800 && dur <= 57_600 else {
             throw ValidationError("Sleep override must be between 30 minutes and 16 hours")
         }
+        let stagesJson: String? = recalculatedStages.flatMap { st in
+            (try? JSONEncoder().encode(st)).flatMap { String(data: $0, encoding: .utf8) }
+        }
         try db.execute("""
-            INSERT INTO sleep_override (day_id, onset_ts, offset_ts, source, created_at, note)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO sleep_override (day_id, onset_ts, offset_ts, source, created_at, note, stages_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(day_id) DO UPDATE SET
                 onset_ts = excluded.onset_ts,
                 offset_ts = excluded.offset_ts,
                 source = excluded.source,
-                note = excluded.note
-            """, [.text(dayId), .int(startTs), .int(endTs), .text(source), .int(nowSec), .optional(note)])
+                note = excluded.note,
+                stages_json = excluded.stages_json
+            """, [.text(dayId), .int(startTs), .int(endTs), .text(source), .int(nowSec), .optional(note), .optional(stagesJson)])
     }
 
     public func deleteSleepOverride(dayId: String) throws {

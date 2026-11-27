@@ -41,9 +41,11 @@ public struct WhoopSleepBreakdownViewModel: Equatable, Sendable {
     public let awakenings: Int
     public let onsetSec: Int64?
     public let offsetSec: Int64?
+    public let bandOffsetTrimSec: Int?
     public let hasManualOverride: Bool
     public let targetBedtimeHm: String
     public let dynamicSleepNeedHours: Double
+    public let wakeConsistency: WhoopWakeConsistencyReport
 }
 
 public struct WhoopLongevityViewModel: Equatable, Sendable {
@@ -80,6 +82,8 @@ public struct WhoopDashboardSnapshot: Equatable, Sendable {
     public let steps: Int
     public let totalKcal: Int?
     public let activeKcal: Int?
+    public let skinTempCelsius: Double?
+    public let temperatureUnit: TemperatureUnitPreference
     /// Strictly ordered: `["Recovery", "Strain", "Sleep"]`.
     public let triad: [WhoopTriadHoopViewModel]
     public let contributors: [WhoopContributorRowViewModel]
@@ -148,18 +152,21 @@ public enum WhoopDashboardPresenter {
             ))
             let emptyTriad = makeTriad(readiness: nil, readinessTone: .muted, rmssd: nil, rhr: nil,
                                        strain: 0, steps: 0, sleepMin: 0, effPct: 0, targetBedHm: eval.targetBedtimeHm)
+            let emptyWake = WhoopWakeAndNapComplianceEngine.evaluateWakeConsistency([])
             return WhoopDashboardSnapshot(
                 shownDay: day, scoredRecoveryDayId: day.string,
                 readinessScore: nil, readinessHeadline: "Connect WHOOP Band",
                 readinessDetail: "Pair or load your WHOOP database to view nightly HRV, RHR, 4-stage sleep, and Strain.",
                 readinessPill: "No data", readinessTone: .muted,
                 strain: 0, steps: 0, totalKcal: nil, activeKcal: nil,
+                skinTempCelsius: nil, temperatureUnit: defaults.temperatureUnit,
                 triad: emptyTriad, contributors: [],
                 sleep: WhoopSleepBreakdownViewModel(
                     scoredDayId: day.string, totalSleepMinutes: 0, deepMinutes: 0, remMinutes: 0,
                     lightMinutes: 0, wasoMinutes: 0, efficiencyPct: 0, awakenings: 0,
-                    onsetSec: nil, offsetSec: nil, hasManualOverride: false,
-                    targetBedtimeHm: eval.targetBedtimeHm, dynamicSleepNeedHours: eval.dynamicSleepNeedHours
+                    onsetSec: nil, offsetSec: nil, bandOffsetTrimSec: nil, hasManualOverride: false,
+                    targetBedtimeHm: eval.targetBedtimeHm, dynamicSleepNeedHours: eval.dynamicSleepNeedHours,
+                    wakeConsistency: emptyWake
                 ),
                 illnessDay: nil, pendingNapProposals: [], pendingWorkoutProposals: [], effectiveNaps: [],
                 longevity: WhoopLongevityViewModel(chronoAge: ageYears, waistCm: waistCm, fitnessAge: nil, vitality: nil, treadmillLogs: treadmillLogs),
@@ -267,25 +274,51 @@ public enum WhoopDashboardPresenter {
         let manualOverride = try analyticsStore.sleepOverride(for: scoredDayId)
         var onsetSec: Int64? = manualOverride?.startTs ?? curMetrics["sleep_onset_sec"].map(Int64.init)
         var offsetSec: Int64? = manualOverride?.endTs
-        if onsetSec == nil || offsetSec == nil {
-            if let winJson = try whoopDb.query("SELECT window_json FROM day_result WHERE day_id = ? ORDER BY algo_version DESC LIMIT 1", [.text(scoredDayId)]).first?.optionalText("window_json"),
-               let winObj = (try? JSONSerialization.jsonObject(with: Data(winJson.utf8))) as? [String: Any] {
-                if onsetSec == nil, let onMs = winObj["onset_ms"] as? Double { onsetSec = Int64(onMs / 1000.0) }
-                if offsetSec == nil, let offMs = winObj["offset_ms"] as? Double { offsetSec = Int64(offMs / 1000.0) }
-            }
+        var bandTrimSec: Int? = nil
+        if let winJson = try whoopDb.query("SELECT window_json FROM day_result WHERE day_id = ? ORDER BY algo_version DESC LIMIT 1", [.text(scoredDayId)]).first?.optionalText("window_json"),
+           let winObj = (try? JSONSerialization.jsonObject(with: Data(winJson.utf8))) as? [String: Any] {
+            if onsetSec == nil, let onMs = winObj["onset_ms"] as? Double { onsetSec = Int64(onMs / 1000.0) }
+            if offsetSec == nil, let offMs = winObj["offset_ms"] as? Double { offsetSec = Int64(offMs / 1000.0) }
+            if let trim = winObj["band_offset_trim_sec"] as? Int { bandTrimSec = trim }
+            else if let trimD = winObj["band_offset_trim_sec"] as? Double { bandTrimSec = Int(trimD.rounded()) }
         }
 
+        let recalc = manualOverride?.recalculatedStages
         let tstMin: Int = {
+            if let rc = recalc { return rc.tstMin }
             if let ov = manualOverride { return max(0, Int((ov.endTs - ov.startTs) / 60)) }
             return Int((curMetrics["tst_min"] ?? 0).rounded())
         }()
-        let deepMin = Int((curMetrics["deep_min"] ?? 0).rounded())
-        let remMin = Int((curMetrics["rem_min"] ?? 0).rounded())
-        let lightMin = max(0, Int((curMetrics["light_min"] ?? Double(max(0, tstMin - deepMin - remMin))).rounded()))
+        let deepMin = recalc?.deepMin ?? Int((curMetrics["deep_min"] ?? 0).rounded())
+        let remMin = recalc?.remMin ?? Int((curMetrics["rem_min"] ?? 0).rounded())
+        let lightMin = recalc?.lightMin ?? max(0, Int((curMetrics["light_min"] ?? Double(max(0, tstMin - deepMin - remMin))).rounded()))
         let effRaw = curMetrics["efficiency"] ?? 0
-        let effPct = Int((effRaw <= 1.05 && effRaw > 0 ? effRaw * 100.0 : effRaw).rounded())
-        let wasoMin = effPct > 0 ? max(0, Int((Double(tstMin) * (100.0 / Double(max(50, effPct)) - 1.0)).rounded())) : 0
-        let awakenings = Int((curMetrics["awakenings"] ?? 0).rounded())
+        let effPct = recalc?.efficiencyPct ?? Int((effRaw <= 1.05 && effRaw > 0 ? effRaw * 100.0 : effRaw).rounded())
+        let wasoMin = recalc?.wasoMin ?? (effPct > 0 ? max(0, Int((Double(tstMin) * (100.0 / Double(max(50, effPct)) - 1.0)).rounded())) : 0)
+        let awakenings = recalc?.awakenings ?? Int((curMetrics["awakenings"] ?? 0).rounded())
+
+        // 7-day wake consistency (`<= 30m` target, `>= 2h` weekend drift = jet lag)
+        var recentWakeTuples: [(isWeekend: Bool, wakeMinuteOfDay: Int)] = []
+        let wakeWinRows = try whoopDb.query(
+            "SELECT day_id, window_json FROM day_result WHERE day_id <= ? ORDER BY day_id DESC, algo_version DESC LIMIT 14",
+            [.text(scoredDayId)]
+        )
+        var seenWakeDays: Set<String> = []
+        for wr in wakeWinRows {
+            let did = wr.text("day_id")
+            guard !seenWakeDays.contains(did), seenWakeDays.count < 7 else { continue }
+            if let wj = wr.optionalText("window_json"),
+               let obj = (try? JSONSerialization.jsonObject(with: Data(wj.utf8))) as? [String: Any],
+               let offMs = obj["offset_ms"] as? Double, offMs > 0 {
+                seenWakeDays.insert(did)
+                let wakeDt = Date(timeIntervalSince1970: offMs / 1000.0)
+                let wd = calendar.component(.weekday, from: wakeDt) // 1 = Sun, 7 = Sat
+                let isWeekend = (wd == 1 || wd == 7)
+                let minOfDay = calendar.component(.hour, from: wakeDt) * 60 + calendar.component(.minute, from: wakeDt)
+                recentWakeTuples.append((isWeekend, minOfDay))
+            }
+        }
+        let wakeReport = WhoopWakeAndNapComplianceEngine.evaluateWakeConsistency(recentWakeTuples)
 
         // Meal-to-sleep & check-in flags on scoredDay
         let mealEvalDate = ISODate(scoredDayId)?.adding(days: -1) ?? day.adding(days: -1)
@@ -330,6 +363,7 @@ public enum WhoopDashboardPresenter {
             sleepDebtHours: tstMin > 0 ? max(0.0, defaults.sleepLiftingHours - Double(tstMin) / 60.0) : 0.0,
             validNapMinutesToday: validNapMin,
             targetWakeHm: defaults.targetWakeHm,
+            wakeDriftMinutes: wakeReport.weekendDriftMinutes,
             oneMileTrialMaxHr: defaults.oneMileTrialMaxHr,
             weeklyZone2Min: resolvedWeeklyZ2,
             weeklyZone4And5Min: weeklyZ45MinFromSessions,
@@ -439,10 +473,26 @@ public enum WhoopDashboardPresenter {
                 sparkline: spark("resp_rate")
             ))
         }
+        let rawTempAdc = curMetrics["skin_temp_adc"]
+        let resolvedSkinTempC: Double? = {
+            if let raw = rawTempAdc, raw > 0 {
+                let c = raw > 100.0 ? (raw / 100.0) : raw
+                if c >= 25.0 && c <= 42.5 { return c }
+            }
+            if let on = onsetSec, let off = offsetSec, off > on,
+               let meanC = try? whoopDb.query(
+                   "SELECT AVG(skin_temp_c) AS mc FROM decoded_onehz WHERE rec_ts >= ? AND rec_ts < ? AND skin_temp_c IS NOT NULL",
+                   [.int(on), .int(off)]
+               ).first?.optionalDouble("mc"), meanC >= 25.0 && meanC <= 42.5 {
+                return meanC
+            }
+            return nil
+        }()
         let tempZ = illness?.z ?? curMetrics["skin_temp_z"] ?? 0.0
+        let tempText = resolvedSkinTempC.map { "\(defaults.temperatureUnit.format(celsius: $0)) · " } ?? ""
         contributors.append(WhoopContributorRowViewModel(
-            id: "temp", title: "Skin temp",
-            subtitle: illness?.flag == .elevated ? "Elevated ≥2 nights — rest" : "Illness flag: Normal",
+            id: "temp", title: "Skin temp (\(defaults.temperatureUnit.label))",
+            subtitle: tempText + (illness?.flag == .elevated ? "Elevated ≥2 nights — rest" : "21d Illness flag: Clear"),
             ringProgress: illness?.flag == .elevated ? 0.35 : 0.88,
             ringLabel: String(format: "%+.1fσ", tempZ),
             badgeText: illness?.flag == .elevated ? "Elevated" : "Clear",
@@ -512,6 +562,8 @@ public enum WhoopDashboardPresenter {
             steps: liveSteps,
             totalKcal: totalKcal,
             activeKcal: activeKcal,
+            skinTempCelsius: resolvedSkinTempC,
+            temperatureUnit: defaults.temperatureUnit,
             triad: triad,
             contributors: contributors,
             sleep: WhoopSleepBreakdownViewModel(
@@ -525,9 +577,11 @@ public enum WhoopDashboardPresenter {
                 awakenings: awakenings,
                 onsetSec: onsetSec,
                 offsetSec: offsetSec,
+                bandOffsetTrimSec: bandTrimSec,
                 hasManualOverride: manualOverride != nil,
                 targetBedtimeHm: coachEval.targetBedtimeHm,
-                dynamicSleepNeedHours: coachEval.dynamicSleepNeedHours
+                dynamicSleepNeedHours: coachEval.dynamicSleepNeedHours,
+                wakeConsistency: wakeReport
             ),
             illnessDay: illness,
             pendingNapProposals: pendingNaps,

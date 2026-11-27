@@ -153,7 +153,40 @@ public enum WhoopSilentAlarmCommands {
     }
 }
 
+public enum TemperatureUnitPreference: String, CaseIterable, Codable, Equatable, Sendable {
+    case celsius = "C"
+    case fahrenheit = "F"
+
+    public var label: String {
+        switch self {
+        case .celsius: return "°C"
+        case .fahrenheit: return "°F"
+        }
+    }
+
+    public func convert(celsius: Double) -> Double {
+        switch self {
+        case .celsius: return celsius
+        case .fahrenheit: return celsius * 9.0 / 5.0 + 32.0
+        }
+    }
+
+    public func format(celsius: Double) -> String {
+        String(format: "%.1f %@", convert(celsius: celsius), label)
+    }
+
+    public func formatDelta(deltaCelsius: Double) -> String {
+        let scaled = self == .fahrenheit ? (deltaCelsius * 9.0 / 5.0) : deltaCelsius
+        return String(format: "%+.2f %@", scaled, label)
+    }
+}
+
 public struct AppDefaultsSnapshot: Equatable, Sendable {
+    public var userName: String
+    public var heightCm: Double
+    public var temperatureUnit: TemperatureUnitPreference
+    public var coachingModeActivatedOn: String?
+    public var stepFilterGaitOnly: Bool
     public var defaultMealTimes: [String: String]
     public var fallbackMealTimeHm: String
     public var mealToSleepWarnHours: Double
@@ -179,6 +212,11 @@ public struct AppDefaultsSnapshot: Equatable, Sendable {
     public var deloadScheduleWeeks: Int
 
     public init(
+        userName: String = "Hitesh",
+        heightCm: Double = 175.0,
+        temperatureUnit: TemperatureUnitPreference = .celsius,
+        coachingModeActivatedOn: String? = nil,
+        stepFilterGaitOnly: Bool = true,
         defaultMealTimes: [String: String] = [
             "Breakfast": "09:00",
             "Brunch": "12:30",
@@ -211,6 +249,11 @@ public struct AppDefaultsSnapshot: Equatable, Sendable {
         requireCleanFormForPR: Bool = true,
         deloadScheduleWeeks: Int = 5
     ) {
+        self.userName = userName
+        self.heightCm = max(100.0, min(250.0, heightCm))
+        self.temperatureUnit = temperatureUnit
+        self.coachingModeActivatedOn = coachingModeActivatedOn
+        self.stepFilterGaitOnly = stepFilterGaitOnly
         self.defaultMealTimes = defaultMealTimes
         self.fallbackMealTimeHm = fallbackMealTimeHm
         self.mealToSleepWarnHours = mealToSleepWarnHours
@@ -262,6 +305,11 @@ public final class AppDefaultsStore {
             .map { ($0.text("key"), $0.text("value")) })
 
         var snap = AppDefaultsSnapshot()
+        if let v = rows["app_default.user_name"], !v.isEmpty { snap.userName = v }
+        if let v = rows["app_default.height_cm"].flatMap(Double.init), v >= 100 && v <= 250 { snap.heightCm = v }
+        if let v = rows["app_default.temp_unit"].flatMap(TemperatureUnitPreference.init(rawValue:)) { snap.temperatureUnit = v }
+        if let v = rows["app_default.coaching_mode_activated_on"], !v.isEmpty { snap.coachingModeActivatedOn = v }
+        if let v = rows["app_default.step_filter_gait_only"] { snap.stepFilterGaitOnly = (v == "1") }
         for (k, v) in rows where k.hasPrefix(Self.mealPrefix) {
             let meal = String(k.dropFirst(Self.mealPrefix.count))
             if !meal.isEmpty { snap.defaultMealTimes[meal] = v }
@@ -316,6 +364,13 @@ public final class AppDefaultsStore {
 
         try db.transaction {
             try db.execute("DELETE FROM settings WHERE key LIKE 'app_default.%'")
+            try put("app_default.user_name", snap.userName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Hitesh" : snap.userName)
+            try put("app_default.height_cm", String(max(100.0, min(250.0, snap.heightCm))))
+            try put("app_default.temp_unit", snap.temperatureUnit.rawValue)
+            if let act = snap.coachingModeActivatedOn, !act.isEmpty {
+                try put("app_default.coaching_mode_activated_on", act)
+            }
+            try put("app_default.step_filter_gait_only", snap.stepFilterGaitOnly ? "1" : "0")
             for (meal, hm) in snap.defaultMealTimes {
                 let valid = try Self.validHm(hm)
                 try put("\(Self.mealPrefix)\(meal)", valid)
