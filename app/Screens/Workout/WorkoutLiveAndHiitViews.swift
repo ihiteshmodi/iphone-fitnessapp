@@ -391,9 +391,11 @@ struct WhoopHiitSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var mode: HiitTriggerMode = .hrThreshold
+    @State private var hrGoalMode: HiitHrGoalMode = .fixedRounds
     @State private var workSec: Int = 240
     @State private var restSec: Int = 180
     @State private var rounds: Int = 4
+    @State private var totalDurationMin: Int = 20
     @State private var highBpm: Int = 172
     @State private var lowBpm: Int = 130
     @State private var presets: [HiitPreset] = []
@@ -401,6 +403,25 @@ struct WhoopHiitSheet: View {
     @State private var nowSec: Int64 = Int64(Date().timeIntervalSince1970)
 
     private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    private var headerGoalPillText: String {
+        let curRound = engine?.currentRound ?? 1
+        if mode == .time || hrGoalMode == .fixedRounds {
+            return "Round \(curRound) / \(rounds)"
+        }
+        switch hrGoalMode {
+        case .fixedRounds:
+            return "Round \(curRound) / \(rounds)"
+        case .totalDuration:
+            if let eng = engine {
+                let remSec = max(0, eng.preset.totalDurationSec - Int(nowSec - eng.sessionStartedSec))
+                return String(format: "R%d · %02d:%02d left", curRound, remSec / 60, remSec % 60)
+            }
+            return "R\(curRound) · \(totalDurationMin)m total"
+        case .openUnlimited:
+            return "Round \(curRound) · ∞"
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -412,8 +433,7 @@ struct WhoopHiitSheet: View {
                             Text("Dual-Mode HIIT").font(.system(size: 20, weight: .bold)).foregroundColor(Theme.text)
                         }
                         Spacer()
-                        let curRound = engine?.currentRound ?? 1
-                        Pill(text: "Round \(curRound) / \(rounds)", tone: .green)
+                        Pill(text: headerGoalPillText, tone: .green)
                     }
 
                     modeSwitcher
@@ -458,13 +478,14 @@ struct WhoopHiitSheet: View {
             .onReceive(ticker) { d in
                 nowSec = Int64(d.timeIntervalSince1970)
                 guard var eng = engine else { return }
-                let frames: [[UInt8]]
+                var frames: [[UInt8]] = []
                 if eng.preset.mode == .time {
                     frames = eng.tick(nowSec: nowSec)
-                } else if let bpm = whoop.liveHrBpm {
-                    frames = eng.ingestHeartRate(tsSec: nowSec, bpm: bpm)
                 } else {
-                    frames = []
+                    frames.append(contentsOf: eng.checkHrDurationCap(nowSec: nowSec))
+                    if frames.isEmpty, let bpm = whoop.liveHrBpm {
+                        frames.append(contentsOf: eng.ingestHeartRate(tsSec: nowSec, bpm: bpm))
+                    }
                 }
                 for f in frames { _ = whoop.sendRawCommandFrame(f) }
                 engine = eng
@@ -507,9 +528,11 @@ struct WhoopHiitSheet: View {
                 ForEach(presets) { p in
                     Button(p.name) {
                         mode = p.mode
+                        hrGoalMode = p.hrGoalMode
                         workSec = p.workSec
                         restSec = p.restSec
                         rounds = p.rounds
+                        totalDurationMin = max(2, p.totalDurationSec / 60)
                         highBpm = p.highBpm
                         lowBpm = p.lowBpm
                     }
@@ -531,10 +554,20 @@ struct WhoopHiitSheet: View {
     }
 
     private var concentricDial: some View {
-        let outerProg = Double(engine?.currentRound ?? 1) / Double(max(1, rounds))
         let bpm = whoop.liveHrBpm ?? 0
 
         if mode == .hrThreshold {
+            let outerProg: Double = {
+                switch hrGoalMode {
+                case .fixedRounds:
+                    return Double(engine?.currentRound ?? 1) / Double(max(1, rounds))
+                case .totalDuration:
+                    guard let eng = engine else { return 0.2 }
+                    return min(1.0, max(0.05, Double(nowSec - eng.sessionStartedSec) / Double(max(60, eng.preset.totalDurationSec))))
+                case .openUnlimited:
+                    return 0.85
+                }
+            }()
             let phase = engine?.phase ?? .workOrPushUpper
             let innerProg = bpm > 0 ? Double(bpm) / Double(max(1, highBpm)) : 0.75
             let mainTxt = bpm > 0 ? "\(bpm)" : "\(highBpm)"
@@ -551,6 +584,7 @@ struct WhoopHiitSheet: View {
                     .font(.system(size: 11.5)).foregroundColor(Theme.muted).multilineTextAlignment(.center)
             }
         } else {
+            let outerProg = Double(engine?.currentRound ?? 1) / Double(max(1, rounds))
             let phase = engine?.phase ?? .workOrPushUpper
             let targetDur = phase == .workOrPushUpper ? workSec : restSec
             let elapsed = engine.map { max(0, Int(nowSec - $0.phaseStartedSec)) } ?? 0
@@ -583,6 +617,55 @@ struct WhoopHiitSheet: View {
                                 minus: { lowBpm = max(60, lowBpm - 2) },
                                 plus: { lowBpm = min(highBpm - 10, lowBpm + 2) })
                 }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    SectionLabel("HR-Threshold Goal Mode")
+                    HStack(spacing: 4) {
+                        ForEach(HiitHrGoalMode.allCases, id: \.rawValue) { gm in
+                            let on = (hrGoalMode == gm)
+                            Button(gm.shortTitle) {
+                                hrGoalMode = gm
+                                engine = nil
+                            }
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(on ? Theme.onGreen : Theme.muted)
+                            .frame(maxWidth: .infinity, minHeight: 30)
+                            .background(on ? Theme.green : Theme.card)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("hiit-hr-goal-\(gm.rawValue)")
+                        }
+                    }
+                    .padding(3)
+                    .background(Theme.card2)
+                    .overlay(RoundedRectangle(cornerRadius: 11).stroke(Theme.line))
+                    .clipShape(RoundedRectangle(cornerRadius: 11))
+                }
+
+                switch hrGoalMode {
+                case .fixedRounds:
+                    stepperCard("Rounds", "\(rounds) rounds",
+                                minus: { rounds = max(1, rounds - 1) },
+                                plus: { rounds = min(30, rounds + 1) })
+                case .totalDuration:
+                    stepperCard("Total Session Duration", "\(totalDurationMin) min",
+                                minus: { totalDurationMin = max(4, totalDurationMin - 2) },
+                                plus: { totalDurationMin = min(120, totalDurationMin + 2) })
+                case .openUnlimited:
+                    HStack {
+                        Image(systemName: "infinity.circle.fill")
+                            .foregroundColor(Theme.green)
+                        Text("Open rounds — push ≥\(highBpm) / recover ≤\(lowBpm) bpm continuously until you tap End HIIT.")
+                            .font(.system(size: 12))
+                            .foregroundColor(Theme.muted)
+                    }
+                    .padding(11)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.card2)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.line))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .accessibilityIdentifier("hiit-hr-open-banner")
+                }
             } else {
                 HStack(spacing: 10) {
                     stepperCard("Work", "\(workSec)s",
@@ -592,10 +675,10 @@ struct WhoopHiitSheet: View {
                                 minus: { restSec = max(10, restSec - 10) },
                                 plus: { restSec = min(1200, restSec + 10) })
                 }
+                stepperCard("Rounds", "\(rounds) rounds",
+                            minus: { rounds = max(1, rounds - 1) },
+                            plus: { rounds = min(30, rounds + 1) })
             }
-            stepperCard("Rounds", "\(rounds) rounds",
-                        minus: { rounds = max(1, rounds - 1) },
-                        plus: { rounds = min(30, rounds + 1) })
         }
     }
 
@@ -624,9 +707,9 @@ struct WhoopHiitSheet: View {
         var loaded = (try? services.appDefaults.hiitPresets()) ?? []
         if loaded.isEmpty {
             let defaults: [HiitPreset] = [
-                HiitPreset(id: "vo2-hr", name: "Peak 172 / Rec 130", mode: .hrThreshold, workSec: 60, restSec: 60, rounds: 4, highBpm: 172, lowBpm: 130, position: 1),
-                HiitPreset(id: "norwegian-4x4", name: "Norwegian 4×4", mode: .time, workSec: 240, restSec: 180, rounds: 4, highBpm: 178, lowBpm: 132, position: 2),
-                HiitPreset(id: "sprints-8x20", name: "Strides 8×20s", mode: .time, workSec: 20, restSec: 30, rounds: 8, highBpm: 170, lowBpm: 125, position: 3),
+                HiitPreset(id: "vo2-hr", name: "Peak 172 / Rec 130", mode: .hrThreshold, hrGoalMode: .fixedRounds, workSec: 60, restSec: 60, rounds: 4, highBpm: 172, lowBpm: 130, position: 1),
+                HiitPreset(id: "vo2-hr-20m", name: "20m HR 172/130", mode: .hrThreshold, hrGoalMode: .totalDuration, rounds: 4, totalDurationSec: 1200, highBpm: 172, lowBpm: 130, position: 2),
+                HiitPreset(id: "norwegian-4x4", name: "Norwegian 4×4", mode: .time, workSec: 240, restSec: 180, rounds: 4, highBpm: 178, lowBpm: 132, position: 3),
             ]
             for p in defaults { try? services.appDefaults.upsertHiitPreset(p) }
             loaded = defaults
@@ -635,17 +718,47 @@ struct WhoopHiitSheet: View {
     }
 
     private func saveCurrentPreset() {
-        let name = mode == .hrThreshold ? "HR \(highBpm)/\(lowBpm)" : "\(workSec)s/\(restSec)s ×\(rounds)"
-        let p = HiitPreset(id: UUID().uuidString, name: name, mode: mode, workSec: workSec, restSec: restSec,
-                           rounds: rounds, highBpm: highBpm, lowBpm: lowBpm, position: presets.count + 1)
+        let name: String
+        if mode == .hrThreshold {
+            switch hrGoalMode {
+            case .fixedRounds: name = "HR \(highBpm)/\(lowBpm) ×\(rounds)"
+            case .totalDuration: name = "HR \(highBpm)/\(lowBpm) · \(totalDurationMin)m"
+            case .openUnlimited: name = "HR \(highBpm)/\(lowBpm) ∞"
+            }
+        } else {
+            name = "\(workSec)s/\(restSec)s ×\(rounds)"
+        }
+        let p = HiitPreset(
+            id: UUID().uuidString,
+            name: name,
+            mode: mode,
+            hrGoalMode: mode == .hrThreshold ? hrGoalMode : .fixedRounds,
+            workSec: workSec,
+            restSec: restSec,
+            rounds: rounds,
+            totalDurationSec: totalDurationMin * 60,
+            highBpm: highBpm,
+            lowBpm: lowBpm,
+            position: presets.count + 1
+        )
         try? services.appDefaults.upsertHiitPreset(p)
         presets = (try? services.appDefaults.hiitPresets()) ?? presets
     }
 
     private func startEngine() {
         whoop.toggleLiveHeartRate(true)
-        let preset = HiitPreset(id: "live", name: "Live", mode: mode, workSec: workSec, restSec: restSec,
-                                rounds: rounds, highBpm: highBpm, lowBpm: lowBpm)
+        let preset = HiitPreset(
+            id: "live",
+            name: "Live",
+            mode: mode,
+            hrGoalMode: mode == .hrThreshold ? hrGoalMode : .fixedRounds,
+            workSec: workSec,
+            restSec: restSec,
+            rounds: rounds,
+            totalDurationSec: totalDurationMin * 60,
+            highBpm: highBpm,
+            lowBpm: lowBpm
+        )
         engine = DualModeHiitEngine(preset: preset, profile: whoop.activeBandProfile, startSec: Int64(Date().timeIntervalSince1970))
         updateBadge()
     }
@@ -655,7 +768,19 @@ struct WhoopHiitSheet: View {
             hiitSummaryBadge = nil
             return
         }
-        hiitSummaryBadge = "HIIT R\(eng.currentRound)/\(eng.preset.rounds)"
+        if eng.preset.mode == .hrThreshold {
+            switch eng.preset.hrGoalMode {
+            case .fixedRounds:
+                hiitSummaryBadge = "HIIT R\(eng.currentRound)/\(eng.preset.rounds)"
+            case .totalDuration:
+                let remMin = max(1, (eng.preset.totalDurationSec - Int(nowSec - eng.sessionStartedSec) + 59) / 60)
+                hiitSummaryBadge = "HIIT R\(eng.currentRound) (\(remMin)m left)"
+            case .openUnlimited:
+                hiitSummaryBadge = "HIIT R\(eng.currentRound) ∞"
+            }
+        } else {
+            hiitSummaryBadge = "HIIT R\(eng.currentRound)/\(eng.preset.rounds)"
+        }
     }
 }
 

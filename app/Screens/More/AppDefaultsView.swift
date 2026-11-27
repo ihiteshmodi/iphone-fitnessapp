@@ -270,7 +270,7 @@ struct AppDefaultsView: View {
     @State private var ageYearsInt = 30
     @State private var profileSex: LabSex = .male
     @State private var weightKgText = "75.0"
-    @State private var waistCmText = "82.0"
+    @State private var syncedWaistSummary = "Log in Body → Measurements"
     @State private var oneMileMaxHrText = ""
     @State private var breakfastHm = "09:00"
     @State private var brunchHm = "12:30"
@@ -321,10 +321,18 @@ struct AppDefaultsView: View {
                     TextField("75.0", text: $weightKgText).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
                 }
                 Stepper("Height: \(Int(snap.heightCm.rounded())) cm", value: $snap.heightCm, in: 120...230, step: 1)
-                HStack {
-                    Text("Waist (cm · Nes VO2)")
-                    Spacer()
-                    TextField("82.0", text: $waistCmText).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text("Waist (Nes VO2 · Auto-Synced)")
+                        Spacer()
+                        Text(syncedWaistSummary)
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .foregroundColor(Theme.green)
+                            .accessibilityIdentifier("defaults-auto-waist-label")
+                    }
+                    Text("Read-only from Body → Measurements (strictly site 'Waist', never 'Belly Button').")
+                        .font(.system(size: 11))
+                        .foregroundColor(Theme.muted)
                 }
                 Picker("Skin Temp Unit", selection: $snap.temperatureUnit) {
                     ForEach(TemperatureUnitPreference.allCases, id: \.rawValue) { u in
@@ -342,6 +350,14 @@ struct AppDefaultsView: View {
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                 }
+                NavigationLink {
+                    WhoopPrinciplesAndLimiterView()
+                } label: {
+                    Text("Run Live WHOOP Peak-HR Calibration Test ›")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Theme.green)
+                }
+                .accessibilityIdentifier("defaults-open-maxhr-test")
                 Stepper("Zone 2 floor: \(snap.zone2FloorBpm) bpm", value: $snap.zone2FloorBpm, in: 90...140, step: 2)
                 Stepper("Zone 2 ceiling: \(snap.zone2CeilingBpm) bpm", value: $snap.zone2CeilingBpm, in: 120...165, step: 2)
                 TextField("Manual Zone 1–5 bounds (e.g. 112,134,154,172,185)", text: $manualZonesText)
@@ -491,7 +507,16 @@ struct AppDefaultsView: View {
             weightKgText = Format.number(latestW.kg, maxDecimals: 1)
         }
         if let wc = try? WhoopLongevityEngines.latestWaistCm(from: services.db) {
-            waistCmText = Format.number(wc, maxDecimals: 1)
+            let waistDate = (try? services.db.query("""
+                SELECT measured_on FROM body_measurements
+                WHERE site = 'Waist' COLLATE NOCASE
+                ORDER BY measured_on DESC, id DESC LIMIT 1
+                """).first?.optionalText("measured_on")) ?? ""
+            syncedWaistSummary = waistDate.isEmpty
+                ? "\(Format.number(wc, maxDecimals: 1)) cm"
+                : "\(Format.number(wc, maxDecimals: 1)) cm (\(waistDate))"
+        } else {
+            syncedWaistSummary = "Not logged (Body → Measurements)"
         }
         if let s = try? services.settings.load() {
             deloadEnabled = s.deload.enabled
@@ -543,16 +568,11 @@ struct AppDefaultsView: View {
 
             try services.appDefaults.save(copy)
 
-            // Sync Profile (Sex, BirthDate, Weight, Waist) & Deload toggle
+            // Sync Profile (Sex, BirthDate, Weight) & Deload toggle — Waist is read-only from Body → Measurements
             try? services.labSettings.setSex(profileSex)
             try? services.labSettings.setBirthDate(today.adding(days: -Int((Double(ageYearsInt) * 365.25).rounded())))
             if let wKg = Format.decimal(weightKgText), wKg > 20 {
                 _ = try? services.logBody.logWeight(kg: wKg, on: today)
-            }
-            if let wCm = Format.decimal(waistCmText), wCm > 40 {
-                let unit = (try? services.db.query("SELECT unit FROM measurement_targets WHERE site = 'Waist' COLLATE NOCASE").first?.optionalText("unit")) ?? "in"
-                let rawVal = (unit == "cm") ? wCm : (wCm / 2.54)
-                _ = try? services.measurements.logReading(site: "Waist", inches: rawVal, on: today)
             }
             try? services.settings.setDeloadEnabled(deloadEnabled)
 

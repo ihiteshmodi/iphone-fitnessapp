@@ -633,8 +633,14 @@ struct WhoopLongevityView: View {
     @State private var gradePct: Double = 2.0
     @State private var durationMin: Double = 20.0
     @State private var steadyHrText = "158"
+    @State private var liveRunStartSec: Int64?
+    @State private var liveRunElapsedSec: Int = 0
+    @State private var liveRunHrTrace: [Int] = []
+    @State private var concludeSummary: LiveTreadmillConcludeSummary?
     @State private var editingLog: TreadmillVo2Log?
     @State private var errorMessage: String?
+
+    private let liveRunTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ScrollView {
@@ -663,8 +669,21 @@ struct WhoopLongevityView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .onAppear(perform: reload)
+        .onReceive(liveRunTicker) { now in
+            guard let start = liveRunStartSec else { return }
+            liveRunElapsedSec = max(1, Int(Int64(now.timeIntervalSince1970) - start))
+            if let bpm = whoop.liveHrBpm, bpm > 40 {
+                liveRunHrTrace.append(bpm)
+            }
+        }
         .sheet(item: $editingLog, onDismiss: reload) { log in
             TreadmillVo2EditSheet(log: log, service: services.treadmillVo2)
+        }
+        .sheet(item: $concludeSummary, onDismiss: {
+            reload()
+            session.didChange()
+        }) { summary in
+            LiveTreadmillConcludeSheet(summary: summary, service: services.treadmillVo2)
         }
         .errorAlert($errorMessage)
     }
@@ -777,6 +796,11 @@ struct WhoopLongevityView: View {
                             plus: { gradePct = min(20.0, gradePct + 0.5) })
             }
 
+            liveTreadmillSessionBox(rhrInt: rhrInt, maxHrInt: maxHrInt)
+
+            Divider().background(Theme.line)
+            SectionLabel("Or log completed steady run manually")
+
             HStack(spacing: 10) {
                 stepperTile("Duration", value: "\(Int(durationMin.rounded())) min",
                             minus: { durationMin = max(5.0, durationMin - 5.0) },
@@ -813,7 +837,7 @@ struct WhoopLongevityView: View {
                     errorMessage = error.localizedDescription
                 }
             }
-            .buttonStyle(PrimaryButtonStyle())
+            .buttonStyle(PrimaryButtonStyle(ghost: true))
             .accessibilityIdentifier("whoop-log-treadmill-button")
 
             ForEach(snap.longevity.treadmillLogs.prefix(5)) { log in
@@ -832,6 +856,88 @@ struct WhoopLongevityView: View {
         .card()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("whoop-acsm-card")
+    }
+
+    @ViewBuilder
+    private func liveTreadmillSessionBox(rhrInt: Int, maxHrInt: Int) -> some View {
+        if liveRunStartSec != nil {
+            let liveDistKm = speedKmh * (Double(liveRunElapsedSec) / 3600.0)
+            let curBpm = whoop.liveHrBpm ?? liveRunHrTrace.last
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    SectionLabel("Live WHOOP Treadmill VO2 Session (0x03)")
+                    Spacer()
+                    Pill(text: String(format: "%02d:%02d", liveRunElapsedSec / 60, liveRunElapsedSec % 60), tone: .green)
+                }
+                HStack(spacing: 14) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(format: "%.2f km", liveDistKm))
+                            .font(.system(size: 20, weight: .heavy)).foregroundColor(Theme.text)
+                        Text("Est belt distance (\(Format.number(speedKmh, maxDecimals: 1)) km/h)")
+                            .font(.system(size: 11)).foregroundColor(Theme.muted)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(curBpm.map { "\($0) bpm" } ?? "Streaming…")
+                            .font(.system(size: 20, weight: .heavy)).foregroundColor(Theme.green)
+                        Text("WHOOP live HR")
+                            .font(.system(size: 11)).foregroundColor(Theme.muted)
+                    }
+                }
+                if liveRunHrTrace.count >= 2 {
+                    SparklineView(values: liveRunHrTrace.suffix(30).map(Double.init), width: 260, height: 22)
+                }
+                Button("Stop & Conclude (Edit Display Distance)") {
+                    stopAndConcludeLiveRun(rhrInt: rhrInt, maxHrInt: maxHrInt)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .accessibilityIdentifier("whoop-stop-live-treadmill-button")
+            }
+            .padding(11)
+            .background(Theme.card2)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.green, lineWidth: 1.2))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("whoop-live-treadmill-active-box")
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Set your Speed & Incline above, then stream live WHOOP 0x03 HR. When you stop, you can adjust the exact Treadmill Display Distance before saving.")
+                    .font(.system(size: 11.5))
+                    .foregroundColor(Theme.muted)
+                Button("▶ Start Live Treadmill VO2 Run (0x03)") {
+                    liveRunHrTrace = []
+                    liveRunElapsedSec = 0
+                    liveRunStartSec = Int64(Date().timeIntervalSince1970)
+                    whoop.toggleLiveHeartRate(true)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .accessibilityIdentifier("whoop-start-live-treadmill-button")
+            }
+        }
+    }
+
+    private func stopAndConcludeLiveRun(rhrInt: Int, maxHrInt: Int) {
+        whoop.toggleLiveHeartRate(false)
+        let elapsedSec = max(60, liveRunElapsedSec) // min 1.0 min for clean math
+        let elapsedMin = Double(elapsedSec) / 60.0
+        let estDistKm = speedKmh * (Double(elapsedSec) / 3600.0)
+        let tailSamples = Array(liveRunHrTrace.suffix(180))
+        let fallbackSteady = Int(steadyHrText.trimmingCharacters(in: .whitespaces)) ?? 155
+        let steadyBpm: Int = tailSamples.isEmpty
+            ? fallbackSteady
+            : Int((Double(tailSamples.reduce(0, +)) / Double(tailSamples.count)).rounded())
+
+        liveRunStartSec = nil
+        concludeSummary = LiveTreadmillConcludeSummary(
+            loggedOn: initialDay,
+            presetSpeedKmh: speedKmh,
+            gradePct: gradePct,
+            durationMin: elapsedMin,
+            computedDistanceKm: estDistKm,
+            steadyHrBpm: steadyBpm,
+            restingHrBpm: rhrInt,
+            maxHrBpm: maxHrInt
+        )
     }
 
     private func stepperTile(_ label: String, value: String, minus: @escaping () -> Void, plus: @escaping () -> Void) -> some View {
@@ -1228,5 +1334,142 @@ struct OutdoorGpsVo2Card: View {
         .onChange(of: whoop.liveHrBpm) { bpm in gps.recordHr(bpm) }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("whoop-gps-vo2-card")
+    }
+}
+
+struct LiveTreadmillConcludeSummary: Identifiable {
+    let id = UUID()
+    let loggedOn: ISODate
+    let presetSpeedKmh: Double
+    let gradePct: Double
+    let durationMin: Double
+    let computedDistanceKm: Double
+    let steadyHrBpm: Int
+    let restingHrBpm: Int
+    let maxHrBpm: Int
+}
+
+struct LiveTreadmillConcludeSheet: View {
+    let summary: LiveTreadmillConcludeSummary
+    let service: AcsmTreadmillVo2Service
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var displayDistanceKmText = ""
+    @State private var durationMinText = ""
+    @State private var steadyHrText = ""
+    @State private var gradePctText = ""
+    @State private var errorMessage: String?
+
+    private var effectiveValues: (speedKmh: Double, durMin: Double, grade: Double, steadyHr: Int?) {
+        let dur = max(1.0, Format.decimal(durationMinText) ?? summary.durationMin)
+        let dist = max(0.05, Format.decimal(displayDistanceKmText) ?? summary.computedDistanceKm)
+        let speed = dist / (dur / 60.0)
+        let grade = max(0.0, Format.decimal(gradePctText) ?? summary.gradePct)
+        let hr = Int(steadyHrText.trimmingCharacters(in: .whitespaces))
+        return (speed, dur, grade, hr)
+    }
+
+    var body: some View {
+        let eff = effectiveValues
+        let preview = AcsmTreadmillVo2Service.calculate(
+            speedKmh: eff.speedKmh,
+            gradePct: eff.grade,
+            steadyHr: eff.steadyHr,
+            restingHr: summary.restingHrBpm,
+            maxHr: summary.maxHrBpm
+        )
+
+        NavigationStack {
+            Form {
+                Section("Review & Adjust Treadmill Display Distance") {
+                    HStack {
+                        Text("Treadmill Display Distance (km)")
+                        Spacer()
+                        TextField("km", text: $displayDistanceKmText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityIdentifier("whoop-treadmill-display-distance-field")
+                    }
+                    HStack {
+                        Text("Elapsed Duration (min)")
+                        Spacer()
+                        TextField("min", text: $durationMinText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    HStack {
+                        Text("Incline (%)")
+                        Spacer()
+                        TextField("%", text: $gradePctText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    HStack {
+                        Text("Steady-State WHOOP HR (bpm)")
+                        Spacer()
+                        TextField("BPM", text: $steadyHrText)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    Text("Effective belt speed: \(Format.number(eff.speedKmh, maxDecimals: 2)) km/h (preset was \(Format.number(summary.presetSpeedKmh, maxDecimals: 1)) km/h).")
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.muted)
+                }
+
+                Section("Computed ACSM %HRR VO2 Max") {
+                    HStack {
+                        Text("Estimated VO2 Max")
+                        Spacer()
+                        Text("\(Format.number(preview.estimatedVo2Max, maxDecimals: 1)) mL/kg/min")
+                            .font(.system(size: 16, weight: .heavy))
+                            .foregroundColor(Theme.green)
+                    }
+                    HStack {
+                        Text("Submax Oxygen Cost")
+                        Spacer()
+                        Text("\(Format.number(preview.vo2MlKgMin, maxDecimals: 1)) mL/kg/min")
+                            .foregroundColor(Theme.muted)
+                    }
+                }
+            }
+            .navigationTitle("Conclude Treadmill VO2")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Discard") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save Run") {
+                        do {
+                            let v = effectiveValues
+                            let dist = Format.decimal(displayDistanceKmText) ?? summary.computedDistanceKm
+                            _ = try service.addLog(TreadmillVo2Draft(
+                                loggedOn: summary.loggedOn,
+                                speedKmh: v.speedKmh,
+                                gradePct: v.grade,
+                                durationMin: v.durMin,
+                                steadyHr: v.steadyHr,
+                                restingHr: summary.restingHrBpm,
+                                maxHr: summary.maxHrBpm,
+                                notes: String(format: "Live WHOOP run · Display %.2f km", dist)
+                            ))
+                            dismiss()
+                        } catch {
+                            errorMessage = (error as? ValidationError)?.message ?? error.localizedDescription
+                        }
+                    }
+                    .accessibilityIdentifier("whoop-save-live-treadmill-button")
+                }
+            }
+            .onAppear {
+                displayDistanceKmText = String(format: "%.2f", max(0.10, summary.computedDistanceKm))
+                durationMinText = Format.number(summary.durationMin, maxDecimals: 1)
+                gradePctText = Format.number(summary.gradePct, maxDecimals: 1)
+                steadyHrText = "\(summary.steadyHrBpm)"
+            }
+            .errorAlert($errorMessage)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("whoop-live-treadmill-conclude-sheet")
     }
 }

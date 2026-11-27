@@ -35,25 +35,54 @@ public enum HiitTriggerMode: String, CaseIterable, Codable, Equatable, Sendable 
     case hrThreshold = "hr_threshold"
 }
 
+public enum HiitHrGoalMode: String, CaseIterable, Codable, Equatable, Sendable {
+    case fixedRounds = "fixed_rounds"
+    case totalDuration = "total_duration"
+    case openUnlimited = "open_unlimited"
+
+    public var shortTitle: String {
+        switch self {
+        case .fixedRounds: return "Rounds"
+        case .totalDuration: return "Duration"
+        case .openUnlimited: return "Open (∞)"
+        }
+    }
+}
+
 public struct HiitPreset: Identifiable, Codable, Equatable, Sendable {
     public var id: String
     public var name: String
     public var mode: HiitTriggerMode
+    public var hrGoalMode: HiitHrGoalMode
     public var workSec: Int
     public var restSec: Int
     public var rounds: Int
+    public var totalDurationSec: Int
     public var highBpm: Int
     public var lowBpm: Int
     public var position: Int
 
-    public init(id: String, name: String, mode: HiitTriggerMode, workSec: Int = 30, restSec: Int = 90,
-                rounds: Int = 8, highBpm: Int = 170, lowBpm: Int = 130, position: Int = 1) {
+    public init(
+        id: String,
+        name: String,
+        mode: HiitTriggerMode,
+        hrGoalMode: HiitHrGoalMode = .fixedRounds,
+        workSec: Int = 30,
+        restSec: Int = 90,
+        rounds: Int = 8,
+        totalDurationSec: Int = 1200,
+        highBpm: Int = 170,
+        lowBpm: Int = 130,
+        position: Int = 1
+    ) {
         self.id = id
         self.name = name
         self.mode = mode
+        self.hrGoalMode = hrGoalMode
         self.workSec = max(5, workSec)
         self.restSec = max(5, restSec)
         self.rounds = max(1, rounds)
+        self.totalDurationSec = max(60, totalDurationSec)
         self.highBpm = max(60, highBpm)
         self.lowBpm = max(40, lowBpm)
         self.position = position
@@ -430,13 +459,33 @@ public final class AppDefaultsStore {
 
     public func hiitPresets() throws -> [HiitPreset] {
         try db.query("SELECT * FROM hiit_presets ORDER BY position ASC, name ASC").map { row in
-            HiitPreset(
+            let rawMode = row.text("mode")
+            let mode: HiitTriggerMode
+            let goalMode: HiitHrGoalMode
+            switch rawMode {
+            case "hr_threshold_duration":
+                mode = .hrThreshold
+                goalMode = .totalDuration
+            case "hr_threshold_open":
+                mode = .hrThreshold
+                goalMode = .openUnlimited
+            case "hr_threshold":
+                mode = .hrThreshold
+                goalMode = .fixedRounds
+            default:
+                mode = .time
+                goalMode = .fixedRounds
+            }
+            let rawWork = row.int("work_sec")
+            return HiitPreset(
                 id: row.text("id"),
                 name: row.text("name"),
-                mode: HiitTriggerMode(rawValue: row.text("mode")) ?? .time,
-                workSec: row.int("work_sec"),
+                mode: mode,
+                hrGoalMode: goalMode,
+                workSec: mode == .time ? rawWork : 60,
                 restSec: row.int("rest_sec"),
                 rounds: row.int("rounds"),
+                totalDurationSec: goalMode == .totalDuration ? max(60, rawWork) : 1200,
                 highBpm: row.int("high_bpm"),
                 lowBpm: row.int("low_bpm"),
                 position: row.int("position")
@@ -449,6 +498,24 @@ public final class AppDefaultsStore {
         guard !cleanName.isEmpty else { throw ValidationError("Preset name cannot be empty") }
         guard preset.highBpm > preset.lowBpm else {
             throw ValidationError("Upper HR threshold must exceed lower recovery threshold")
+        }
+        let persistedMode: String
+        let persistedWorkSec: Int
+        if preset.mode == .time {
+            persistedMode = HiitTriggerMode.time.rawValue
+            persistedWorkSec = max(5, preset.workSec)
+        } else {
+            switch preset.hrGoalMode {
+            case .fixedRounds:
+                persistedMode = HiitTriggerMode.hrThreshold.rawValue
+                persistedWorkSec = max(5, preset.workSec)
+            case .totalDuration:
+                persistedMode = "hr_threshold_duration"
+                persistedWorkSec = max(60, preset.totalDurationSec)
+            case .openUnlimited:
+                persistedMode = "hr_threshold_open"
+                persistedWorkSec = max(5, preset.workSec)
+            }
         }
         try db.execute("""
             INSERT INTO hiit_presets (id, name, mode, work_sec, rest_sec, rounds, high_bpm, low_bpm, position)
@@ -463,8 +530,8 @@ public final class AppDefaultsStore {
                 low_bpm = excluded.low_bpm,
                 position = excluded.position
             """, [
-                .text(preset.id), .text(cleanName), .text(preset.mode.rawValue),
-                .int(Int64(max(5, preset.workSec))), .int(Int64(max(5, preset.restSec))),
+                .text(preset.id), .text(cleanName), .text(persistedMode),
+                .int(Int64(persistedWorkSec)), .int(Int64(max(5, preset.restSec))),
                 .int(Int64(max(1, preset.rounds))), .int(Int64(preset.highBpm)),
                 .int(Int64(preset.lowBpm)), .int(Int64(preset.position)),
             ])

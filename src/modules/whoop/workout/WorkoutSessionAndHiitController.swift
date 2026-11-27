@@ -391,6 +391,7 @@ public struct DualModeHiitEngine: Equatable, Sendable {
 
     public let preset: HiitPreset
     public let profile: WhoopBandProfile
+    public let sessionStartedSec: Int64
     public private(set) var phase: DualModeHiitPhase
     public private(set) var currentRound: Int
     public private(set) var phaseStartedSec: Int64
@@ -400,6 +401,7 @@ public struct DualModeHiitEngine: Equatable, Sendable {
     public init(preset: HiitPreset, profile: WhoopBandProfile = .gen5, startSec: Int64) {
         self.preset = preset
         self.profile = profile
+        self.sessionStartedSec = startSec
         self.phase = .workOrPushUpper
         self.currentRound = 1
         self.phaseStartedSec = startSec
@@ -432,9 +434,26 @@ public struct DualModeHiitEngine: Equatable, Sendable {
         }
     }
 
+    /// Checks whether an HR-Threshold `totalDuration` cap has elapsed even between BPM samples.
+    public mutating func checkHrDurationCap(nowSec: Int64) -> [[UInt8]] {
+        guard preset.mode == .hrThreshold,
+              preset.hrGoalMode == .totalDuration,
+              phase != .completed else { return [] }
+        if (nowSec - sessionStartedSec) >= Int64(preset.totalDurationSec) {
+            phase = .completed
+            return [emitBuzz(pattern: 3, loop: 3, nowSec: nowSec)]
+        }
+        return []
+    }
+
     /// HR-Threshold trigger (`mode == .hrThreshold`) with strict `10 s` hysteresis cooldown to prevent rapid-buzz chatter.
+    /// Supports `fixedRounds`, `totalDuration` (runs regardless of round count until `totalDurationSec`), and `openUnlimited` (`∞`).
     public mutating func ingestHeartRate(tsSec: Int64, bpm: Int) -> [[UInt8]] {
         guard preset.mode == .hrThreshold, phase != .completed else { return [] }
+        let durationCheck = checkHrDurationCap(nowSec: tsSec)
+        if !durationCheck.isEmpty {
+            return durationCheck
+        }
         guard WhoopSubstrateGates.plausibleHrOrZero(bpm) > 0 else { return [] }
         if let last = lastBuzzSec, (tsSec - last) < Self.hysteresisCooldownSec {
             return []
@@ -448,10 +467,18 @@ public struct DualModeHiitEngine: Equatable, Sendable {
             return [emitBuzz(pattern: 2, loop: 2, nowSec: tsSec)]
         case .restOrRecoverLower:
             guard bpm <= preset.lowBpm else { return [] }
-            if currentRound >= preset.rounds {
-                phase = .completed
-                return [emitBuzz(pattern: 3, loop: 3, nowSec: tsSec)]
-            } else {
+            switch preset.hrGoalMode {
+            case .fixedRounds:
+                if currentRound >= preset.rounds {
+                    phase = .completed
+                    return [emitBuzz(pattern: 3, loop: 3, nowSec: tsSec)]
+                } else {
+                    currentRound += 1
+                    phase = .workOrPushUpper
+                    phaseStartedSec = tsSec
+                    return [emitBuzz(pattern: 1, loop: 1, nowSec: tsSec)]
+                }
+            case .totalDuration, .openUnlimited:
                 currentRound += 1
                 phase = .workOrPushUpper
                 phaseStartedSec = tsSec

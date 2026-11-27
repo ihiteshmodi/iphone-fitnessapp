@@ -112,6 +112,30 @@ final class WhoopWorkoutAndHiitTests: XCTestCase {
         XCTAssertEqual(workDone.count, 1)
         let gen4Buzz = try XCTUnwrap(WhoopFraming.parseFrame(workDone[0], profile: .gen4))
         XCTAssertEqual(gen4Buzz.opcode, WhoopCmd.runHapticsPattern) // 0x4F
+
+        // 3) HR-Threshold Total-Duration mode (e.g. 20 min = 1200s regardless of rounds)
+        let durPreset = HiitPreset(id: "hr-dur", name: "20m HR Threshold", mode: .hrThreshold,
+                                   hrGoalMode: .totalDuration, rounds: 1, totalDurationSec: 1_200,
+                                   highBpm: 170, lowBpm: 130)
+        var durEngine = DualModeHiitEngine(preset: durPreset, profile: .gen5, startSec: 3_000)
+        _ = durEngine.ingestHeartRate(tsSec: 3_060, bpm: 172) // push -> recover
+        _ = durEngine.ingestHeartRate(tsSec: 3_120, bpm: 128) // recover -> round 2 (must NOT stop at round 1!)
+        XCTAssertEqual(durEngine.currentRound, 2)
+        XCTAssertEqual(durEngine.phase, .workOrPushUpper)
+        let capBuzz = durEngine.checkHrDurationCap(nowSec: 4_200) // 1200s elapsed -> completes!
+        XCTAssertEqual(capBuzz.count, 1)
+        XCTAssertEqual(durEngine.phase, .completed)
+
+        // 4) HR-Threshold Open (∞) mode (runs unlimited rounds until manually stopped)
+        let openPreset = HiitPreset(id: "hr-open", name: "Open HR Threshold", mode: .hrThreshold,
+                                    hrGoalMode: .openUnlimited, rounds: 1, highBpm: 170, lowBpm: 130)
+        var openEngine = DualModeHiitEngine(preset: openPreset, profile: .gen5, startSec: 5_000)
+        _ = openEngine.ingestHeartRate(tsSec: 5_030, bpm: 171)
+        _ = openEngine.ingestHeartRate(tsSec: 5_060, bpm: 125)
+        _ = openEngine.ingestHeartRate(tsSec: 5_090, bpm: 172)
+        _ = openEngine.ingestHeartRate(tsSec: 5_120, bpm: 126)
+        XCTAssertEqual(openEngine.currentRound, 3)
+        XCTAssertNotEqual(openEngine.phase, .completed)
     }
 
     func testAutoWorkoutDetectorPhase2CardiacOnsetBypassSavedOverlapAndEditableAccept() throws {

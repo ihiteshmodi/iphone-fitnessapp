@@ -7,12 +7,22 @@ struct WhoopCoachingSection: View {
     @EnvironmentObject private var services: Services
     @EnvironmentObject private var whoop: WhoopBLEManager
     @State private var snapshot: WhoopDashboardSnapshot?
+    @State private var previewMode: WhoopCoachingMode?
     @State private var blockDaysElapsed: Int = 0
     @State private var showSeasonalPrompt = false
+
+    private func displayedEvaluation(_ snap: WhoopDashboardSnapshot) -> WhoopCoachingEvaluation {
+        let target = previewMode ?? snap.coaching.evaluation.activeMode
+        return snap.coaching.evaluationsByMode[target] ?? snap.coaching.evaluation
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let snap = snapshot {
+                let activeMode = snap.coaching.evaluation.activeMode
+                let shownMode = previewMode ?? activeMode
+                let shownEval = displayedEvaluation(snap)
+
                 HStack {
                     SectionLabel("WHOOP Coaching · 4-Mode Block")
                     Spacer()
@@ -23,7 +33,7 @@ struct WhoopCoachingSection: View {
                     NavigationLink {
                         WhoopPrinciplesAndLimiterView()
                     } label: {
-                        Text("Principles ›")
+                        Text("Principles & Max HR ›")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(Theme.green)
                     }
@@ -31,28 +41,42 @@ struct WhoopCoachingSection: View {
                 }
 
                 if blockDaysElapsed >= 90 || showSeasonalPrompt {
-                    seasonalReviewBanner(snap.coaching.evaluation.activeMode)
+                    seasonalReviewBanner(activeMode)
                 }
 
-                modeBar(active: snap.coaching.evaluation.activeMode)
-                heroModeCard(snap)
+                modeBar(active: activeMode, viewing: shownMode)
+                heroModeCard(snap, activeMode: activeMode, eval: shownEval)
                 twinCoachingRings(snap)
-                modeRulesChecklistCard(snap)
+                modeRulesChecklistCard(snap, activeMode: activeMode, eval: shownEval)
 
                 if snap.coaching.ctlSeries.count >= 2 {
                     VStack(alignment: .leading, spacing: 6) {
-                        SectionLabel("CTL (fitness) vs ATL (fatigue) load trend")
+                        HStack {
+                            SectionLabel("CTL (42d fitness) vs ATL (7d fatigue) load")
+                            Spacer()
+                            Text("Drag to scrub")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(Theme.muted)
+                        }
                         let pts: [ChartPoint] = snap.coaching.ctlSeries.flatMap { p in
                             [
                                 ChartPoint(label: p.label, value: p.ctl, series: "CTL"),
                                 ChartPoint(label: p.label, value: p.atl, series: "ATL"),
                             ]
                         }
-                        TrendChart(
-                            points: pts,
-                            height: 128,
-                            seriesColors: ["CTL": Theme.green, "ATL": Theme.greenSoft]
-                        )
+                        VStack(alignment: .leading, spacing: 6) {
+                            TrendChart(
+                                points: pts,
+                                height: 128,
+                                seriesColors: ["CTL": Theme.green, "ATL": Theme.greenSoft]
+                            )
+                            let firstLbl = snap.coaching.ctlSeries.first?.label ?? ""
+                            let lastLbl = snap.coaching.ctlSeries.last?.label ?? ""
+                            Text("Live from WHOOP daily Strain (\(snap.coaching.ctlSeries.count)d: \(firstLbl) → \(lastLbl)) · TSB = CTL − ATL")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(Theme.muted)
+                                .accessibilityIdentifier("coaching-ctl-provenance-label")
+                        }
                         .card(padding: 12)
                     }
                 }
@@ -75,6 +99,17 @@ struct WhoopCoachingSection: View {
         }
     }
 
+    private func activateMode(_ mode: WhoopCoachingMode) {
+        if var def = try? services.appDefaults.load() {
+            def.whoopCoachingMode = mode
+            def.coachingModeActivatedOn = services.clock.today().string
+            try? services.appDefaults.save(def)
+            previewMode = nil
+            reload()
+            session.didChange()
+        }
+    }
+
     private func seasonalReviewBanner(_ mode: WhoopCoachingMode) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -82,7 +117,7 @@ struct WhoopCoachingSection: View {
                 Spacer()
                 Pill(text: "Day \(max(90, blockDaysElapsed))", tone: .gold)
             }
-            Text("You have completed a seasonal training block on \(mode.rawValue.replacingOccurrences(of: "_", with: " ").capitalized). Keep this focus for another 90 days or switch modes below.")
+            Text("You have completed a seasonal training block on \(mode.title). Keep this focus for another 90 days or preview and activate another mode below.")
                 .font(.system(size: 12)).foregroundColor(Theme.muted)
             HStack {
                 Button("Keep Focus for Next 90d") {
@@ -103,20 +138,24 @@ struct WhoopCoachingSection: View {
         .accessibilityIdentifier("coaching-seasonal-review-banner")
     }
 
-    private func modeRulesChecklistCard(_ snap: WhoopDashboardSnapshot) -> some View {
-        let ev = snap.coaching.evaluation
+    private func modeRulesChecklistCard(_ snap: WhoopDashboardSnapshot, activeMode: WhoopCoachingMode, eval ev: WhoopCoachingEvaluation) -> some View {
+        let isPreview = (ev.activeMode != activeMode)
         return VStack(alignment: .leading, spacing: 6) {
-            SectionLabel("Active Mode Rules & Guardrails")
+            HStack {
+                SectionLabel(isPreview ? "Previewing \(ev.activeMode.title) Rules" : "Active Mode Rules & Guardrails")
+                Spacer()
+                Pill(text: isPreview ? "Preview" : "Active ✓", tone: isPreview ? .amber : .green)
+            }
             switch ev.activeMode {
             case .generalHealth:
-                ruleLine("Zone 2 (110–140 bpm)", value: ev.zone2WeeklyMinimumMet ? "≥150m floor met → 5h/wk 3-mo horizon" : "Build ≥150m/wk → 5h/wk horizon", ok: ev.zone2WeeklyMinimumMet)
-                ruleLine("Gray-zone drift (>140 bpm)", value: "\(ev.grayZoneSessionCount) session(s)", ok: ev.grayZoneSessionCount == 0)
+                ruleLine("Zone 2 (\(ev.zone2FloorBpm)–\(ev.zone2CeilingBpm) bpm)", value: "\(snap.coaching.weeklyZone2Minutes)/150m (\(snap.coaching.weeklyZoneWindowLabel))", ok: ev.zone2WeeklyMinimumMet)
+                ruleLine("Gray-zone drift (>\(ev.zone2CeilingBpm) bpm)", value: "\(ev.grayZoneSessionCount) session(s)", ok: ev.grayZoneSessionCount == 0)
                 ruleLine("Split & +5% weekly cap", value: "80/20 · \(ev.weeklyProgressionExceeded ? ">+5% warn" : "≤+5% ✓")", ok: !ev.weeklyProgressionExceeded)
                 ruleLine("Order & 1:2 load spacing", value: ev.sameDayInterferenceWarning ? "<3h gap warn" : "Lift 1st / ≥3–6h gap · 1:2 ✓", ok: !ev.sameDayInterferenceWarning && !ev.spacingViolation)
                 ruleLine("Red Recovery Override", value: ev.keepNormalStrainOverride ? "1 Red + sleep/meal → Normal targets" : (ev.deloadTriggered ? "3+ Red / 4–6wk → Deload" : "Standby (<3 Red)"), ok: !ev.deloadTriggered)
             case .maximizingVo2Max:
                 let sp = ev.intensitySplitTarget
-                ruleLine(">85% HRmax (3×/wk)", value: ev.vo2WeeklyHighIntensityMet ? "≥50 min/wk met ✓" : "Target 50 min/wk across 3 sessions", ok: ev.vo2WeeklyHighIntensityMet)
+                ruleLine(">85% HRmax (3×/wk)", value: "\(snap.coaching.weeklyZone4And5Minutes)/50m (\(snap.coaching.weeklyZoneWindowLabel))", ok: ev.vo2WeeklyHighIntensityMet)
                 ruleLine("Aerobic ceiling", value: ev.weeklyCardioCeilingExceeded ? ">7.0 h/wk exceeded" : "≤7.0 h/wk respected ✓", ok: !ev.weeklyCardioCeilingExceeded)
                 ruleLine("10K (<180−age) limiter split", value: "\(sp.easyPct)% Z2 / \(sp.moderateOrAnaerobicPct)% Threshold / \(sp.hardOrSprintPct)% VO2", ok: true)
             case .maximizingHrv:
@@ -153,67 +192,103 @@ struct WhoopCoachingSection: View {
         }
     }
 
-    private func modeBar(active: WhoopCoachingMode) -> some View {
+    private func modeBar(active: WhoopCoachingMode, viewing: WhoopCoachingMode) -> some View {
         let items: [(String, WhoopCoachingMode)] = [
             ("Health", .generalHealth),
             ("VO2 Max", .maximizingVo2Max),
             ("Max HRV", .maximizingHrv),
             ("Reduce RHR", .reducingRhr),
         ]
-        return HStack(spacing: 2) {
-            ForEach(items, id: \.1.rawValue) { label, mode in
-                let isSelected = (active == mode)
-                Button(label) {
-                    if var def = try? services.appDefaults.load() {
-                        def.whoopCoachingMode = mode
-                        def.coachingModeActivatedOn = services.clock.today().string
-                        try? services.appDefaults.save(def)
-                        reload()
-                        session.didChange()
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 2) {
+                ForEach(items, id: \.1.rawValue) { label, mode in
+                    let isViewing = (viewing == mode)
+                    let isActive = (active == mode)
+                    let displayLabel = isActive ? "\(label) ✓" : label
+                    Button(displayLabel) {
+                        previewMode = (mode == active) ? nil : mode
                     }
+                    .font(.system(size: 11.5, weight: isViewing ? .bold : .semibold))
+                    .foregroundColor(isViewing ? Theme.onGreen : (isActive ? Theme.green : Theme.muted))
+                    .frame(maxWidth: .infinity, minHeight: 32)
+                    .background(isViewing ? Theme.green : Color.clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9)
+                            .stroke(isActive && !isViewing ? Theme.green.opacity(0.6) : Color.clear, lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("coaching-mode-\(mode.rawValue)")
                 }
-                .font(.system(size: 12, weight: isSelected ? .bold : .semibold))
-                .foregroundColor(isSelected ? Theme.onGreen : Theme.muted)
-                .frame(maxWidth: .infinity, minHeight: 32)
-                .background(isSelected ? Theme.green : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 9))
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("coaching-mode-\(mode.rawValue)")
             }
+            .padding(3)
+            .background(Theme.card)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            Text("Tap any mode above to preview its live rules · Active focus has ✓")
+                .font(.system(size: 10.5))
+                .foregroundColor(Theme.muted)
         }
-        .padding(3)
-        .background(Theme.card)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.line))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    private func heroModeCard(_ snap: WhoopDashboardSnapshot) -> some View {
-        let ev = snap.coaching.evaluation
-        let spec = modePresentation(ev: ev, steps: snap.steps)
+    private func heroModeCard(_ snap: WhoopDashboardSnapshot, activeMode: WhoopCoachingMode, eval ev: WhoopCoachingEvaluation) -> some View {
+        let spec = modePresentation(ev: ev, steps: snap.steps, z2Min: snap.coaching.weeklyZone2Minutes, z45Min: snap.coaching.weeklyZone4And5Minutes)
+        let isPreview = (ev.activeMode != activeMode)
 
-        return HStack(spacing: 14) {
-            RingView(
-                progress: spec.progress,
-                size: 84,
-                lineWidth: 8,
-                label: spec.ringLabel,
-                subLabel: spec.ringSub,
-                color: spec.color
-            )
-            VStack(alignment: .leading, spacing: 4) {
-                SectionLabel(spec.kicker)
-                Text(spec.title)
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(Theme.text)
-                    .lineLimit(2)
-                Text(spec.subtitle)
-                    .font(.system(size: 12))
-                    .foregroundColor(Theme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
+                RingView(
+                    progress: spec.progress,
+                    size: 84,
+                    lineWidth: 8,
+                    label: spec.ringLabel,
+                    subLabel: spec.ringSub,
+                    color: spec.color
+                )
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Pill(
+                            text: isPreview ? "PREVIEWING" : "ACTIVE FOCUS ✓",
+                            tone: isPreview ? .amber : .green
+                        )
+                        if isPreview {
+                            Text("Active: \(activeMode.title)")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(Theme.muted)
+                        }
+                    }
+                    SectionLabel(spec.kicker)
+                    Text(spec.title)
+                        .font(.system(size: 16.5, weight: .bold))
+                        .foregroundColor(Theme.text)
+                        .lineLimit(2)
+                    Text(spec.subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+
+            if isPreview {
+                HStack(spacing: 8) {
+                    Button("Set \(ev.activeMode.title) as Active Focus") {
+                        activateMode(ev.activeMode)
+                    }
+                    .buttonStyle(CompactButtonStyle())
+                    .accessibilityIdentifier("coaching-activate-previewed-mode")
+
+                    Button("Back to Active") {
+                        previewMode = nil
+                    }
+                    .buttonStyle(CompactButtonStyle(ghost: true))
+                    .accessibilityIdentifier("coaching-cancel-preview-button")
+                }
+            }
         }
-        .card(padding: 14)
+        .card(padding: 14, highlighted: isPreview)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("coaching-hero-card")
     }
 
@@ -263,13 +338,13 @@ struct WhoopCoachingSection: View {
         let subtitle: String
     }
 
-    private func modePresentation(ev: WhoopCoachingEvaluation, steps: Int) -> ModeSpec {
+    private func modePresentation(ev: WhoopCoachingEvaluation, steps: Int, z2Min: Int, z45Min: Int) -> ModeSpec {
         switch ev.activeMode {
         case .generalHealth:
             return ModeSpec(
-                progress: ev.zone2WeeklyMinimumMet ? 1.0 : 0.65,
-                ringLabel: "80/20",
-                ringSub: "split",
+                progress: min(1.0, max(0.08, Double(z2Min) / 150.0)),
+                ringLabel: "\(z2Min)m",
+                ringSub: "/150m Z2",
                 color: Theme.green,
                 kicker: "General Health · \(ev.zone2FloorBpm)–\(ev.zone2CeilingBpm) bpm",
                 title: ev.zone2WeeklyMinimumMet ? "150m+ Zone 2 floor met ✓" : "Build to 150m/wk Zone 2",
@@ -278,9 +353,9 @@ struct WhoopCoachingSection: View {
         case .maximizingVo2Max:
             let s = ev.intensitySplitTarget
             return ModeSpec(
-                progress: ev.vo2WeeklyHighIntensityMet ? 1.0 : 0.6,
-                ringLabel: "50m",
-                ringSub: ">85%",
+                progress: min(1.0, max(0.08, Double(z45Min) / 50.0)),
+                ringLabel: "\(z45Min)m",
+                ringSub: "/50m Z4–5",
                 color: Theme.gold,
                 kicker: "Maximizing VO2 Max · \(s.easyPct)/\(s.moderateOrAnaerobicPct)/\(s.hardOrSprintPct)",
                 title: ev.vo2WeeklyHighIntensityMet ? "50m/wk >85% HRmax met ✓" : "Aim: 50m/wk >85% HRmax",
@@ -311,12 +386,24 @@ struct WhoopCoachingSection: View {
     }
 }
 
-/// Layer 1 Non-Graded Execution Guardrails + VO2 Max 1-Mile / 10K Limiter Calibration screen.
+/// Layer 1 Non-Graded Execution Guardrails + Live WHOOP Peak-HR Calibration Test & 10K Limiter screen.
 struct WhoopPrinciplesAndLimiterView: View {
     @EnvironmentObject private var services: Services
     @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var whoop: WhoopBLEManager
     @State private var maxHr: Int = 190
     @State private var limiter: Vo2LimiterMode = .aerobicPower
+    @State private var testStartSec: Int64?
+    @State private var testElapsedSec: Int = 0
+    @State private var observedPeakBpm: Int = 0
+    @State private var recent30dPeakBpm: Int?
+    @State private var calibrationBanner: String?
+
+    private let drillTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    private var previewZones: WhoopTrainingZones {
+        WhoopReadinessAndStrainEngine.trainingZones(ageYears: 30.0, manualBounds: nil, oneMileMaxHr: maxHr)
+    }
 
     var body: some View {
         ScrollView {
@@ -324,7 +411,7 @@ struct WhoopPrinciplesAndLimiterView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionLabel("VO2 Max 1-Mile Max HR & 10K Limiter")
                     HStack {
-                        Text("1-Mile Time Trial Peak HR").font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                        Text("Calibrated Max HR").font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
                         Spacer()
                         HStack(spacing: 10) {
                             Button("−") { updateMaxHr(max(140, maxHr - 1)) }.foregroundColor(Theme.green)
@@ -334,6 +421,11 @@ struct WhoopPrinciplesAndLimiterView: View {
                         .padding(.horizontal, 10).padding(.vertical, 5)
                         .background(Theme.card2).clipShape(RoundedRectangle(cornerRadius: 10))
                     }
+
+                    let z = previewZones
+                    Text("Resulting Zones: Z1 ≥\(z.boundsBpm[0]) · Z2 ≥\(z.boundsBpm[1]) · Z3 ≥\(z.boundsBpm[2]) · Z4 ≥\(z.boundsBpm[3]) · Z5 ≥\(z.boundsBpm[4]) bpm")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundColor(Theme.green)
 
                     Picker("10K Limiter", selection: $limiter) {
                         ForEach(Vo2LimiterMode.allCases, id: \.rawValue) { m in
@@ -350,6 +442,8 @@ struct WhoopPrinciplesAndLimiterView: View {
                 }
                 .card()
 
+                livePeakHrCalibrationCard
+
                 VStack(alignment: .leading, spacing: 10) {
                     SectionLabel("Layer 1 · Static daily execution principles")
                     ForEach(WhoopCoachingEngine.layer1Principles) { item in
@@ -365,14 +459,136 @@ struct WhoopPrinciplesAndLimiterView: View {
             .padding(16)
         }
         .screenBackground()
-        .navigationTitle("Principles & Limiter")
+        .navigationTitle("Principles & Max HR")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            if let snap = try? services.appDefaults.load() {
-                maxHr = snap.oneMileTrialMaxHr ?? 190
-                limiter = snap.vo2LimiterMode
+        .onAppear(perform: loadInitial)
+        .onReceive(drillTicker) { now in
+            guard let start = testStartSec else { return }
+            testElapsedSec = max(1, Int(Int64(now.timeIntervalSince1970) - start))
+            if let bpm = whoop.liveHrBpm, bpm >= 60, bpm <= 225 {
+                if bpm > observedPeakBpm {
+                    observedPeakBpm = bpm
+                }
             }
         }
+    }
+
+    private var livePeakHrCalibrationCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                SectionLabel("Live WHOOP Peak-HR Calibration Test (0x03)")
+                Spacer()
+                if testStartSec != nil {
+                    Pill(text: String(format: "%02d:%02d", testElapsedSec / 60, testElapsedSec % 60), tone: .green)
+                } else {
+                    Pill(text: "1-Mile / Hill Sprint", tone: .gold)
+                }
+            }
+
+            Text("Warm up 10 min, then run an all-out 1-mile time trial or final 60s hill sprint while streaming WHOOP 0x03 HR to capture your true physiological Max HR.")
+                .font(.system(size: 11.5))
+                .foregroundColor(Theme.muted)
+
+            if testStartSec != nil {
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(whoop.liveHrBpm.map { "\($0) bpm" } ?? "Waiting for strap…")
+                            .font(.system(size: 20, weight: .heavy))
+                            .foregroundColor(Theme.text)
+                        Text("Live 0x03 HR")
+                            .font(.system(size: 11)).foregroundColor(Theme.muted)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(observedPeakBpm > 0 ? "\(observedPeakBpm) bpm" : "—")
+                            .font(.system(size: 20, weight: .heavy))
+                            .foregroundColor(Theme.green)
+                        Text("Observed Peak HR")
+                            .font(.system(size: 11)).foregroundColor(Theme.muted)
+                    }
+                }
+                .padding(10)
+                .background(Theme.card2)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                HStack(spacing: 8) {
+                    if observedPeakBpm >= 140 {
+                        Button("Apply \(observedPeakBpm) bpm as Max HR") {
+                            updateMaxHr(observedPeakBpm)
+                            stopDrill()
+                            calibrationBanner = "Saved \(observedPeakBpm) bpm as your calibrated Max HR ✓"
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .accessibilityIdentifier("principles-apply-peak-hr")
+                    }
+                    Button("Stop Test") {
+                        stopDrill()
+                    }
+                    .buttonStyle(PrimaryButtonStyle(ghost: true))
+                    .accessibilityIdentifier("principles-stop-maxhr-test")
+                }
+            } else {
+                Button("▶ Start Live WHOOP Peak-HR Test") {
+                    observedPeakBpm = whoop.liveHrBpm ?? 0
+                    testElapsedSec = 0
+                    testStartSec = Int64(Date().timeIntervalSince1970)
+                    whoop.toggleLiveHeartRate(true)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .accessibilityIdentifier("principles-start-maxhr-test")
+            }
+
+            if let p30 = recent30dPeakBpm, p30 >= 145 {
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("30-Day WHOOP 1 Hz Peak Observed: \(p30) bpm")
+                            .font(.system(size: 12.5, weight: .semibold)).foregroundColor(Theme.text)
+                        Text("Highest plausible 1 Hz BPM recorded in your strap history")
+                            .font(.system(size: 10.5)).foregroundColor(Theme.muted)
+                    }
+                    Spacer()
+                    Button("Use \(p30) bpm") {
+                        updateMaxHr(p30)
+                        calibrationBanner = "Applied 30-day observed peak (\(p30) bpm) ✓"
+                    }
+                    .buttonStyle(CompactButtonStyle(ghost: true))
+                    .accessibilityIdentifier("principles-use-30d-peak-button")
+                }
+                .padding(.top, 4)
+            }
+
+            if let calibrationBanner {
+                Text(calibrationBanner)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Theme.green)
+            }
+        }
+        .card()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("principles-maxhr-calibration-card")
+    }
+
+    private func loadInitial() {
+        if let snap = try? services.appDefaults.load() {
+            maxHr = snap.oneMileTrialMaxHr ?? 190
+            limiter = snap.vo2LimiterMode
+        }
+        if let db = whoop.db,
+           let maxTs = try? db.query("SELECT MAX(rec_ts) AS mt FROM decoded_onehz").first?.optionalInt64("mt"),
+           maxTs > 0 {
+            let floorTs = maxTs - 30 * 86_400
+            if let peak = try? db.query(
+                "SELECT MAX(hr) AS mh FROM decoded_onehz WHERE rec_ts >= ? AND hr BETWEEN 140 AND 220",
+                [.int(floorTs)]
+            ).first?.optionalInt("mh") {
+                recent30dPeakBpm = peak
+            }
+        }
+    }
+
+    private func stopDrill() {
+        testStartSec = nil
+        whoop.toggleLiveHeartRate(false)
     }
 
     private func updateMaxHr(_ newHr: Int) {
