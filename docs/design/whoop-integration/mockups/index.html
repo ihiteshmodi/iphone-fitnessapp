@@ -3,1858 +3,1174 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fitness iOS App — Lavish UI Placement & Interactive Mockup Studio</title>
+<title>Fitness app mockups: WHOOP 5.0, Longevity & Coaching (App-Consistent Hoop Design)</title>
+<link rel="stylesheet" href="../../fitness-app/mockups/mockup.css">
+<script src="../../fitness-app/mockups/mockup.js"></script>
 <style>
   :root {
-    --bg: #0a0c0b;
-    --surface: #0f1311;
-    --card: #141816;
-    --card-2: #1b211e;
-    --card-3: #212925;
-    --line: #232a26;
-    --line-bright: #2f3a34;
-    --text: #f2f5f3;
-    --subtext: #c5d0ca;
-    --muted: #8a9690;
-    --green: #2ee887;
-    --green-soft: rgba(46, 232, 135, 0.14);
-    --green-glow: rgba(46, 232, 135, 0.28);
-    --on-green: #04130a;
-    --amber: #f5c542;
-    --amber-soft: rgba(245, 197, 66, 0.14);
     --gold: #ffc53d;
-    --gold-soft: rgba(255, 197, 61, 0.16);
-    --red: #ff6b6b;
-    --red-soft: rgba(255, 107, 107, 0.15);
-    --blue: #56b4ff;
-    --blue-soft: rgba(86, 180, 255, 0.15);
-    --purple: #b589ff;
-    --purple-soft: rgba(181, 137, 255, 0.16);
-    --cyan: #3ce0d0;
+    --gold-soft: rgba(255, 197, 61, .15);
+    --green-soft-stroke: #8af0bd;
+    --green-deep: #2a8a5c;
   }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: radial-gradient(circle at 15% 0%, #101c16 0%, #050606 42%, #040505 100%);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Helvetica, Arial, sans-serif;
-    padding: 32px 28px 90px;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  /* Studio Header */
-  .studio-header {
-    max-width: 1440px;
-    margin: 0 auto 28px;
-    background: linear-gradient(145deg, rgba(20,24,22,0.95), rgba(13,17,15,0.92));
-    border: 1px solid var(--line-bright);
-    border-radius: 28px;
-    padding: 26px 30px;
-    box-shadow: 0 24px 60px rgba(0,0,0,0.55);
-  }
-  .eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--green);
-    background: var(--green-soft);
-    border: 1px solid rgba(46,232,135,0.3);
-    padding: 5px 12px;
-    border-radius: 999px;
-    margin-bottom: 12px;
-  }
-  .studio-header h1 {
-    font-size: 28px;
-    font-weight: 800;
-    letter-spacing: -0.6px;
-    margin-bottom: 8px;
-  }
-  .studio-header p {
-    color: var(--subtext);
-    font-size: 14.5px;
-    line-height: 1.55;
-    max-width: 980px;
-  }
-
-  /* Placement Architecture Grid */
-  .arch-grid {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(210px, 1fr));
-    gap: 12px;
-    margin-top: 20px;
-  }
-  @media (max-width: 1180px) {
-    .arch-grid { grid-template-columns: repeat(2, 1fr); }
-  }
-  .arch-card {
-    background: var(--card-2);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    padding: 14px 15px;
-    cursor: pointer;
-    transition: all 0.18s ease;
-  }
-  .arch-card:hover, .arch-card.active {
-    border-color: var(--green);
-    background: linear-gradient(160deg, rgba(46,232,135,0.11), rgba(27,33,30,0.95));
-    transform: translateY(-2px);
-  }
-  .arch-card .tab-tag {
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: 0.7px;
-    text-transform: uppercase;
-    color: var(--green);
-    margin-bottom: 4px;
-  }
-  .arch-card h3 {
+  h2 {
     font-size: 15px;
-    font-weight: 700;
-    margin-bottom: 6px;
-  }
-  .arch-card ul {
-    list-style: none;
-    font-size: 12px;
+    font-weight: 600;
+    margin: 36px 0 14px;
     color: var(--muted);
-    line-height: 1.48;
+    text-transform: uppercase;
+    letter-spacing: .8px;
   }
-  .arch-card ul li::before {
-    content: "• ";
-    color: var(--green);
-    font-weight: 700;
-  }
-
-  /* Filter Toolbar */
-  .studio-filter {
-    max-width: 1440px;
-    margin: 0 auto 28px;
+  .nav-pills {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    align-items: center;
+    margin: 14px 0 6px;
   }
-  .filter-btn {
+  .nav-pills button {
     background: var(--card);
-    color: var(--muted);
     border: 1px solid var(--line);
-    padding: 9px 16px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-  .filter-btn:hover { color: var(--text); border-color: var(--line-bright); }
-  .filter-btn.active {
-    background: var(--green);
-    color: var(--on-green);
-    border-color: var(--green);
-    font-weight: 700;
-  }
-  .hint-pill {
-    margin-left: auto;
-    font-size: 12px;
-    color: var(--gold);
-    background: var(--gold-soft);
-    padding: 7px 13px;
-    border-radius: 999px;
-    font-weight: 600;
-  }
-
-  /* Section Groups */
-  .studio-section {
-    max-width: 1440px;
-    margin: 0 auto 48px;
-  }
-  .studio-section.hidden { display: none; }
-  .sec-banner {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--line);
-    padding-bottom: 12px;
-    margin-bottom: 22px;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-  .sec-banner h2 {
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: -0.3px;
-  }
-  .sec-banner h2 span {
-    color: var(--green);
-    font-size: 13px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-right: 10px;
-  }
-  .sec-banner p {
-    font-size: 13px;
     color: var(--muted);
-  }
-
-  .phones-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 32px;
-    align-items: flex-start;
-  }
-  .phone-col {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-  .phone-caption {
-    width: 393px;
+    font-family: inherit;
     font-size: 12.5px;
-    color: var(--muted);
-    line-height: 1.45;
-    text-align: center;
-  }
-  .phone-caption b { color: var(--text); }
-
-  /* iPhone 15 Pro Max Frame */
-  .phone {
-    width: 393px;
-    height: 852px;
-    background: var(--bg);
-    border-radius: 50px;
-    border: 11px solid #1c221f;
-    box-shadow: 0 0 0 1px #2d3631, 0 28px 60px rgba(0,0,0,0.7);
-    overflow: hidden;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-  }
-  .statusbar {
-    height: 48px;
-    padding: 12px 28px 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 14px;
     font-weight: 600;
-    flex-shrink: 0;
-    position: relative;
-  }
-  .island {
-    width: 112px;
-    height: 30px;
-    background: #000;
+    padding: 7px 14px;
     border-radius: 999px;
-    position: absolute;
-    left: 50%;
-    top: 10px;
-    transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 10px;
-    font-size: 10px;
-    color: var(--green);
-  }
-  .screen {
-    flex: 1;
-    overflow-y: auto;
-    padding: 8px 16px 26px;
-    scrollbar-width: none;
-  }
-  .screen::-webkit-scrollbar { display: none; }
-
-  /* Bottom 5-Tab Bar */
-  .tabbar {
-    height: 76px;
-    background: rgba(16, 20, 18, 0.96);
-    border-top: 1px solid var(--line);
-    display: flex;
-    justify-content: space-around;
-    padding-top: 9px;
-    flex-shrink: 0;
-  }
-  .tab {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--muted);
-    width: 68px;
-  }
-  .tab.on { color: var(--green); }
-  .tab .ico {
-    font-size: 17px;
-    line-height: 20px;
-  }
-
-  /* Reusable App Components */
-  .nav-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  .back-btn {
-    color: var(--green);
-    font-size: 14px;
-    font-weight: 600;
     cursor: pointer;
   }
-  .page-title {
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
+  .nav-pills button.on {
+    background: rgba(46, 232, 135, .15);
+    color: var(--green);
+    border-color: rgba(46, 232, 135, .35);
   }
-  .page-sub {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--muted);
-    margin-bottom: 2px;
+  .sec-group.hide { display: none; }
+
+  /* 5-tab bar (Workout, Body, Diet, Progress, More) matching FitnessApp.swift */
+  .tabbar .tab { width: 62px; font-size: 10px; }
+
+  /* Highlighted card matching Theme.swift .card(highlighted: true) */
+  .card.hl {
+    background: rgba(46, 232, 135, .10);
+    border-color: rgba(46, 232, 135, .35);
   }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 20px;
-    padding: 14px;
-    margin-bottom: 11px;
+  .card.hl-amber {
+    background: rgba(245, 197, 66, .08);
+    border-color: rgba(245, 197, 66, .42);
   }
-  .card.highlight {
-    background: linear-gradient(145deg, rgba(46,232,135,0.11), rgba(20,24,22,0.96));
-    border-color: rgba(46,232,135,0.38);
-  }
-  .card.amber-hl {
-    background: linear-gradient(145deg, rgba(245,197,66,0.11), rgba(20,24,22,0.96));
-    border-color: rgba(245,197,66,0.4);
-  }
-  .card.red-hl {
-    background: linear-gradient(145deg, rgba(255,107,107,0.11), rgba(20,24,22,0.96));
-    border-color: rgba(255,107,107,0.4);
-  }
-  .sec-lbl {
-    font-size: 10.5px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.65px;
-    color: var(--muted);
-  }
-  .row-between {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-  }
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 4px 9px;
-    border-radius: 999px;
-    white-space: nowrap;
-  }
-  .pill.green { background: var(--green-soft); color: var(--green); }
-  .pill.amber { background: var(--amber-soft); color: var(--amber); }
-  .pill.gold { background: var(--gold-soft); color: var(--gold); }
-  .pill.red { background: var(--red-soft); color: var(--red); }
-  .pill.blue { background: var(--blue-soft); color: var(--blue); }
-  .pill.purple { background: var(--purple-soft); color: var(--purple); }
+  .chip.gold, .pill.gold { background: var(--gold-soft); color: var(--gold); }
+  .pill.red { background: rgba(255, 107, 107, .15); color: var(--red); }
   .pill.grey { background: var(--card-2); color: var(--muted); border: 1px solid var(--line); }
 
-  .btn-primary {
-    background: var(--green);
-    color: var(--on-green);
-    font-size: 13.5px;
-    font-weight: 700;
-    padding: 10px 14px;
-    border-radius: 13px;
-    border: none;
-    cursor: pointer;
+  /* WHOOP 3-Hoop Triad Row */
+  .hoop-triad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
     text-align: center;
+    margin-top: 10px;
   }
-  .btn-ghost {
+  .hoop-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 4px 8px;
     background: var(--card-2);
-    color: var(--green);
-    font-size: 12.5px;
-    font-weight: 700;
-    padding: 8px 12px;
-    border-radius: 12px;
-    border: 1px solid var(--line-bright);
-    cursor: pointer;
-    text-align: center;
+    border: 1px solid var(--line);
+    border-radius: 16px;
   }
-  .btn-mini {
-    font-size: 11.5px;
-    font-weight: 700;
-    padding: 5px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--line-bright);
-    background: var(--card-2);
+  .hoop-cell .hc-lbl {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .hoop-cell .hc-sub {
+    font-size: 11px;
+    font-weight: 600;
     color: var(--text);
-    cursor: pointer;
   }
-  .btn-mini.green { background: var(--green); color: var(--on-green); border-color: var(--green); }
 
-  /* Segmented Control */
-  .seg {
+  /* Filter & day capsules matching WorkoutDayScreen.swift */
+  .day-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+  }
+  .day-caps {
+    flex: 1;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .day-caps div {
+    padding: 7px 13px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .day-caps div.on {
+    background: var(--green);
+    color: #04130a;
+  }
+  .day-plus {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--green);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 18px;
+    flex: none;
+  }
+  .filter {
     display: flex;
     background: var(--card);
     border: 1px solid var(--line);
-    border-radius: 13px;
+    border-radius: 12px;
     padding: 3px;
-    margin-bottom: 11px;
-    gap: 2px;
+    margin: 2px 0 10px;
   }
+  .filter div {
+    flex: 1;
+    text-align: center;
+    padding: 7px 0;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .filter div.on { background: var(--green); color: #04130a; }
+  .filter small { font-weight: 500; opacity: .75; margin-left: 4px; }
+
+  /* Steppers & Sheets from round-3/mockups/index.html */
+  .stp { background: var(--card-2); border: 1px solid var(--line); border-radius: 16px; padding: 10px 10px 11px; }
+  .stp .lbl { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; text-align: center; }
+  .stp .ctl { display: flex; align-items: center; justify-content: space-between; margin-top: 7px; }
+  .stp .btnr {
+    width: 34px; height: 38px; border-radius: 12px;
+    background: #202824; border: 1px solid var(--line);
+    color: var(--green); font-size: 22px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .stp .val {
+    font-size: 24px; font-weight: 800; letter-spacing: -.5px;
+    text-align: center; border-bottom: 2px dotted #3a4640; padding: 0 4px 1px;
+  }
+  .stp .val small { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+  .pair { display: flex; gap: 10px; }
+  .pair > * { flex: 1; min-width: 0; }
+
+  /* CompactButtons matching CompactButtonStyle in Theme.swift */
+  .cbtn {
+    display: inline-block;
+    font-size: 12.5px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--green);
+    color: #04130a;
+    border: none;
+    cursor: pointer;
+  }
+  .cbtn.ghost {
+    background: var(--card-2);
+    color: var(--green);
+    border: 1px solid var(--line);
+  }
+
+  /* Check-in capsule chips matching CheckInCard.swift */
+  .ci-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 5px 0 9px; }
+  .ci-chip {
+    font-size: 12px; font-weight: 600;
+    padding: 6px 11px; border-radius: 999px;
+    background: var(--card-2); color: var(--muted);
+    cursor: pointer; border: none; font-family: inherit;
+  }
+  .ci-chip.on { background: var(--green); color: #04130a; }
+
+  /* Contributor hoop row */
+  .metric-hoop-row {
+    display: grid;
+    grid-template-columns: 44px 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .metric-hoop-row:last-child { border-bottom: 0; }
+
+  /* Interactive Segmented buttons */
   .seg button {
     flex: 1;
     background: transparent;
-    border: none;
-    color: var(--muted);
-    font-size: 11.5px;
-    font-weight: 700;
-    padding: 7px 4px;
+    border: 0;
+    font-family: inherit;
+    padding: 8px 0;
     border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .seg button.on {
-    background: var(--green);
-    color: var(--on-green);
-  }
-
-  /* 5-Zone Stacked Ribbon */
-  .zone-stack {
-    display: flex;
-    height: 8px;
-    border-radius: 999px;
-    overflow: hidden;
-    gap: 2px;
-    margin-top: 7px;
-  }
-  .z1 { background: #6b7c74; }
-  .z2 { background: #2ee887; }
-  .z3 { background: #56b4ff; }
-  .z4 { background: #f5c542; }
-  .z5 { background: #ff6b6b; }
-
-  /* Hypnogram Ribbon */
-  .hypno {
-    display: grid;
-    grid-template-columns: repeat(28, 1fr);
-    gap: 2px;
-    height: 46px;
-    align-items: end;
-    margin: 10px 0 6px;
-    padding: 6px;
-    background: var(--surface);
-    border-radius: 12px;
-    border: 1px solid var(--line);
-  }
-  .hypno i {
-    display: block;
-    border-radius: 3px;
-  }
-  .hypno i.w { height: 95%; background: var(--amber); }
-  .hypno i.r { height: 72%; background: var(--purple); }
-  .hypno i.l { height: 46%; background: var(--blue); }
-  .hypno i.d { height: 26%; background: #2b5cff; }
-
-  /* Contributor Bar */
-  .contrib-row {
-    display: grid;
-    grid-template-columns: 88px 1fr 68px;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
     font-size: 12.5px;
-  }
-  .contrib-row:last-child { border-bottom: none; }
-  .track {
-    height: 7px;
-    background: var(--card-2);
-    border-radius: 999px;
-    overflow: hidden;
-    position: relative;
-  }
-  .track i {
-    display: block;
-    height: 100%;
-    border-radius: 999px;
-  }
-
-  /* Toggle Switch */
-  .ios-switch {
-    width: 44px;
-    height: 26px;
-    border-radius: 999px;
-    background: #2b3430;
-    position: relative;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background 0.15s;
-  }
-  .ios-switch::after {
-    content: "";
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #fff;
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    transition: left 0.15s;
-  }
-  .ios-switch.on { background: var(--green); }
-  .ios-switch.on::after { left: 21px; }
-
-  /* Bottom Sheet Overlay inside Phone */
-  .sheet-backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.62);
-    backdrop-filter: blur(3px);
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    z-index: 20;
-  }
-  .sheet-backdrop.hidden { display: none; }
-  .bottom-sheet {
-    background: #111614;
-    border-top: 1px solid var(--line-bright);
-    border-radius: 28px 28px 0 0;
-    padding: 12px 18px 28px;
-    max-height: 78%;
-    overflow-y: auto;
-  }
-  .grabber {
-    width: 38px;
-    height: 5px;
-    border-radius: 99px;
-    background: #333e38;
-    margin: 0 auto 12px;
-  }
-  .field-box {
-    background: var(--card-2);
-    border: 1px solid var(--line);
-    border-radius: 13px;
-    padding: 9px 12px;
-    margin-top: 8px;
-  }
-  .field-box label {
-    display: block;
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-weight: 600;
     color: var(--muted);
-    margin-bottom: 3px;
+    cursor: pointer;
   }
-  .field-box .val {
-    font-size: 14.5px;
-    font-weight: 700;
-    color: var(--text);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .kv-list .kv {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 13px;
-  }
-  .kv-list .kv:last-child { border-bottom: none; }
-  .pulse-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--green);
-    box-shadow: 0 0 10px var(--green);
-    display: inline-block;
+  .seg button.on { background: var(--green); color: #04130a; font-weight: 700; }
+
+  /* Meal checkbox matching DietTodayView */
+  .mchk {
+    width: 20px; height: 20px; border-radius: 6px;
+    background: var(--green); color: #04130a;
+    display: inline-grid; place-items: center;
+    font-size: 12px; font-weight: 800; flex: none;
   }
 </style>
 </head>
 <body>
 
-<div class="studio-header">
-  <div class="eyebrow">✦ Zero-Clutter Information Architecture · 5 Tabs Preserved</div>
-  <h1>Fitness iOS App — Complete UI Placement & Interactive Mockup Studio</h1>
-  <p>
-    iOS collapses 6+ tabs into an ugly system overflow menu, so we keep your clean <b>5-tab spine</b>
-    (<b>Workout · Body · Diet · Progress · More</b>) and place every new WHOOP, Longevity, Coaching, HIIT, and Editability feature
-    at the exact point of intent using <b>compact summary hubs + focused drill-down screens & sheets</b>.
-    Click any card below to filter by tab, or interact directly with the buttons, mode switchers, and sheets inside the iPhones.
-  </p>
+<h1>Fitness app: WHOOP 5.0, Longevity &amp; Coaching screens</h1>
+<div class="sub">Exact app design language (<code>Theme.swift</code> + <code>Components.swift</code>): circular <code>RingView</code> hoops, concentric dials, <code>SparklineView</code>s, <code>TrendChart</code>s, and <code>.stp</code> steppers. Scroll inside any phone or click the controls.</div>
 
-  <div class="arch-grid">
-    <div class="arch-card" onclick="filterSection('sec-workout', this)">
-      <div class="tab-tag">Tab 1 · Workout</div>
-      <h3>Live HR, HIIT & Proposals</h3>
-      <ul>
-        <li>Compact Live HR & Zone top strip</li>
-        <li>Non-blocking Dual-Mode HIIT sheet</li>
-        <li>Auto-Workout proposal review banner</li>
-        <li>Per-exercise BPM/Zone bar + Trim End</li>
-      </ul>
-    </div>
-    <div class="arch-card" onclick="filterSection('sec-body', this)">
-      <div class="tab-tag">Tab 2 · Body</div>
-      <h3>Recovery, Sleep & Longevity</h3>
-      <ul>
-        <li>Compact Recovery/Sleep/Steps Hub card</li>
-        <li>Drill-down: HRV, RHR, Temp Illness, Naps</li>
-        <li>VO2 Max, Fitness Age, Vitality & ACSM</li>
-        <li>Marker target override & Custom Genes</li>
-      </ul>
-    </div>
-    <div class="arch-card" onclick="filterSection('sec-diet', this)">
-      <div class="tab-tag">Tab 3 · Diet</div>
-      <h3>Meal Timing & Cutoffs</h3>
-      <ul>
-        <li>Tappable <code>ate_at</code> pill on every meal</li>
-        <li>Retroactive meal default-time guard</li>
-        <li>Last-Meal-to-Sleep gap + Late Carbs</li>
-        <li>Noon Caffeine & 3h Alcohol pills</li>
-      </ul>
-    </div>
-    <div class="arch-card" onclick="filterSection('sec-progress', this)">
-      <div class="tab-tag">Tab 4 · Progress</div>
-      <h3>3-Layer Coaching Modes</h3>
-      <ul>
-        <li>4-Mode Switcher (Health/VO2/HRV/RHR)</li>
-        <li>Layer 1 Static Principles drawer</li>
-        <li>Zone 2, 80/20, CTL/ATL & 3h Strength</li>
-        <li>4-Day HRV Rebound & Step-Scaled Cardio</li>
-      </ul>
-    </div>
-    <div class="arch-card" onclick="filterSection('sec-more', this)">
-      <div class="tab-tag">Tab 5 · More</div>
-      <h3>Alarms & AppDefaultsStore</h3>
-      <ul>
-        <li>7-Day Silent Haptic Alarms (<code>0x42</code>)</li>
-        <li>RTC drift compensation + Smart Wake</li>
-        <li><code>stepTicksPerStep</code> Gen5 divisor</li>
-        <li>Unified Defaults, Cutoffs & HR Zones</li>
-      </ul>
-    </div>
-  </div>
+<div class="nav-pills">
+  <button class="on" onclick="filterSec('all', this)">All 11 Screens</button>
+  <button onclick="filterSec('g-body', this)">1. Body: 3-Hoop Hub, Recovery &amp; Longevity (3)</button>
+  <button onclick="filterSec('g-workout', this)">2. Workout: Live Hoop, Concentric HIIT &amp; Trim Sheet (3)</button>
+  <button onclick="filterSec('g-diet', this)">3. Diet: Meal Time Pills &amp; Sleep-Gap Ring (1)</button>
+  <button onclick="filterSec('g-progress', this)">4. Progress: 4 Coaching Modes &amp; Rings (2)</button>
+  <button onclick="filterSec('g-more', this)">5. More: 7-Day Alarms &amp; Defaults (2)</button>
 </div>
 
-<div class="studio-filter">
-  <button class="filter-btn active" onclick="filterSection('all', this)">Show All 11 Screens</button>
-  <button class="filter-btn" onclick="filterSection('sec-workout', this)">1. Workout & HIIT (3)</button>
-  <button class="filter-btn" onclick="filterSection('sec-body', this)">2. Body, Recovery & Longevity (3)</button>
-  <button class="filter-btn" onclick="filterSection('sec-diet', this)">3. Diet & Sleep Cutoffs (1)</button>
-  <button class="filter-btn" onclick="filterSection('sec-progress', this)">4. Progress & 4 Coaching Modes (2)</button>
-  <button class="filter-btn" onclick="filterSection('sec-more', this)">5. More, Alarms & Defaults (2)</button>
-  <div class="hint-pill">💡 Interactive: Click mode tabs, meal times, HIIT & edit buttons inside phones!</div>
-</div>
+<!-- ======================================================================= -->
+<!-- 1. BODY TAB: 3-HOOP HUB, RECOVERY DRILL-DOWN & LONGEVITY DRILL-DOWN -->
+<!-- ======================================================================= -->
+<div class="sec-group" id="g-body">
+  <h2>1. Body tab: WHOOP 3-Hoop Hub, Recovery &amp; Sleep drill-down, and Weekly Longevity</h2>
+  <div class="row">
 
-<!-- ===================================================================== -->
-<!-- SECTION 1: WORKOUT TAB -->
-<!-- ===================================================================== -->
-<div class="studio-section" id="sec-workout">
-  <div class="sec-banner">
-    <h2><span>Tab 1 · Workout</span> Live HR Session Bar, Per-Exercise Zones, Dual-Mode HIIT & Trim-End Editor</h2>
-    <p>Zero screen clutter: 1 compact live strip at the top, 1-line auto-workout banner only when needed, and inline exercise BPM pills.</p>
-  </div>
-
-  <div class="phones-row">
-    <!-- PHONE 1A: Workout Day Screen with Live HR Strip + Auto-Workout Proposal + Per-Exercise HR -->
-    <div class="phone-col">
+    <!-- PHONE B1: BODY TAB ROOT -->
+    <div class="col">
       <div class="phone">
-        <div class="statusbar">
-          <span>9:41</span>
-          <div class="island"><span>♥ 138</span><span>Z2</span></div>
-          <span>84% 🔋</span>
-        </div>
-        <div class="screen">
-          <div class="nav-row">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="content">
+          <div class="title"><small>Friday, 27 Nov</small>Body</div>
+
+          <!-- NEW: Signature WHOOP 3-Hoop Biometrics Card -->
+          <div class="card section">
+            <div class="head">
+              <div class="label">WHOOP 5.0 · Locked 07:05</div>
+              <div class="link" style="font-size:13px">Recovery &amp; sleep ›</div>
+            </div>
+            <div class="hoop-triad">
+              <div class="hoop-cell">
+                <div data-ring="0.82" data-size="78" data-stroke="7.5" data-label="82%" data-sub="ready"></div>
+                <div class="hc-lbl">Recovery</div>
+                <div class="hc-sub">64 ms · 48 bpm</div>
+              </div>
+              <div class="hoop-cell">
+                <div data-ring="0.96" data-size="78" data-stroke="7.5" data-label="7h42" data-sub="92% eff" data-color="#8af0bd"></div>
+                <div class="hc-lbl">Sleep</div>
+                <div class="hc-sub">Bed 23:00</div>
+              </div>
+              <div class="hoop-cell">
+                <div data-ring="0.59" data-size="78" data-stroke="7.5" data-label="12.4" data-sub="of 21" data-color="#ffc53d"></div>
+                <div class="hc-lbl">Strain</div>
+                <div class="hc-sub">8,420 steps</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- NEW: Twin Ring Grid for Longevity (matches ProgressRingCard 46px rings!) -->
+          <div class="head section" style="margin-bottom:6px">
+            <div class="label">Weekly longevity · 6 of 7 RHR days</div>
+            <div class="link" style="font-size:13px">VO2 &amp; treadmill ›</div>
+          </div>
+          <div class="grid">
+            <div class="card m">
+              <div data-ring="0.86" data-size="48" data-stroke="5" data-label="25"></div>
+              <div>
+                <div class="t">Fitness Age</div>
+                <div class="s">VO2 52.4 · PAI 6.8</div>
+                <div class="s" style="color:var(--green)">5.0 yr younger</div>
+              </div>
+            </div>
+            <div class="card m">
+              <div data-ring="0.74" data-size="48" data-stroke="5" data-label="74"></div>
+              <div>
+                <div class="t">Vitality</div>
+                <div class="s">Body Age 26.2</div>
+                <div class="s" style="color:var(--green)">3.8 yr younger</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- EXISTING: Calorie Ring Card (Exact match to BodyTabView) -->
+          <div class="card section" style="display:flex;align-items:center;gap:16px">
+            <div data-ring="0.97" data-size="112" data-stroke="11" data-label="2,949" data-sub="eaten / day"></div>
             <div>
-              <div class="page-sub">Day 1 · Push + Quads</div>
-              <div class="page-title">Workout</div>
-            </div>
-            <div style="display:flex; gap:6px; align-items:center;">
-              <span class="pill grey">WHOOP Diag</span>
-              <span class="back-btn">Edit plan</span>
+              <span class="pill green">Maintain</span>
+              <div class="label" style="margin-top:10px">Maintenance</div>
+              <div class="big" style="font-size:24px">3,037<span class="unit">kcal</span></div>
+              <div class="label" style="margin-top:6px;text-transform:none;color:var(--green)">74.6 kg · 7d avg</div>
             </div>
           </div>
 
-          <!-- Compact Live Session Strip (Toggleable!) -->
-          <div class="card highlight" id="live-session-bar" style="padding:11px 13px;">
-            <div class="row-between">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span class="pulse-dot"></span>
-                <div>
-                  <div style="font-size:13.5px; font-weight:800;" id="live-bar-title">138 BPM · Zone 2 (68%)</div>
-                  <div style="font-size:11px; color:var(--subtext);" id="live-bar-sub">Lifting · 34:18 elapsed · Strain 8.4</div>
-                </div>
-              </div>
-              <div style="display:flex; gap:6px;">
-                <button class="btn-mini" onclick="toggleSheet('hiit-sheet', true)">⚡ HIIT</button>
-                <button class="btn-mini green" onclick="toggleSheet('trim-session-sheet', true)">Finish</button>
-              </div>
-            </div>
-            <div class="zone-stack">
-              <div class="z1" style="width:18%"></div>
-              <div class="z2" style="width:46%"></div>
-              <div class="z3" style="width:24%"></div>
-              <div class="z4" style="width:12%"></div>
-            </div>
-          </div>
-
-          <!-- Pending Auto-Detected Workout Banner -->
-          <div class="card amber-hl" id="auto-workout-card" style="padding:11px 13px;">
-            <div class="row-between">
+          <!-- EXISTING: Bloodwork Card -->
+          <div class="card section">
+            <div class="head">
               <div>
-                <span class="pill amber" style="margin-bottom:4px;">Auto-Detected · Stationary Onset +34 bpm</span>
-                <div style="font-size:13.5px; font-weight:700;">Unlogged Spin / Cardio · 38 min</div>
-                <div style="font-size:11.5px; color:var(--muted);">07:15–07:53 · Avg 151 bpm · Peak 174 bpm</div>
+                <div style="font-size:15px;font-weight:600">Bloodwork</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px">Results, biological age, AI JSON template, genetics</div>
               </div>
-            </div>
-            <div style="display:flex; gap:8px; margin-top:9px;">
-              <button class="btn-mini green" style="flex:1" onclick="document.getElementById('auto-workout-card').style.display='none'">Edit & Accept</button>
-              <button class="btn-mini" style="flex:1" onclick="document.getElementById('auto-workout-card').style.display='none'">Dismiss</button>
-            </div>
-          </div>
-
-          <!-- All / Remaining -->
-          <div class="seg">
-            <button class="on">All (5)</button>
-            <button>Remaining (3)</button>
-          </div>
-
-          <!-- Finished Exercise showing Per-Exercise Correlated HR from set timestamps! -->
-          <div class="card" style="opacity:0.88;">
-            <div class="row-between">
-              <div>
-                <div style="font-size:15px; font-weight:700;">Incline Dumbbell Press</div>
-                <div style="font-size:12px; color:var(--muted);">3 × 8–12 · Done (36 kg × 10, 10, 9)</div>
-              </div>
-              <span class="pill gold">★ PR</span>
-            </div>
-            <div style="margin-top:9px; padding-top:8px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; font-size:11.5px;">
-              <span style="color:var(--subtext);">♥ <b>Avg 142</b> · Peak <b>164 bpm</b> <span style="color:var(--muted);">(18:04–18:16)</span></span>
-              <span style="color:var(--green); font-weight:700;">Z3–Z4</span>
-            </div>
-            <div class="zone-stack" style="height:5px; margin-top:5px;">
-              <div class="z2" style="width:30%"></div>
-              <div class="z3" style="width:45%"></div>
-              <div class="z4" style="width:25%"></div>
-            </div>
-          </div>
-
-          <!-- Active Exercise -->
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div style="font-size:15px; font-weight:700;">Hack Squat</div>
-                <div style="font-size:12px; color:var(--muted);">2 sets · 8–10 reps · Warm-ups: 60, 85 kg</div>
-              </div>
-              <div style="text-align:right;">
-                <div style="font-size:18px; font-weight:800; color:var(--green);">110 kg</div>
-                <span class="pill green">+2.5 kg aim</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div style="font-size:15px; font-weight:700;">Cable Lateral Raise</div>
-                <div style="font-size:12px; color:var(--muted);">3 sets · 12–16 reps</div>
-              </div>
-              <div style="text-align:right;">
-                <div style="font-size:18px; font-weight:800;">12.5 kg</div>
-                <span class="pill grey">0 / 3 sets</span>
-              </div>
+              <span style="color:var(--muted)">›</span>
             </div>
           </div>
         </div>
-
         <div class="tabbar">
-          <div class="tab on"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab"><span class="ico">⚖️</span>Body</div>
-          <div class="tab"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab"><span class="ico">📈</span>Progress</div>
-          <div class="tab"><span class="ico">•••</span>More</div>
+          <div class="tab"><i></i>Workout</div>
+          <div class="tab on"><i></i>Body</div>
+          <div class="tab"><i></i>Diet</div>
+          <div class="tab"><i></i>Progress</div>
+          <div class="tab"><i></i>More</div>
         </div>
       </div>
-      <div class="phone-caption"><b>1A. Workout Tab (Live):</b> Top compact live bar + pending auto-workout proposal + automatic per-exercise HR/zone bar correlated from set timestamps.</div>
+      <div class="cap"><b>1A · Body tab root:</b> Triple circular hoop card (Recovery · Sleep · Strain) + twin 48px ring tiles (Fitness Age · Vitality) right above your existing 112px Calorie ring and Bloodwork card.</div>
     </div>
 
-    <!-- PHONE 1B: Non-Blocking Dual-Mode HIIT Haptic Sheet -->
-    <div class="phone-col">
-      <div class="phone" id="hiit-phone">
-        <div class="statusbar">
-          <span>9:44</span>
-          <div class="island"><span>⚡ HIIT</span><span>174</span></div>
-          <span>84% 🔋</span>
-        </div>
-        <div class="screen" style="opacity:0.35; pointer-events:none;">
-          <div class="page-title">Workout</div>
-          <div class="card"><div style="height:90px;"></div></div>
-          <div class="card"><div style="height:120px;"></div></div>
-        </div>
-
-        <!-- Always-open showcase of Dual-Mode HIIT Sheet -->
-        <div class="sheet-backdrop" id="hiit-sheet" style="background:rgba(0,0,0,0.45);">
-          <div class="bottom-sheet" style="max-height:86%;">
-            <div class="grabber"></div>
-            <div class="row-between" style="margin-bottom:8px;">
-              <div>
-                <div class="sec-lbl">WHOOP 5.0 Haptic Controller (0x13)</div>
-                <div style="font-size:19px; font-weight:800;">Dual-Mode HIIT Timer</div>
-              </div>
-              <span class="pill green">Round 3 / 4</span>
-            </div>
-
-            <div class="seg" id="hiit-mode-seg">
-              <button class="on" onclick="setHiitMode('hr', this)">HR Threshold Trigger</button>
-              <button onclick="setHiitMode('time', this)">Time Intervals (4×4)</button>
-            </div>
-
-            <div style="display:flex; gap:6px; overflow-x:auto; margin-bottom:12px;">
-              <span class="pill green">VO2 Peak 172 / Rec 130</span>
-              <span class="pill grey">Norwegian 4×4</span>
-              <span class="pill grey">8×200m Sprints</span>
-              <span class="pill grey">+ Edit Presets</span>
-            </div>
-
-            <!-- Big Live Ring -->
-            <div class="card highlight" style="text-align:center; padding:18px 14px;" id="hiit-live-card">
-              <div class="pill amber" id="hiit-phase-pill">🔥 PUSH TO UPPER TARGET (≥ 172 BPM)</div>
-              <div style="font-size:52px; font-weight:900; letter-spacing:-1.5px; margin:8px 0 2px; color:var(--text);" id="hiit-big-readout">
-                169 <span style="font-size:18px; color:var(--muted); font-weight:600;">BPM</span>
-              </div>
-              <div style="font-size:12.5px; color:var(--subtext);" id="hiit-sub-readout">
-                3 bpm away → Strap fires <b>Double Haptic Pulse (0x13)</b> & flips to Recovery
-              </div>
-              <div style="margin-top:12px; display:flex; justify-content:center; gap:8px;">
-                <span class="pill grey">10s Hysteresis Cooldown ✓</span>
-                <span class="pill blue">Runs in background</span>
-              </div>
-            </div>
-
-            <div class="grid-2">
-              <div class="field-box">
-                <label id="hiit-box1-lbl">Upper Push Target</label>
-                <div class="val"><span id="hiit-box1-val">172 BPM</span> <span style="color:var(--green);">− +</span></div>
-              </div>
-              <div class="field-box">
-                <label id="hiit-box2-lbl">Lower Recovery Target</label>
-                <div class="val"><span id="hiit-box2-val">130 BPM</span> <span style="color:var(--green);">− +</span></div>
-              </div>
-            </div>
-
-            <div style="display:flex; gap:8px; margin-top:12px;">
-              <button class="btn-ghost" style="flex:1">Minimize to Top Bar</button>
-              <button class="btn-primary" style="flex:1; background:var(--red); color:#fff;">Stop HIIT</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="tabbar">
-          <div class="tab on"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab"><span class="ico">⚖️</span>Body</div>
-          <div class="tab"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab"><span class="ico">📈</span>Progress</div>
-          <div class="tab"><span class="ico">•••</span>More</div>
-        </div>
-      </div>
-      <div class="phone-caption"><b>1B. Dual-Mode HIIT Sheet:</b> Click <i>HR Threshold</i> vs <i>Time Intervals</i> above! Fires <code>0x13</code> wrist haptics at peak/recovery BPM and minimizes to the top bar while lifting.</div>
-    </div>
-
-    <!-- PHONE 1C: Post-Workout Session & Late-Stop Trim Editor -->
-    <div class="phone-col">
+    <!-- PHONE B2: RECOVERY & 4-STAGE SLEEP DRILL-DOWN -->
+    <div class="col">
       <div class="phone">
-        <div class="statusbar">
-          <span>10:32</span>
-          <div class="island"><span>✓ Saved</span><span></span></div>
-          <span>81% 🔋</span>
-        </div>
-        <div class="screen" style="opacity:0.3; pointer-events:none;">
-          <div class="page-title">Workout</div>
-        </div>
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="content">
+          <div class="head" style="margin:4px 0 8px">
+            <div class="back" style="margin:0">‹ Body</div>
+            <div class="seg small" style="margin:0;width:196px">
+              <button class="on" onclick="switchReadiness('green', this)">82% Green</button>
+              <button onclick="switchReadiness('red', this)">29% Override</button>
+            </div>
+          </div>
 
-        <div class="sheet-backdrop" id="trim-session-sheet" style="background:rgba(0,0,0,0.45);">
-          <div class="bottom-sheet" style="max-height:88%;">
-            <div class="grabber"></div>
-            <div class="row-between" style="margin-bottom:8px;">
+          <!-- Hero Readiness Hoop -->
+          <div class="card hero" id="rec-card" style="padding:16px">
+            <div id="rec-main-hoop" data-ring="0.82" data-size="108" data-stroke="10" data-label="82%" data-sub="readiness"></div>
+            <div style="min-width:0">
+              <span class="pill green" id="rec-pill">Normal strain</span>
+              <div class="big" style="font-size:21px;margin-top:8px" id="rec-title">Optimal recovery</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.35" id="rec-desc">
+                Autonomic +0.9σ vs 28d self-excluded baseline. Morning pin locked.
+              </div>
+            </div>
+          </div>
+
+          <!-- 4 Glass-Box Contributors with Circular Rings + Sparklines -->
+          <div class="card section">
+            <div class="head"><div class="label">Nightly contributors · 28d baseline</div><div class="label">trend</div></div>
+
+            <div class="metric-hoop-row" style="margin-top:4px">
+              <div data-ring="0.84" data-size="40" data-stroke="4" data-label="64"></div>
+              <div><div style="font-size:14px;font-weight:600">HRV (5m mean)</div><div style="font-size:11.5px;color:var(--muted)">64 ms · 28d med 56 ms</div></div>
+              <svg data-spark="52,55,54,58,57,61,64" width="56" height="20"></svg>
+              <span class="chip green" style="margin:0">+14%</span>
+            </div>
+
+            <div class="metric-hoop-row">
+              <div data-ring="0.80" data-size="40" data-stroke="4" data-label="48"></div>
+              <div><div style="font-size:14px;font-weight:600">Nocturnal RHR</div><div style="font-size:11.5px;color:var(--muted)">48 bpm · 30m trough</div></div>
+              <svg data-spark="52,51,51,50,49,49,48" width="56" height="20"></svg>
+              <span class="chip green" style="margin:0">-2 bpm</span>
+            </div>
+
+            <div class="metric-hoop-row">
+              <div data-ring="0.72" data-size="40" data-stroke="4" data-label="14.2" data-color="#8af0bd"></div>
+              <div><div style="font-size:14px;font-weight:600">Respiration</div><div style="font-size:11.5px;color:var(--muted)">14.2 brpm · Lomb-Scargle</div></div>
+              <svg data-spark="14.4,14.3,14.5,14.2,14.3,14.2" width="56" height="20"></svg>
+              <span class="chip grey" style="margin:0">Steady</span>
+            </div>
+
+            <div class="metric-hoop-row">
+              <div data-ring="0.90" data-size="40" data-stroke="4" data-label="+0.1"></div>
+              <div><div style="font-size:14px;font-weight:600">Skin temp</div><div style="font-size:11.5px;color:var(--muted)">Illness flag: Normal (0.60)</div></div>
+              <svg data-spark="34.4,34.5,34.4,34.5,34.5,34.6" width="56" height="20"></svg>
+              <span class="chip green" style="margin:0">Clear</span>
+            </div>
+          </div>
+
+          <!-- 4-Stage Sleep Hoop + Stage Bars + Edit Span -->
+          <div class="card section">
+            <div class="head">
+              <div class="label">4-stage sleep · trimmed -14m lie-in</div>
+              <div class="link" style="font-size:12px">Edit span</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;margin-top:10px">
+              <div data-ring="0.92" data-size="74" data-stroke="7" data-label="92%" data-sub="eff"></div>
+              <div style="flex:1">
+                <div class="big" style="font-size:22px">7h 42m<span class="unit">asleep</span></div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px">22:58 → 06:54 · Tonight aim <b style="color:var(--green)">23:00</b></div>
+              </div>
+            </div>
+            <div class="macro"><div class="top">Deep (SWS) <span>1h 34m · 20%</span></div><div class="bar"><i style="width:68%;background:var(--green-deep)"></i></div></div>
+            <div class="macro"><div class="top">REM <span>1h 52m · 24%</span></div><div class="bar"><i style="width:78%;background:var(--green-soft-stroke)"></i></div></div>
+            <div class="macro"><div class="top">Light <span>4h 16m · 56%</span></div><div class="bar"><i style="width:88%"></i></div></div>
+            <div class="macro"><div class="top">WASO (1 awakening) <span>18m</span></div><div class="bar"><i style="width:14%;background:var(--amber)"></i></div></div>
+          </div>
+
+          <!-- Review-Gated Nap Card -->
+          <div class="card hl-amber section">
+            <div class="head">
+              <div class="label" style="color:var(--amber)">Detected nap · review required</div>
+              <span class="chip amber" style="margin:0">-0.5h sleep need</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
               <div>
-                <div class="sec-lbl">100% Editable Session · Recomputes HR & Strain</div>
-                <div style="font-size:19px; font-weight:800;">Review / Trim Session</div>
+                <div style="font-size:14px;font-weight:700">13:10 – 13:38 · 28 min</div>
+                <div style="font-size:11.5px;color:var(--muted)">HR dip 0.89× awake median</div>
               </div>
-              <span class="pill gold">Strain 11.8</span>
-            </div>
-
-            <!-- Smart Late-Stop Detection Banner -->
-            <div class="card amber-hl" style="padding:10px 12px;">
-              <div style="font-size:12.5px; font-weight:700; color:var(--amber);">Forgot to stop timer? 22m idle tail detected</div>
-              <div style="font-size:11.5px; color:var(--subtext); margin-top:2px;">HR stayed &lt; 82 bpm after last logged set at <b>19:14</b>.</div>
-              <button class="btn-mini green" style="margin-top:7px;" onclick="document.getElementById('end-ts-val').textContent='19:15 (Trimmed -22m)'; document.getElementById('avg-hr-recalc').textContent='139 bpm'">1-Tap Trim End to 19:15</button>
-            </div>
-
-            <div class="grid-2">
-              <div class="field-box">
-                <label>Start Time</label>
-                <div class="val"><span>18:18</span> <span style="color:var(--green); font-size:12px;">Edit</span></div>
+              <div style="display:flex;gap:6px">
+                <button class="cbtn">Accept</button>
+                <button class="cbtn ghost">Edit</button>
               </div>
-              <div class="field-box">
-                <label>End Time</label>
-                <div class="val"><span id="end-ts-val">19:37</span> <span style="color:var(--green); font-size:12px;">Edit</span></div>
-              </div>
-            </div>
-
-            <div class="grid-2">
-              <div class="field-box">
-                <label>Session Kind</label>
-                <div class="val"><span>Lifting</span> <span style="color:var(--muted);">▾</span></div>
-              </div>
-              <div class="field-box">
-                <label>Sport Label</label>
-                <div class="val"><span>Push + Quads</span> <span style="color:var(--green); font-size:12px;">✎</span></div>
-              </div>
-            </div>
-
-            <div class="field-box">
-              <div class="row-between">
-                <div>
-                  <div style="font-size:13px; font-weight:700;">Long Endurance Gray-Zone Exemption</div>
-                  <div style="font-size:11px; color:var(--muted);">Suppress &gt;140 bpm drift alert in Maximizing HRV mode</div>
-                </div>
-                <div class="ios-switch" onclick="this.classList.toggle('on')"></div>
-              </div>
-            </div>
-
-            <div class="card" style="margin-top:10px; padding:11px 13px;">
-              <div class="row-between" style="font-size:12.5px;">
-                <span style="color:var(--muted);">Recalculated Avg / Max HR</span>
-                <b><span id="avg-hr-recalc">124 bpm</span> / 168 bpm</b>
-              </div>
-              <div class="zone-stack">
-                <div class="z1" style="width:15%"></div>
-                <div class="z2" style="width:45%"></div>
-                <div class="z3" style="width:28%"></div>
-                <div class="z4" style="width:12%"></div>
-              </div>
-            </div>
-
-            <div style="display:flex; gap:8px; margin-top:10px;">
-              <button class="btn-ghost" style="color:var(--red); border-color:rgba(255,107,107,0.3);">Delete</button>
-              <button class="btn-primary" style="flex:1">Save Session Edits</button>
             </div>
           </div>
         </div>
-
         <div class="tabbar">
-          <div class="tab on"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab"><span class="ico">⚖️</span>Body</div>
-          <div class="tab"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab"><span class="ico">📈</span>Progress</div>
-          <div class="tab"><span class="ico">•••</span>More</div>
+          <div class="tab"><i></i>Workout</div><div class="tab on"><i></i>Body</div><div class="tab"><i></i>Diet</div><div class="tab"><i></i>Progress</div><div class="tab"><i></i>More</div>
         </div>
       </div>
-      <div class="phone-caption"><b>1C. Post-Workout Editor:</b> Click <i>1-Tap Trim End to 19:15</i>! Fixes forgotten timers in place and recomputes Avg HR, Zones, and Strain.</div>
-    </div>
-  </div>
-</div>
-
-<!-- ===================================================================== -->
-<!-- SECTION 2: BODY TAB (RECOVERY HUB, SLEEP/NAPS, LONGEVITY & OVERRIDES) -->
-<!-- ===================================================================== -->
-<div class="studio-section" id="sec-body">
-  <div class="sec-banner">
-    <h2><span>Tab 2 · Body</span> Compact Biometrics Hub → Glass-Box Recovery, 4-Stage Sleep/Naps & Longevity</h2>
-    <p>Body Tab stays clean with two compact entry cards (just like Bloodwork!), drilling into Recovery/Sleep and VO2 Max / Vitality / ACSM.</p>
-  </div>
-
-  <div class="phones-row">
-    <!-- PHONE 2A: Body Tab Root with Compact Recovery & Longevity Cards -->
-    <div class="phone-col">
-      <div class="phone">
-        <div class="statusbar">
-          <span>9:41</span>
-          <div class="island"><span></span><span></span></div>
-          <span>84% 🔋</span>
-        </div>
-        <div class="screen">
-          <div class="page-sub">Friday, 27 Nov</div>
-          <div class="page-title" style="margin-bottom:12px;">Body</div>
-
-          <!-- NEW CARD 1: Compact WHOOP Recovery, Sleep & Steps Entry Hub -->
-          <div class="card highlight">
-            <div class="row-between" style="margin-bottom:10px;">
-              <div>
-                <div class="sec-lbl" style="color:var(--green);">WHOOP 5.0 · Locked 07:05</div>
-                <div style="font-size:16px; font-weight:800;">Recovery, Sleep & Strain</div>
-              </div>
-              <span style="color:var(--green); font-size:13px; font-weight:700;">Open ›</span>
-            </div>
-            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; text-align:center;">
-              <div style="background:var(--card-2); padding:10px 6px; border-radius:14px; border:1px solid var(--line);">
-                <div style="font-size:21px; font-weight:900; color:var(--green);">82%</div>
-                <div style="font-size:10.5px; color:var(--muted); margin-top:2px;">Readiness · 64ms</div>
-              </div>
-              <div style="background:var(--card-2); padding:10px 6px; border-radius:14px; border:1px solid var(--line);">
-                <div style="font-size:21px; font-weight:900; color:var(--blue);">7h 42m</div>
-                <div style="font-size:10.5px; color:var(--muted); margin-top:2px;">Bed 23:00 tonight</div>
-              </div>
-              <div style="background:var(--card-2); padding:10px 6px; border-radius:14px; border:1px solid var(--line);">
-                <div style="font-size:21px; font-weight:900; color:var(--text);">8,420</div>
-                <div style="font-size:10.5px; color:var(--muted); margin-top:2px;">Steps · Strain 12.4</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- NEW CARD 2: Compact Longevity & VO2 Max Card -->
-          <div class="card">
-            <div class="row-between" style="margin-bottom:8px;">
-              <div>
-                <div class="sec-lbl">Weekly Longevity · Ready (6/7d)</div>
-                <div style="font-size:16px; font-weight:800;">Fitness Age & Vitality</div>
-              </div>
-              <span style="color:var(--green); font-size:13px; font-weight:700;">ACSM / Log ›</span>
-            </div>
-            <div class="grid-2">
-              <div style="background:var(--card-2); padding:10px 12px; border-radius:14px;">
-                <div style="font-size:11px; color:var(--muted);">VO2 Max (Nes · Waist)</div>
-                <div style="font-size:20px; font-weight:800; margin-top:2px;">52.4 <span style="font-size:11px; color:var(--green);">Fitness Age 25</span></div>
-              </div>
-              <div style="background:var(--card-2); padding:10px 12px; border-radius:14px;">
-                <div style="font-size:11px; color:var(--muted);">Gompertz Body Age</div>
-                <div style="font-size:20px; font-weight:800; margin-top:2px;">26.2 <span style="font-size:11px; color:var(--green);">Vitality 74</span></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Existing Weight & Calorie Card (Unchanged!) -->
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div class="sec-lbl">7-Day Rolling Weight</div>
-                <div style="font-size:26px; font-weight:800; margin-top:2px;">74.6 <span style="font-size:13px; color:var(--muted);">kg · Maintain</span></div>
-              </div>
-              <button class="btn-ghost">+ Log kg</button>
-            </div>
-          </div>
-
-          <!-- Existing Bloodwork Entry Card -->
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div style="font-size:16px; font-weight:700;">Bloodwork & Genetics</div>
-                <div style="font-size:12px; color:var(--muted); margin-top:2px;">Results, PhenoAge, AI JSON template, 24+ custom genes</div>
-              </div>
-              <span style="color:var(--muted);">›</span>
-            </div>
-          </div>
-
-          <!-- Existing Measurements Preview -->
-          <div class="card">
-            <div class="row-between">
-              <span style="font-size:14px; font-weight:700;">Waist</span>
-              <span style="font-size:14px; font-weight:700; color:var(--green);">30.5 in ✓</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="tabbar">
-          <div class="tab"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab on"><span class="ico">⚖️</span>Body</div>
-          <div class="tab"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab"><span class="ico">📈</span>Progress</div>
-          <div class="tab"><span class="ico">•••</span>More</div>
-        </div>
-      </div>
-      <div class="phone-caption"><b>2A. Clean Body Tab Root:</b> Existing Weight, Measurements, and Bloodwork stay untouched; two compact summary hubs sit cleanly at the top.</div>
+      <div class="cap"><b>1B · Recovery &amp; Sleep drill-down:</b> Click <i>29% Override</i> at the top! Every contributor has its own mini hoop + sparkline, plus 4-stage sleep ring and review-gated nap.</div>
     </div>
 
-    <!-- PHONE 2B: Drill-Down Recovery, 4-Stage Sleep & Nap Override Screen -->
-    <div class="phone-col">
+    <!-- PHONE B3: LONGEVITY & ACSM TREADMILL SCREEN -->
+    <div class="col">
       <div class="phone">
-        <div class="statusbar">
-          <span>9:41</span>
-          <div class="island"><span></span><span></span></div>
-          <span>84% 🔋</span>
-        </div>
-        <div class="screen">
-          <div class="nav-row">
-            <span class="back-btn">‹ Body</span>
-            <div class="seg" style="margin:0; width:215px;">
-              <button class="on" onclick="setRecDemo('green', this)">82% Green</button>
-              <button onclick="setRecDemo('red-override', this)">29% Red Override</button>
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="content">
+          <div class="back">‹ Body</div>
+          <div class="topbar">
+            <div class="title" style="font-size:24px"><small>Weekly rollup · Ready (6/7d)</small>Longevity &amp; VO2</div>
+            <span class="pill green">Nes 2011</span>
+          </div>
+
+          <!-- Twin Hero Hoops -->
+          <div class="row2 section">
+            <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 10px">
+              <div data-ring="0.86" data-size="90" data-stroke="8" data-label="52.4" data-sub="mL/kg/m"></div>
+              <div class="label" style="margin-top:8px">VO2 Max · Waist 77.5cm</div>
+              <div style="font-size:14px;font-weight:700;margin-top:2px">Fitness Age <span style="color:var(--green)">25.0</span></div>
+              <div style="font-size:11px;color:var(--muted)">PAI 6.8 / 15 · ±5.7 SEE</div>
+            </div>
+            <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 10px">
+              <div data-ring="0.74" data-size="90" data-stroke="8" data-label="74" data-sub="vitality" data-color="#8af0bd"></div>
+              <div class="label" style="margin-top:8px">Gompertz Hazard</div>
+              <div style="font-size:14px;font-weight:700;margin-top:2px">Body Age <span style="color:var(--green)">26.2</span></div>
+              <div style="font-size:11px;color:var(--muted)">5 factors · -3.8 yr</div>
             </div>
           </div>
 
-          <!-- Glass-Box Readiness Hero -->
-          <div class="card highlight" id="rec-hero-card">
-            <div class="row-between">
-              <div>
-                <div class="sec-lbl" id="rec-kicker">Algo v133 · Calibrated 28d ·Pinned</div>
-                <div style="font-size:34px; font-weight:900; letter-spacing:-1px; margin-top:2px;" id="rec-score-txt">82% <span style="font-size:15px; font-weight:700; color:var(--green);" id="rec-tier-txt">Optimal Readiness</span></div>
-              </div>
-              <span class="pill green" id="rec-Context-pill">Normal Strain OK</span>
-            </div>
-            <div style="font-size:12px; color:var(--subtext); margin:6px 0 10px;" id="rec-explain-txt">
-              Autonomic axis (0.70 weight) +0.9σ above your self-excluded 28-day median.
-            </div>
-
-            <div class="contrib-row">
-              <span>HRV (5m mean)</span>
-              <div class="track"><i style="width:78%; background:var(--green);"></i></div>
-              <b style="text-align:right;" id="rec-hrv-val">64 ms ↑</b>
-            </div>
-            <div class="contrib-row">
-              <span>Nocturnal RHR</span>
-              <div class="track"><i style="width:74%; background:var(--green);"></i></div>
-              <b style="text-align:right;" id="rec-rhr-val">48 bpm ↓</b>
-            </div>
-            <div class="contrib-row">
-              <span>Resp Rate (LS)</span>
-              <div class="track"><i style="width:55%; background:var(--blue);"></i></div>
-              <b style="text-align:right;">14.2 brpm</b>
-            </div>
-            <div class="contrib-row">
-              <span>Skin Temp</span>
-              <div class="track"><i style="width:52%; background:var(--green);"></i></div>
-              <b style="text-align:right;">+0.1°C ✓</b>
-            </div>
+          <!-- 5 Vitality Factor Rings in 2-col .grid .m -->
+          <div class="label section" style="margin-bottom:6px">Vitality hazard drivers</div>
+          <div class="grid">
+            <div class="card m"><div data-ring="0.88" data-size="42" data-stroke="4"></div><div><div class="t">RHR 48.5</div><div class="s" style="color:var(--green)">-1.4 yr protective</div></div></div>
+            <div class="card m"><div data-ring="0.84" data-size="42" data-stroke="4"></div><div><div class="t">HRV 61 ms</div><div class="s" style="color:var(--green)">-1.2 yr vs age</div></div></div>
+            <div class="card m"><div data-ring="0.82" data-size="42" data-stroke="4"></div><div><div class="t">Sleep 7.6 h</div><div class="s" style="color:var(--green)">7–8h neutral ✓</div></div></div>
+            <div class="card m"><div data-ring="0.79" data-size="42" data-stroke="4"></div><div><div class="t">Steps 8.9k</div><div class="s" style="color:var(--green)">-0.2 yr protective</div></div></div>
           </div>
 
-          <!-- 4-Stage Sleep + Gen5 Lie-In Trim + Override -->
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div class="sec-lbl">4-Stage Sleep · Gen5 Trimmed -14m Lie-In</div>
-                <div style="font-size:18px; font-weight:800; margin-top:2px;">7h 42m <span style="font-size:12px; color:var(--muted); font-weight:600;">22:58 → 06:54 (92% eff)</span></div>
-              </div>
-              <button class="btn-mini" onclick="alert('Opens Sleep Onset/Wake Override Sheet (upsertSleepOverride)')">Edit Span</button>
-            </div>
-
-            <div class="hypno">
-              <i class="w"></i><i class="l"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="l"></i><i class="r"></i>
-              <i class="l"></i><i class="d"></i><i class="d"></i><i class="l"></i><i class="r"></i><i class="r"></i><i class="w"></i>
-              <i class="l"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="r"></i><i class="r"></i><i class="r"></i>
-              <i class="l"></i><i class="l"></i><i class="r"></i><i class="r"></i><i class="l"></i><i class="l"></i><i class="w"></i>
-            </div>
-            <div class="row-between" style="font-size:11px; color:var(--muted);">
-              <span><b style="color:#2b5cff;">■</b> Deep 1h 34m</span>
-              <span><b style="color:var(--purple);">■</b> REM 1h 52m</span>
-              <span><b style="color:var(--blue);">■</b> Light 4h 16m</span>
-              <span><b style="color:var(--amber);">■</b> WASO 18m</span>
-            </div>
-          </div>
-
-          <!-- Review-Gated Nap & Tonight Bedtime -->
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div class="sec-lbl">Daytime Naps & Tonight's Target</div>
-                <div style="font-size:14px; font-weight:700; margin-top:3px;">Target Bedtime: <span style="color:var(--green);">23:00</span> <span style="color:var(--muted); font-weight:500;">(Wake 07:00)</span></div>
-              </div>
-              <button class="btn-mini">+ Nap</button>
-            </div>
-            <div style="margin-top:9px; padding-top:9px; border-top:1px solid var(--line);" class="row-between">
-              <div style="font-size:12px;">
-                <span class="pill amber">Suggested Nap</span> <b>13:10–13:38 (28m)</b> · HR dip 0.89×
-              </div>
-              <button class="btn-mini green">Accept</button>
-            </div>
-          </div>
-
-          <!-- Daily Energy & Strain -->
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div class="sec-lbl">Exercise-Protected Strain & Energy</div>
-                <div style="font-size:16px; font-weight:800; margin-top:2px;">Strain 12.4 <span style="font-size:12px; color:var(--muted);">· 2,640 kcal</span></div>
-              </div>
-              <span class="pill grey">1,780 BMR + 860 Active</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="tabbar">
-          <div class="tab"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab on"><span class="ico">⚖️</span>Body</div>
-          <div class="tab"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab"><span class="ico">📈</span>Progress</div>
-          <div class="tab"><span class="ico">•••</span>More</div>
-        </div>
-      </div>
-      <div class="phone-caption"><b>2B. Recovery & Sleep Drill-Down:</b> Click <i>29% Red Override</i> at top right to see how a late-meal Red score overrides false alarms!</div>
-    </div>
-
-    <!-- PHONE 2C: Longevity Detail + ACSM Treadmill VO2 Calculator & Marker Override -->
-    <div class="phone-col">
-      <div class="phone">
-        <div class="statusbar">
-          <span>9:41</span>
-          <div class="island"><span></span><span></span></div>
-          <span>84% 🔋</span>
-        </div>
-        <div class="screen">
-          <div class="nav-row">
-            <span class="back-btn">‹ Body</span>
-            <span class="pill green">Updated Sat Rollup</span>
-          </div>
-          <div class="page-title" style="font-size:23px; margin-bottom:10px;">Longevity & VO2 Max</div>
-
-          <!-- Fitness Age + Nes/Uth VO2 -->
-          <div class="card highlight">
-            <div class="row-between">
-              <div>
-                <div class="sec-lbl">HUNT3 Nes et al. 2011 (Waist 77.5 cm)</div>
-                <div style="font-size:28px; font-weight:900; margin-top:2px;">52.4 <span style="font-size:13px; color:var(--muted); font-weight:600;">mL/kg/min (±5.7 SEE)</span></div>
-              </div>
-              <span class="pill green">-5.0 yr younger</span>
-            </div>
-            <div style="font-size:12px; color:var(--subtext); margin-top:6px;">
-              Fitness Age <b>25.0</b> · Weekly PAI <b>6.8 / 15</b> (4 active days ≥30 Effort) · Median RHR <b>48.5 bpm</b>
-            </div>
-          </div>
-
-          <!-- Gompertz Vitality & Body Age -->
-          <div class="card">
-            <div class="row-between" style="margin-bottom:6px;">
-              <div>
-                <div class="sec-lbl">Gompertz All-Cause Log-Hazard</div>
-                <div style="font-size:20px; font-weight:800;">Body Age 26.2 · Vitality 74/100</div>
-              </div>
-            </div>
-            <div class="contrib-row"><span>RHR (48.5)</span><div class="track"><i style="width:84%; background:var(--green);"></i></div><b style="color:var(--green); text-align:right;">-1.4 yr</b></div>
-            <div class="contrib-row"><span>HRV vs Age</span><div class="track"><i style="width:80%; background:var(--green);"></i></div><b style="color:var(--green); text-align:right;">-1.2 yr</b></div>
-            <div class="contrib-row"><span>Sleep (7.6h)</span><div class="track"><i style="width:76%; background:var(--green);"></i></div><b style="color:var(--green); text-align:right;">-0.7 yr</b></div>
-            <div class="contrib-row"><span>Consistency</span><div class="track"><i style="width:68%; background:var(--blue);"></i></div><b style="color:var(--green); text-align:right;">-0.3 yr</b></div>
-            <div class="contrib-row"><span>Steps (8.9k)</span><div class="track"><i style="width:72%; background:var(--green);"></i></div><b style="color:var(--green); text-align:right;">-0.2 yr</b></div>
-          </div>
-
-          <!-- ACSM Submaximal/Maximal Treadmill VO2 Calculator & Editable Log -->
-          <div class="card">
-            <div class="row-between" style="margin-bottom:6px;">
-              <div>
-                <div class="sec-lbl">ACSM Metabolic Equation (%HRR Scaled)</div>
-                <div style="font-size:15.5px; font-weight:800;">Treadmill VO2 Max Log</div>
-              </div>
+          <!-- ACSM Treadmill VO2 Calculator with .stp Steppers -->
+          <div class="card section">
+            <div class="head">
+              <div class="label">ACSM treadmill VO2 max (%HRR scaled)</div>
               <span class="pill gold">Est 54.4</span>
             </div>
-            <div class="grid-2">
-              <div class="field-box"><label>Speed (km/h)</label><div class="val">10.8 km/h</div></div>
-              <div class="field-box"><label>Incline (%)</label><div class="val">2.0 %</div></div>
+            <div class="pair" style="margin-top:10px">
+              <div class="stp">
+                <div class="lbl">Speed</div>
+                <div class="ctl"><div class="btnr">−</div><div class="val">10.8<small>km/h</small></div><div class="btnr">+</div></div>
+              </div>
+              <div class="stp">
+                <div class="lbl">Incline</div>
+                <div class="ctl"><div class="btnr">−</div><div class="val">2.0<small>%</small></div><div class="btnr">+</div></div>
+              </div>
             </div>
-            <div class="grid-2">
-              <div class="field-box"><label>Steady HR</label><div class="val">158 bpm</div></div>
-              <div class="field-box"><label>VO2 / Est Max</label><div class="val" style="color:var(--green);">42.7 → 54.4</div></div>
-            </div>
-            <div style="margin-top:9px; font-size:11.5px; color:var(--muted);" class="row-between">
-              <span>Last logged: 20 Nov · 12.0 km/h @ 2% → <b>56.1</b></span>
-              <span style="color:var(--green); font-weight:700;">Edit / + Log</span>
-            </div>
+            <div class="hist" style="margin-top:10px"><b>20 Nov · 12.0 km/h @ 2%</b><span>56.1 mL/kg <b style="color:var(--green)">✎</b></span></div>
+            <div class="btn sm">+ Log steady treadmill run</div>
           </div>
         </div>
-
         <div class="tabbar">
-          <div class="tab"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab on"><span class="ico">⚖️</span>Body</div>
-          <div class="tab"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab"><span class="ico">📈</span>Progress</div>
-          <div class="tab"><span class="ico">•••</span>More</div>
+          <div class="tab"><i></i>Workout</div><div class="tab on"><i></i>Body</div><div class="tab"><i></i>Diet</div><div class="tab"><i></i>Progress</div><div class="tab"><i></i>More</div>
         </div>
       </div>
-      <div class="phone-caption"><b>2C. Longevity & ACSM Treadmill Screen:</b> Nes/Uth VO2 Max, Gompertz Vitality hazard bars, and editable ACSM treadmill tests in one dedicated drill-down.</div>
+      <div class="cap"><b>1C · Longevity &amp; ACSM Treadmill:</b> Twin 90px hero hoops, 42px factor ring grid, and native <code>.stp</code> steppers for treadmill speed &amp; incline.</div>
     </div>
+
   </div>
 </div>
 
-<!-- ===================================================================== -->
-<!-- SECTION 3: DIET TAB (MEAL ATE_AT PILLS & SLEEP-TIMING CUTOFFS) -->
-<!-- ===================================================================== -->
-<div class="studio-section" id="sec-diet">
-  <div class="sec-banner">
-    <h2><span>Tab 3 · Diet</span> Tappable Meal <code>ate_at</code> Time Pills, Retroactive Default Guard & Pre-Sleep Cutoffs</h2>
-    <p>Zero new forms: each meal header gets a tiny tappable time pill pre-filled from its default time, feeding the live Last-Meal-to-Sleep badge.</p>
-  </div>
+<!-- ======================================================================= -->
+<!-- 2. WORKOUT TAB: LIVE HOOP, CONCENTRIC HIIT DIAL & TRIM-END SHEET -->
+<!-- ======================================================================= -->
+<div class="sec-group" id="g-workout">
+  <h2>2. Workout tab: Live HR Zone Hoop, Concentric HIIT Haptic Dial &amp; Trim-End Sheet</h2>
+  <div class="row">
 
-  <div class="phones-row">
-    <div class="phone-col">
+    <!-- PHONE W1: WORKOUT DAY SCREEN -->
+    <div class="col">
       <div class="phone">
-        <div class="statusbar">
-          <span>9:41</span>
-          <div class="island"><span></span><span></span></div>
-          <span>84% 🔋</span>
-        </div>
-        <div class="screen">
-          <div class="page-sub">Today · Maintain</div>
-          <div class="page-title">Diet</div>
-
-          <div class="seg" style="margin-top:8px;">
-            <button class="on">Today</button>
-            <button>Plan</button>
-            <button>Foods</button>
-          </div>
-
-          <!-- Retroactive Unconfirmed Meal Banner -->
-          <div class="card amber-hl" style="padding:11px 13px;">
-            <div class="sec-lbl" style="color:var(--amber);">Yesterday (Thu 26 Nov) · Uses Default 20:00</div>
-            <div class="row-between" style="margin-top:4px;">
-              <div>
-                <div style="font-size:14px; font-weight:700;">Did you eat Dinner?</div>
-                <div style="font-size:11.5px; color:var(--muted);">Logs at <b>20:00</b> (never 09:41 tick clock) · Tap time to edit</div>
-              </div>
-            </div>
-            <div style="display:flex; gap:6px; margin-top:8px;">
-              <button class="btn-mini green">Ate @ 20:00</button>
-              <button class="btn-mini">Change Time…</button>
-              <button class="btn-mini">Skipped</button>
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="content">
+          <div class="topbar">
+            <div class="title"><small>Friday, 27 Nov</small>Workout</div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <span class="pill green" style="padding:4px 9px;font-size:11px">WHOOP Diag</span>
+              <div class="link">Edit day</div>
             </div>
           </div>
 
-          <!-- Meal Card with Interactive ate_at Pill! -->
-          <div class="card">
-            <div class="row-between">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span style="width:20px; height:20px; border-radius:6px; background:var(--green); color:var(--on-green); display:grid; place-items:center; font-weight:900; font-size:12px;">✓</span>
-                <div>
-                  <div style="font-size:15px; font-weight:700;">Brunch</div>
-                  <div style="font-size:11.5px; color:var(--muted);">920 kcal · 68g P · 84g C · Leucine 6.1g ✓</div>
-                </div>
-              </div>
-              <button class="pill grey" style="cursor:pointer;">🕐 12:30 ✎</button>
-            </div>
+          <div class="day-strip">
+            <div class="day-caps"><div class="on">Day 1</div><div>Day 2</div><div>Day 3</div></div>
+            <div class="day-plus">+</div>
           </div>
 
-          <div class="card">
-            <div class="row-between">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span style="width:20px; height:20px; border-radius:6px; background:var(--green); color:var(--on-green); display:grid; place-items:center; font-weight:900; font-size:12px;">✓</span>
-                <div>
-                  <div style="font-size:15px; font-weight:700;">Dinner</div>
-                  <div style="font-size:11.5px; color:var(--muted);">840 kcal · 62g P · 65g Carbs</div>
-                </div>
-              </div>
-              <button class="pill green" id="dinner-time-pill" style="cursor:pointer;" onclick="toggleDinnerTime()">🕡 18:30 ✎</button>
-            </div>
-            <div style="font-size:11px; color:var(--muted); margin-top:7px;">💡 Click <b>18:30 ✎</b> above to simulate a late 21:30 dinner!</div>
-          </div>
-
-          <!-- Upgraded Check-In + Last-Meal-to-Sleep Card -->
-          <div class="card highlight" id="meal-sleep-card">
-            <div class="row-between">
-              <div class="sec-lbl">Sleep & Recovery Timing Check-In</div>
-              <span class="pill green" id="gap-status-pill">Optimal 4–6h Window ✓</span>
-            </div>
-            <div style="font-size:17px; font-weight:800; margin-top:5px;" id="gap-headline">
-              Last Meal → Bed: 4h 30m <span style="font-size:12px; color:var(--muted); font-weight:600;">(65g carbs)</span>
-            </div>
-            <div style="font-size:11.5px; color:var(--subtext); margin-top:2px;" id="gap-sub">
-              Dinner 18:30 vs Target Bedtime 23:00 — protects nocturnal RHR & GH pulse.
-            </div>
-
-            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:11px; padding-top:10px; border-top:1px solid var(--line);">
-              <button class="btn-mini green" onclick="this.classList.toggle('green')">☕ ≤100mg before 12:00 ✓</button>
-              <button class="btn-mini green" onclick="this.classList.toggle('green')">🍷 No alcohol &lt;3h ✓</button>
-              <button class="btn-mini">🚶 Post-Dinner Walk</button>
-              <button class="btn-mini">💧 Pale Urine</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="tabbar">
-          <div class="tab"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab"><span class="ico">⚖️</span>Body</div>
-          <div class="tab on"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab"><span class="ico">📈</span>Progress</div>
-          <div class="tab"><span class="ico">•••</span>More</div>
-        </div>
-      </div>
-      <div class="phone-caption"><b>3. Diet Tab Enhancements:</b> Click the <i>🕡 18:30 ✎</i> pill on Dinner to see the Last-Meal-to-Sleep card flip live between Optimal and &lt;3h Warning!</div>
-    </div>
-  </div>
-</div>
-
-<!-- ===================================================================== -->
-<!-- SECTION 4: PROGRESS TAB (3-LAYER WHOOP COACHING & 4 MODES) -->
-<!-- ===================================================================== -->
-<div class="studio-section" id="sec-progress">
-  <div class="sec-banner">
-    <h2><span>Tab 4 · Progress</span> Interactive 4-Mode Coaching Switcher & Layer 1 Static Principles Drawer</h2>
-    <p>Switch between General Health, Maximizing VO2 Max, Maximizing HRV, and Reducing RHR inside Phone 4A to see how only relevant widgets appear!</p>
-  </div>
-
-  <div class="phones-row">
-    <!-- PHONE 4A: Interactive 4-Mode Coaching Card on Progress Tab -->
-    <div class="phone-col">
-      <div class="phone">
-        <div class="statusbar">
-          <span>9:41</span>
-          <div class="island"><span></span><span></span></div>
-          <span>84% 🔋</span>
-        </div>
-        <div class="screen">
-          <div class="nav-row">
+          <!-- Existing 92px WorkoutHeroCard -->
+          <div class="card hero">
+            <div data-ring="0.40" data-size="92" data-stroke="9" data-label="2/5" data-sub="done"></div>
             <div>
-              <div class="page-sub">Training & Cardio Block · Wk 2</div>
-              <div class="page-title">Progress</div>
-            </div>
-            <span class="pill grey" style="cursor:pointer;" onclick="alert('Opens Layer 1 Static Principles Drawer (Phone 4B)')">ⓘ Principles</span>
-          </div>
-
-          <!-- 4-Mode Selector -->
-          <div class="seg" id="coaching-mode-seg">
-            <button class="on" onclick="setCoachMode('health', this)">Health</button>
-            <button onclick="setCoachMode('vo2', this)">VO2 Max</button>
-            <button onclick="setCoachMode('hrv', this)">Max HRV</button>
-            <button onclick="setCoachMode('rhr', this)">Reduce RHR</button>
-          </div>
-
-          <!-- Dynamic Mode Override Card -->
-          <div class="card highlight" id="coach-dynamic-card">
-            <div class="row-between">
-              <span class="sec-lbl" id="coach-mode-kicker" style="color:var(--green);">Layer 2 · General Health Baseline</span>
-              <span class="pill green" id="coach-mode-badge">80 / 20 Split</span>
-            </div>
-            <div style="font-size:17px; font-weight:800; margin-top:4px;" id="coach-mode-headline">
-              Zone 2 Base: 175 / 150 min floor ✓
-            </div>
-            <div style="font-size:12px; color:var(--subtext); margin-top:4px; line-height:1.45;" id="coach-mode-body">
-              Building toward 300 min/wk @ <b>110–140 bpm</b>. Zero Gray-Zone (&gt;140 bpm) drifts this week. Weekly progression +4.2% (≤ +5% cap ✓).
-            </div>
-            <div id="coach-mode-extra" style="margin-top:10px; padding-top:9px; border-top:1px solid var(--line); font-size:12px; color:var(--text);">
-              <b>1 Hard : 2 Easy Spacing:</b> ✓ Respected · Next hard interval slot: Tomorrow AM
-            </div>
-          </div>
-
-          <!-- Shared Longevity Strength & CTL/ATL Card -->
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div class="sec-lbl">Cardio vs Lifting & Load Ratio</div>
-                <div style="font-size:15.5px; font-weight:800; margin-top:2px;">Strength Benchmark: 3.2 / 3.0 h/wk ✓</div>
+              <div class="label">Day 1</div>
+              <div class="big" style="font-size:22px">Push + Quads</div>
+              <div class="stats">
+                <div class="stat"><b>5</b><span>exercises</span></div>
+                <div class="stat"><b>15</b><span>sets</span></div>
+                <div class="stat"><b style="color:var(--gold)">2</b><span>PR to beat</span></div>
               </div>
-              <span class="pill blue">TSB +4.1</span>
-            </div>
-            <div style="font-size:11.5px; color:var(--muted); margin-top:5px;">
-              CTL (42d) <b>46.2</b> · ATL (7d) <b>42.1</b> · Same-day cardio/lifting gap ≥ 4.5h ✓ · Deload due in <b>2 weeks</b>.
             </div>
           </div>
 
-          <!-- Existing Hypertrophy Muscle Volume Section (Preserved!) -->
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div class="sec-lbl">Weekly Hypertrophy Sets (10–20 Landmarks)</div>
-                <div style="font-size:15.5px; font-weight:700; margin-top:2px;">Chest 14 · Back 16 · Quads 12 · Side Delts 15</div>
-              </div>
-              <span style="color:var(--green); font-size:13px; font-weight:700;">Map ›</span>
+          <!-- NEW: Live WHOOP Session Hoop Strip (54px live Zone ring + sparkline) -->
+          <div class="card hl" style="display:flex;align-items:center;gap:12px;padding:11px 13px;margin-bottom:9px">
+            <div data-ring="0.72" data-size="54" data-stroke="5" data-label="138" data-sub="Z2"></div>
+            <div style="flex:1;min-width:0">
+              <div class="label" style="color:var(--green)">Live 0x03 · 34:18 · Strain 8.4</div>
+              <svg data-spark="118,126,144,158,132,140,138" width="115" height="18" style="margin-top:4px"></svg>
             </div>
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <button class="cbtn ghost" style="padding:4px 10px;font-size:11.5px">HIIT</button>
+              <button class="cbtn" style="padding:4px 10px;font-size:11.5px">Finish</button>
+            </div>
+          </div>
+
+          <!-- Pending Auto-Detected Workout Proposal -->
+          <div class="card hl-amber" id="w-proposal" style="padding:11px 13px;margin-bottom:9px">
+            <div class="head">
+              <div class="label" style="color:var(--amber)">Detected workout · +34 bpm onset</div>
+              <span class="chip amber" style="margin:0">38 min</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+              <div style="font-size:13px"><b>07:15–07:53</b> · Avg 151 / Peak 174</div>
+              <div style="display:flex;gap:5px">
+                <button class="cbtn" style="padding:4px 9px;font-size:11.5px" onclick="document.getElementById('w-proposal').style.display='none'">Accept</button>
+                <button class="cbtn ghost" style="padding:4px 9px;font-size:11.5px" onclick="document.getElementById('w-proposal').style.display='none'">✕</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter"><div class="on">All<small>5</small></div><div>Remaining<small>3</small></div></div>
+
+          <!-- Completed Exercise with Correlated Set-Timestamp HR -->
+          <div class="card ex" style="opacity:.78">
+            <div data-ring="1" data-size="44" data-stroke="5" data-label="3/3"></div>
+            <div class="info">
+              <div class="name">Incline DB Press</div>
+              <div class="meta">3 × 8–12 · <span style="color:var(--green)">Avg 142 / Peak 164 bpm (Z3)</span></div>
+            </div>
+            <svg data-spark="32,34,34,36,36,38" width="54" height="26"></svg>
+            <div class="right"><div class="kg">38<span class="unit">kg</span></div><span class="chip gold"><b>★ PR</b></span></div>
+          </div>
+
+          <div class="card ex">
+            <div data-ring="0" data-size="44" data-stroke="5" data-label="0/3"></div>
+            <div class="info"><div class="name">Hack Squat</div><div class="meta">Quads · 3 × 8–10</div></div>
+            <svg data-spark="100,102.5,105,105,107.5,110" width="54" height="26"></svg>
+            <div class="right"><div class="kg">110<span class="unit">kg</span></div><span class="chip green">Increase weight</span></div>
           </div>
         </div>
-
         <div class="tabbar">
-          <div class="tab"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab"><span class="ico">⚖️</span>Body</div>
-          <div class="tab"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab on"><span class="ico">📈</span>Progress</div>
-          <div class="tab"><span class="ico">•••</span>More</div>
+          <div class="tab on"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Diet</div><div class="tab"><i></i>Progress</div><div class="tab"><i></i>More</div>
         </div>
       </div>
-      <div class="phone-caption"><b>4A. Interactive 4-Mode Coaching:</b> Click <i>Health</i>, <i>VO2 Max</i>, <i>Max HRV</i>, and <i>Reduce RHR</i> inside this phone to test all 4 coaching modes live!</div>
+      <div class="cap"><b>2A · Workout day:</b> Matches your exact <code>WorkoutHeroCard</code> &amp; <code>.ex</code> cards, adding a 54px Live HR hoop strip and subtle set-correlated BPM on finished exercises.</div>
     </div>
 
-    <!-- PHONE 4B: Layer 1 Principles + Mode A Limiter Calibration Sheet -->
-    <div class="phone-col">
+    <!-- PHONE W2: CONCENTRIC DUAL-HOOP HIIT SHEET -->
+    <div class="col">
       <div class="phone">
-        <div class="statusbar">
-          <span>9:41</span>
-          <div class="island"><span></span><span></span></div>
-          <span>84% 🔋</span>
+        <div class="status"><span>9:44</span><span>●●●</span></div>
+        <div class="content" style="opacity:.35">
+          <div class="title">Workout</div>
         </div>
-        <div class="screen">
-          <div class="nav-row">
-            <span class="back-btn">‹ Progress</span>
-            <span class="pill grey">Non-Graded Tips</span>
-          </div>
-          <div class="page-title" style="font-size:22px; margin-bottom:10px;">Execution Principles & Calibration</div>
-
-          <div class="card">
-            <div class="sec-lbl" style="color:var(--green);">Layer 1 · Daily Execution Guardrails</div>
-            <div class="kv-list" style="margin-top:6px;">
-              <div class="kv" style="display:block;">
-                <b>☀️ Diurnal Stress Frontloading</b>
-                <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">Stack hard intervals & cognitive load early so night stress drops flat.</div>
-              </div>
-              <div class="kv" style="display:block;">
-                <b>🚣 Modality ("Vehicle") Matching</b>
-                <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">Zone 2: bike / incline walk / swim. Zone 4–5: run or row (~86% muscle recruitment) to reach true cardiac ceiling.</div>
-              </div>
-              <div class="kv" style="display:block;">
-                <b>🍌 Intensity Fueling</b>
-                <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">Z1–2 fasted OK · Hard/&gt;60m: 30–60g low-fiber/fat carbs pre + 30g/h.</div>
-              </div>
+        <div class="dim"></div>
+        <div class="sheet" style="top:108px">
+          <div class="grab"></div>
+          <div class="head">
+            <div>
+              <div class="label">WHOOP 5.0 Haptics · Opcode 0x13</div>
+              <div style="font-size:19px;font-weight:700;margin-top:2px">Dual-Mode HIIT</div>
             </div>
+            <span class="pill green" id="hiit-round-pill">Round 3 / 4</span>
           </div>
 
-          <div class="card highlight">
-            <div class="sec-lbl">VO2 Max True Max HR & 10K Limiter</div>
-            <div class="grid-2" style="margin-top:6px;">
-              <div class="field-box">
-                <label>1-Mile Trial Peak HR</label>
-                <div class="val"><span>194 bpm</span> <span style="color:var(--green);">✎</span></div>
-              </div>
-              <div class="field-box">
-                <label>10K @ ≤(180−Age)</label>
-                <div class="val"><span>54:20</span> <span style="color:var(--green);">✎</span></div>
-              </div>
+          <div class="seg small" style="margin:10px 0">
+            <button class="on" onclick="switchHiit('hr', this)">HR Threshold</button>
+            <button onclick="switchHiit('time', this)">Time (4×4)</button>
+          </div>
+
+          <div class="chips" style="margin:6px 0 12px">
+            <div class="on">Peak 172 / Rec 130</div>
+            <div>Norwegian 4×4</div>
+            <div>8×200m</div>
+            <div>+ Preset</div>
+          </div>
+
+          <!-- Signature Concentric Double Hoop Gauge -->
+          <div style="display:flex;flex-direction:column;align-items:center;margin:6px 0 12px">
+            <div id="hiit-concentric" style="width:176px;height:176px"></div>
+            <div style="font-size:12px;color:var(--muted);margin-top:8px;text-align:center" id="hiit-caption">
+              Push to <b style="color:var(--amber)">172 bpm</b> → strap buzzes double pulse &amp; flips to recovery (10s hysteresis)
             </div>
-            <div style="margin-top:9px; font-size:12px;">
-              Active Limiter: <span class="pill amber">Anaerobic Battery → 60 / 30 / 10 Split</span>
+          </div>
+
+          <div class="pair">
+            <div class="stp">
+              <div class="lbl" id="hb1-lbl">Upper Push</div>
+              <div class="ctl"><div class="btnr">−</div><div class="val" id="hb1-val">172<small>bpm</small></div><div class="btnr">+</div></div>
             </div>
+            <div class="stp">
+              <div class="lbl" id="hb2-lbl">Recover To</div>
+              <div class="ctl"><div class="btnr">−</div><div class="val" id="hb2-val">130<small>bpm</small></div><div class="btnr">+</div></div>
+            </div>
+          </div>
+
+          <div class="row2" style="margin-top:12px">
+            <div class="btn ghost sm" style="margin:0">Keep in top bar</div>
+            <div class="btn sm" style="margin:0;background:var(--red);color:#04130a">End HIIT</div>
           </div>
         </div>
-
         <div class="tabbar">
-          <div class="tab"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab"><span class="ico">⚖️</span>Body</div>
-          <div class="tab"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab on"><span class="ico">📈</span>Progress</div>
-          <div class="tab"><span class="ico">•••</span>More</div>
+          <div class="tab on"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Diet</div><div class="tab"><i></i>Progress</div><div class="tab"><i></i>More</div>
         </div>
       </div>
-      <div class="phone-caption"><b>4B. Layer 1 Guardrails & VO2 Limiter Calibration:</b> Keeps static wisdom out of daily alarms while letting you calibrate 1-Mile Max HR & 10K limiter anytime.</div>
+      <div class="cap"><b>2B · Concentric Dual-Hoop HIIT Sheet:</b> Outer hoop = round completion, inner hoop = live HR threshold or interval timer, paired with your <code>.stp</code> steppers! Click <i>HR Threshold</i> / <i>Time (4×4)</i>.</div>
     </div>
+
+    <!-- PHONE W3: FINISH & LATE-STOP TRIM SHEET -->
+    <div class="col">
+      <div class="phone">
+        <div class="status"><span>10:32</span><span>●●●</span></div>
+        <div class="content" style="opacity:.35">
+          <div class="title">Workout</div>
+        </div>
+        <div class="dim"></div>
+        <div class="sheet" style="top:118px">
+          <div class="grab"></div>
+          <div class="head">
+            <div>
+              <div class="label">Editable session · recomputes strain</div>
+              <div style="font-size:19px;font-weight:700;margin-top:2px">Finish &amp; review</div>
+            </div>
+            <div id="trim-strain-ring" data-ring="0.56" data-size="52" data-stroke="5" data-label="11.8" data-color="#ffc53d"></div>
+          </div>
+
+          <div class="card hl-amber section" style="padding:11px 13px">
+            <div class="label" style="color:var(--amber)">Idle tail spotted · last set at 19:14</div>
+            <div style="font-size:12.5px;margin-top:4px;color:var(--text)">HR stayed below 82 bpm from 19:15 to 19:37.</div>
+            <button class="cbtn" style="margin-top:8px" onclick="document.getElementById('trim-end-v').innerHTML='19:15';document.getElementById('trim-avg-v').textContent='139 bpm'">Trim end to 19:15 (-22m)</button>
+          </div>
+
+          <div class="pair section">
+            <div class="stp">
+              <div class="lbl">Start time</div>
+              <div class="ctl"><div class="btnr">−</div><div class="val">18:18</div><div class="btnr">+</div></div>
+            </div>
+            <div class="stp">
+              <div class="lbl">End time</div>
+              <div class="ctl"><div class="btnr">−</div><div class="val" id="trim-end-v">19:37</div><div class="btnr">+</div></div>
+            </div>
+          </div>
+
+          <div class="card section list" style="padding:6px 14px">
+            <div class="li" style="padding:11px 0">Session kind<span style="color:var(--green);font-weight:600">Lifting ›</span></div>
+            <div class="li" style="padding:11px 0">Avg / Peak HR<span style="color:var(--text);font-weight:600"><b id="trim-avg-v">124 bpm</b> / 168 bpm</span></div>
+            <div class="li" style="padding:11px 0"><div>Long run gray-zone exempt<span class="sub2">For Maximizing HRV weekly 1.5–3h run</span></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+          </div>
+
+          <div class="btn">Save workout session</div>
+        </div>
+        <div class="tabbar">
+          <div class="tab on"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Diet</div><div class="tab"><i></i>Progress</div><div class="tab"><i></i>More</div>
+        </div>
+      </div>
+      <div class="cap"><b>2C · Post-workout trim sheet:</b> Uses your exact <code>.stp</code> steppers, 52px Strain hoop, and 1-tap idle-tail trim so forgotten workouts never skew averages.</div>
+    </div>
+
   </div>
 </div>
 
-<!-- ===================================================================== -->
-<!-- SECTION 5: MORE TAB (SILENT ALARMS 0x42 & APPDEFAULTSSTORE) -->
-<!-- ===================================================================== -->
-<div class="studio-section" id="sec-more">
-  <div class="sec-banner">
-    <h2><span>Tab 5 · More</span> WHOOP 7-Day Silent Haptic Alarms (<code>0x42</code>), Step Divisor & Unified <code>AppDefaultsStore</code></h2>
-    <p>Every threshold, meal default time, HR zone bound, marker override, and strap RTC alarm lives in one clean settings home.</p>
+<!-- ======================================================================= -->
+<!-- 3. DIET TAB: MEAL ATE_AT PILL & SLEEP-GAP HOOP -->
+<!-- ======================================================================= -->
+<div class="sec-group" id="g-diet">
+  <h2>3. Diet tab: Meal <code>ate_at</code> capsule, retroactive default guard &amp; Last-Meal-to-Sleep hoop</h2>
+  <div class="row">
+
+    <div class="col">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="content">
+          <div class="seg" style="margin:6px 0 12px"><div class="on">Today</div><div>Plan</div><div>Foods</div></div>
+
+          <!-- Retroactive Unconfirmed Meals Card matching DietTodayView.swift -->
+          <div class="card hl">
+            <div class="label">Did you eat these?</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:8px">
+              <div style="font-size:13px;font-weight:600">Thu, 26 Nov · Dinner <span class="chip grey" style="margin-left:4px">20:00 ✎</span></div>
+              <div style="display:flex;gap:6px">
+                <button class="cbtn">Ate it</button>
+                <button class="cbtn ghost">Skipped</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Exact Summary Calorie Ring Card from DietTodayView.swift -->
+          <div class="card section">
+            <div style="display:flex;align-items:center;gap:14px">
+              <div data-ring="0.88" data-size="92" data-stroke="9" data-label="2,670" data-sub="kcal"></div>
+              <div>
+                <div class="label">Eaten today · of 3,037</div>
+                <div class="big">2,670<span class="unit">kcal</span></div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px">204P · 290C · 74F · ₹312</div>
+              </div>
+            </div>
+            <div class="macro"><div class="top">Protein <span>204 g · met ✓</span></div><div class="bar"><i style="width:94%"></i></div></div>
+            <div class="macro"><div class="top">Fat <span>74 g · 25% ✓</span></div><div class="bar"><i style="width:72%"></i></div></div>
+          </div>
+
+          <!-- Planned Meal Card with ate_at Capsule next to GL · Aminos -->
+          <div class="card section">
+            <div class="head">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="mchk">✓</span>
+                <div class="label" style="color:var(--text);font-weight:700">DINNER</div>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <span class="chip green" style="margin:0;cursor:pointer" id="diet-time-chip" onclick="flipDinnerHoop()">18:30 ✎</span>
+                <span class="chip green" style="margin:0">GL 28 · Aminos</span>
+              </div>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:8px">Click <b style="color:var(--green)">18:30 ✎</b> above to test 18:30 vs late 21:30 dinner!</div>
+          </div>
+
+          <!-- Check-In Card + Circular Last-Meal-to-Sleep Hoop -->
+          <div class="card section" id="diet-sleep-card">
+            <div class="head">
+              <div class="label">Pre-sleep timing &amp; check-in</div>
+              <span class="chip green" style="margin:0" id="diet-gap-badge">4–6h Optimal</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;margin:10px 0">
+              <div id="diet-gap-hoop" style="width:58px;height:58px;flex:none"></div>
+              <div>
+                <div style="font-size:15px;font-weight:700" id="diet-gap-title">4.5 h before 23:00 bed</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px" id="diet-gap-sub">Last meal carbs: 65 g · GH pulse &amp; RHR protected</div>
+              </div>
+            </div>
+
+            <div style="font-size:12px;color:var(--muted)">Stimulant &amp; alcohol cutoffs</div>
+            <div class="ci-chips">
+              <button class="ci-chip on" onclick="this.classList.toggle('on')">Caffeine ≤100mg pre-12:00 ✓</button>
+              <button class="ci-chip on" onclick="this.classList.toggle('on')">No alcohol &lt;3h ✓</button>
+            </div>
+            <div style="font-size:12px;color:var(--muted)">Urine colour</div>
+            <div class="ci-chips" style="margin-bottom:0">
+              <button class="ci-chip" onclick="this.classList.toggle('on')">Clear</button>
+              <button class="ci-chip on" onclick="this.classList.toggle('on')">Pale yellow</button>
+              <button class="ci-chip" onclick="this.classList.toggle('on')">Dark yellow</button>
+            </div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab on"><i></i>Diet</div><div class="tab"><i></i>Progress</div><div class="tab"><i></i>More</div>
+        </div>
+      </div>
+      <div class="cap"><b>3 · Diet Today:</b> Matches <code>DietTodayView</code> + <code>CheckInCard</code> verbatim, adding the <code>18:30 ✎</code> meal chip, a 58px Meal-to-Sleep hoop, and the 2 cutoff capsule chips.</div>
+    </div>
+
   </div>
+</div>
 
-  <div class="phones-row">
-    <!-- PHONE 5A: WHOOP Band Screen with 7-Day Silent Alarms & Step Divisor -->
-    <div class="phone-col">
+<!-- ======================================================================= -->
+<!-- 4. PROGRESS TAB: 4 COACHING MODES WITH HOOPS + PRINCIPLES -->
+<!-- ======================================================================= -->
+<div class="sec-group" id="g-progress">
+  <h2>4. Progress tab: 4-Mode WHOOP Coaching Ring Hub &amp; Layer 1 Principles</h2>
+  <div class="row">
+
+    <!-- PHONE P1: PROGRESS TAB WITH INTERACTIVE 4-MODE HOOP HUB -->
+    <div class="col">
       <div class="phone">
-        <div class="statusbar">
-          <span>9:41</span>
-          <div class="island"><span></span><span></span></div>
-          <span>84% 🔋</span>
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="content">
+          <div class="topbar">
+            <div class="title"><small>Tap a ring to inspect or tune</small>Progress</div>
+            <div class="link" style="font-size:13px">Principles ›</div>
+          </div>
+
+          <!-- 4-Mode Switcher -->
+          <div class="seg small" style="margin:10px 0">
+            <button class="on" onclick="switchModeHoop('health', this)">Health</button>
+            <button onclick="switchModeHoop('vo2', this)">VO2 Max</button>
+            <button onclick="switchModeHoop('hrv', this)">Max HRV</button>
+            <button onclick="switchModeHoop('rhr', this)">Reduce RHR</button>
+          </div>
+
+          <!-- Active Mode Hero Hoop Card -->
+          <div class="card hero" style="padding:14px">
+            <div id="mode-hero-hoop" style="width:84px;height:84px;flex:none"></div>
+            <div style="min-width:0">
+              <div class="label" id="mode-kicker">General Health · 80/20 Split</div>
+              <div style="font-size:18px;font-weight:700;margin-top:3px" id="mode-title">175 / 150m Zone 2</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.35" id="mode-sub">
+                110–140 bpm · 0 gray-zone drifts · +4.2% wk/wk (≤5% cap ✓)
+              </div>
+            </div>
+          </div>
+
+          <!-- Twin Ring Cards for Strength Benchmark & CTL/ATL Load -->
+          <div class="grid">
+            <div class="card m">
+              <div data-ring="1.0" data-size="46" data-stroke="5" data-label="3.2h"></div>
+              <div>
+                <div class="t">Lifting Goal</div>
+                <div class="s">3.2 → 3.0 h/wk</div>
+                <div class="s" style="color:var(--green)">Benchmark met</div>
+              </div>
+            </div>
+            <div class="card m">
+              <div data-ring="0.78" data-size="46" data-stroke="5" data-label="+4" data-color="#8af0bd"></div>
+              <div>
+                <div class="t">Load (TSB)</div>
+                <div class="s">CTL 46 · ATL 42</div>
+                <div class="s" style="color:var(--green)">1:2 spacing ✓</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Existing Measurement Ring Grid from ProgressTabView.swift -->
+          <div class="head section" style="margin-bottom:6px">
+            <div class="label">Body site rings</div>
+            <span style="font-size:12px;color:var(--green);font-weight:600">±1.5%</span>
+          </div>
+          <div class="grid">
+            <div class="card m"><div data-ring="0.95" data-size="46" data-stroke="5"></div><div><div class="t">Right Thigh</div><div class="s">21.80 → 22.58 in</div><div class="s" style="color:var(--green)">0.78 to gain</div></div></div>
+            <div class="card m"><div data-ring="0.87" data-size="46" data-stroke="5" data-color="#f5c542"></div><div><div class="t">Waist</div><div class="s">30.20 → 28.00 in</div><div class="s" style="color:var(--amber)">2.20 to lose</div></div></div>
+          </div>
+
+          <div class="label" style="margin-top:14px">CTL vs ATL load trend</div>
+          <div class="card" style="margin-top:6px"><div id="ctlchart"></div></div>
         </div>
-        <div class="screen">
-          <div class="nav-row">
-            <span class="back-btn">‹ More</span>
-            <span class="pill green">Connected · Gen5</span>
-          </div>
-          <div class="page-title" style="font-size:23px; margin-bottom:10px;">WHOOP 5.0 Band</div>
-
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div class="sec-lbl">Hardware & Sync Provenance</div>
-                <div style="font-size:15px; font-weight:800; margin-top:2px;">548,797 1Hz Rows · 0 CRC Errors</div>
-                <div style="font-size:11.5px; color:var(--muted);">547,574 OpenStrap + 1,223 Live · Cursor <code>c1be0000…</code></div>
-              </div>
-              <button class="btn-mini green">Sync</button>
-            </div>
-          </div>
-
-          <!-- 7-Day Silent Haptic Alarm Scheduler -->
-          <div class="card highlight">
-            <div class="row-between" style="margin-bottom:6px;">
-              <div>
-                <div class="sec-lbl" style="color:var(--green);">Opcode 0x42 / 0x45 · Strap RTC Drift -1.4s</div>
-                <div style="font-size:16px; font-weight:800;">7-Day Silent Haptic Alarms</div>
-              </div>
-              <span class="pill grey">15m Smart Window</span>
-            </div>
-
-            <div class="kv-list">
-              <div class="kv">
-                <div><b>Mon – Fri</b> <span style="color:var(--muted); font-size:11.5px; margin-left:6px;">Anchor wake</span></div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <b style="font-size:15px;">06:45</b>
-                  <div class="ios-switch on" onclick="this.classList.toggle('on')"></div>
-                </div>
-              </div>
-              <div class="kv">
-                <div><b>Saturday</b> <span style="color:var(--muted); font-size:11.5px; margin-left:6px;">≤30m drift rule</span></div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <b style="font-size:15px;">07:00</b>
-                  <div class="ios-switch on" onclick="this.classList.toggle('on')"></div>
-                </div>
-              </div>
-              <div class="kv">
-                <div><b>Sunday</b> <span style="color:var(--muted); font-size:11.5px; margin-left:6px;">≤30m drift rule</span></div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <b style="font-size:15px;">07:00</b>
-                  <div class="ios-switch" onclick="this.classList.toggle('on')"></div>
-                </div>
-              </div>
-            </div>
-            <button class="btn-primary" style="width:100%; margin-top:8px;">Push Next Alarm to Strap (0x42)</button>
-          </div>
-
-          <!-- Gen5 Step Divisor -->
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div class="sec-lbl">Gen5 Walk/Run Step Filter (No HealthKit)</div>
-                <div style="font-size:14.5px; font-weight:700; margin-top:2px;">Step Ticks Divisor (<code>stepTicksPerStep</code>)</div>
-                <div style="font-size:11px; color:var(--muted);">Counts strictly <code>activity_class ∈ {1, 2}</code></div>
-              </div>
-              <div class="field-box" style="margin:0; padding:6px 10px;">
-                <div class="val" style="gap:8px;"><span style="color:var(--green);">−</span> <b>1.00</b> <span style="color:var(--green);">+</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div class="tabbar">
-          <div class="tab"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab"><span class="ico">⚖️</span>Body</div>
-          <div class="tab"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab"><span class="ico">📈</span>Progress</div>
-          <div class="tab on"><span class="ico">•••</span>More</div>
+          <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Diet</div><div class="tab on"><i></i>Progress</div><div class="tab"><i></i>More</div>
         </div>
       </div>
-      <div class="phone-caption"><b>5A. WHOOP Band Alarms & Step Divisor:</b> Toggle weekday/weekend haptic alarms and tune <code>stepTicksPerStep</code> directly inside the existing WHOOP Band screen.</div>
+      <div class="cap"><b>4A · Progress tab:</b> Click <i>Health / VO2 Max / Max HRV / Reduce RHR</i>! Uses the exact same 84px + 46px <code>RingView</code> language as your Body Site rings.</div>
     </div>
 
-    <!-- PHONE 5B: Centralized AppDefaultsStore + Custom Gene / Marker Override -->
-    <div class="phone-col">
+    <!-- PHONE P2: LAYER 1 PRINCIPLES & VO2 LIMITER CALIBRATION -->
+    <div class="col">
       <div class="phone">
-        <div class="statusbar">
-          <span>9:41</span>
-          <div class="island"><span></span><span></span></div>
-          <span>84% 🔋</span>
-        </div>
-        <div class="screen">
-          <div class="nav-row">
-            <span class="back-btn">‹ More</span>
-            <span class="back-btn">Save</span>
-          </div>
-          <div class="page-title" style="font-size:22px; margin-bottom:10px;">Defaults, Cutoffs & Zones</div>
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="content">
+          <div class="back">‹ Progress</div>
+          <div class="title" style="font-size:24px"><small>Layer 1 · Static guardrails</small>Principles &amp; Limiter</div>
 
-          <div class="card">
-            <div class="sec-lbl">Default Meal Times (Retroactive Guard)</div>
-            <div class="kv-list" style="margin-top:4px;">
-              <div class="kv"><span>Breakfast / Brunch</span><b>09:00 / 12:30 ✎</b></div>
-              <div class="kv"><span>Lunch / Pre-Workout</span><b>13:30 / 17:30 ✎</b></div>
-              <div class="kv"><span>Dinner</span><b style="color:var(--green);">20:00 ✎</b></div>
+          <div class="card section">
+            <div class="label">VO2 Max calibration &amp; 10K limiter</div>
+            <div class="pair" style="margin-top:10px">
+              <div class="stp">
+                <div class="lbl">1-Mile Max HR</div>
+                <div class="ctl"><div class="btnr">−</div><div class="val">194<small>bpm</small></div><div class="btnr">+</div></div>
+              </div>
+              <div class="stp">
+                <div class="lbl">10K ≤(180-Age)</div>
+                <div class="ctl"><div class="btnr">−</div><div class="val">54<small>min</small></div><div class="btnr">+</div></div>
+              </div>
             </div>
-          </div>
-
-          <div class="card">
-            <div class="sec-lbl">Sleep, Meal & Stimulant Cutoffs</div>
-            <div class="kv-list" style="margin-top:4px;">
-              <div class="kv"><span>Meal-to-Sleep Warn / Optimal</span><b>&lt; 3.0h / 4–6h</b></div>
-              <div class="kv"><span>Caffeine Max &amp; Cutoff</span><b>100 mg · 12:00</b></div>
-              <div class="kv"><span>Sleep Need (Rest / Lift / Endur)</span><b>7.0 / 7.5 / 8.0 h</b></div>
-              <div class="kv"><span>Target Daily Wake Time</span><b style="color:var(--green);">07:00</b></div>
+            <div class="chips" style="margin:10px 0 0">
+              <div>Aerobic 80/20</div>
+              <div class="on">Anaerobic 60/30/10</div>
+              <div>Speed 75/15/10</div>
             </div>
           </div>
 
-          <div class="card">
-            <div class="row-between">
-              <div class="sec-lbl">Heart Rate Zones (Manual / Karvonen)</div>
-              <span class="pill green">Max 194 bpm</span>
+          <div class="card section list" style="padding:6px 14px">
+            <div class="li" style="display:block">
+              <div style="font-weight:600">Diurnal stress frontloading</div>
+              <span class="sub2">Stack hard intervals &amp; cognitive load early so night stress drops flat.</span>
             </div>
-            <div style="font-size:12.5px; font-weight:700; margin-top:7px;">
-              Z1 112 · Z2 110–140 · Z3 154 · Z4 172 · Z5 185+
+            <div class="li" style="display:block">
+              <div style="font-weight:600">Modality ("vehicle") matching</div>
+              <span class="sub2">Zone 2: bike, walk, swim. Zone 4–5: run or row (~86% muscle recruitment) to reach cardiac ceiling before quad failure.</span>
             </div>
-            <div class="zone-stack">
-              <div class="z1" style="width:20%"></div>
-              <div class="z2" style="width:20%"></div>
-              <div class="z3" style="width:20%"></div>
-              <div class="z4" style="width:20%"></div>
-              <div class="z5" style="width:20%"></div>
+            <div class="li" style="display:block">
+              <div style="font-weight:600">Fueling by intensity</div>
+              <span class="sub2">Easy Z1–2: fasted fine. Hard/&gt;60m: 30–60g low-fiber/fat carbs pre + 30g/h.</span>
             </div>
-          </div>
-
-          <div class="card">
-            <div class="sec-lbl">Lab &amp; Genetics Overrides (In Marker/Gene Screens)</div>
-            <div style="font-size:12px; color:var(--subtext); margin-top:5px; line-height:1.45;">
-              • <b>Ferritin Personal Optimal:</b> 80–130 ng/mL <span style="color:var(--green);">(Edit)</span><br>
-              • <b>Custom SNPs:</b> COMT rs4680 Met/Met <span style="color:var(--green);">(+ Add / Edit)</span>
+            <div class="li" style="display:block">
+              <div style="font-weight:600">Strides &amp; threshold</div>
+              <span class="sub2">Strides: 6–8 × 20s after easy runs. Tempo: 20–40m at 1-hour race pace.</span>
             </div>
           </div>
         </div>
-
         <div class="tabbar">
-          <div class="tab"><span class="ico">🏋️</span>Workout</div>
-          <div class="tab"><span class="ico">⚖️</span>Body</div>
-          <div class="tab"><span class="ico">🍽️</span>Diet</div>
-          <div class="tab"><span class="ico">📈</span>Progress</div>
-          <div class="tab on"><span class="ico">•••</span>More</div>
+          <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Diet</div><div class="tab on"><i></i>Progress</div><div class="tab"><i></i>More</div>
         </div>
       </div>
-      <div class="phone-caption"><b>5B. Centralized <code>AppDefaultsStore</code>:</b> One clean settings form under <i>More</i> for meal defaults, sleep/caffeine cutoffs, and manual HR zones.</div>
+      <div class="cap"><b>4B · Principles &amp; VO2 Limiter:</b> Native <code>.stp</code> steppers for 1-Mile Max HR &amp; 10K test time + clean <code>.list</code> rows matching <code>MoreTabView</code>.</div>
     </div>
+
+  </div>
+</div>
+
+<!-- ======================================================================= -->
+<!-- 5. MORE TAB: 7-DAY ALARMS (0x42) & APPDEFAULTSSTORE -->
+<!-- ======================================================================= -->
+<div class="sec-group" id="g-more">
+  <h2>5. More tab: WHOOP 7-Day Silent Alarms (<code>0x42</code>), Step Divisor &amp; <code>AppDefaultsStore</code></h2>
+  <div class="row">
+
+    <!-- PHONE M1: WHOOP BAND SCREEN -->
+    <div class="col">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="content">
+          <div class="back">‹ More</div>
+          <div class="topbar">
+            <div class="title" style="font-size:24px"><small>fw 50.36.2.0 · 0 CRC errors</small>WHOOP 5.0 Band</div>
+            <span class="pill green">Connected</span>
+          </div>
+
+          <div class="card hero section" style="padding:14px">
+            <div data-ring="0.84" data-size="76" data-stroke="7" data-label="84%" data-sub="battery"></div>
+            <div>
+              <div class="label">Unified whoop.sqlite</div>
+              <div style="font-size:18px;font-weight:700;margin-top:2px">548,797 1Hz rows</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-top:3px">547,574 baseline + 1,223 live · On wrist</div>
+            </div>
+          </div>
+
+          <!-- 7-Day Silent Haptic Alarms using .list + .toggle -->
+          <div class="card section list">
+            <div class="head"><div class="label">7-day silent alarms (0x42 · RTC -1.4s)</div><span class="chip green" style="margin:0">15m smart</span></div>
+            <div class="li" style="margin-top:4px">
+              <div>Mon – Fri<span class="sub2">Steady wake anchor</span></div>
+              <div style="display:flex;align-items:center;gap:10px"><b style="color:var(--green)">06:45</b><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            </div>
+            <div class="li">
+              <div>Saturday<span class="sub2">Within ±30m jet-lag guard</span></div>
+              <div style="display:flex;align-items:center;gap:10px"><b style="color:var(--green)">07:00</b><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+            </div>
+            <div class="li">
+              <div>Sunday<span class="sub2">Within ±30m jet-lag guard</span></div>
+              <div style="display:flex;align-items:center;gap:10px"><b style="color:var(--muted)">07:00</b><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+            </div>
+            <div class="btn sm">Sync alarm schedule to strap</div>
+          </div>
+
+          <!-- Step Divisor using exact .stepper from MoreTabView -->
+          <div class="card section list">
+            <div class="label">Gen5 walk/run step filter</div>
+            <div class="li" style="margin-top:4px">
+              <div>Ticks per step<span class="sub2">Counts strictly activity_class 1 (walk) &amp; 2 (run)</span></div>
+              <div class="stepper"><b>−</b><em>1.00</em><b>+</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Diet</div><div class="tab"><i></i>Progress</div><div class="tab on"><i></i>More</div>
+        </div>
+      </div>
+      <div class="cap"><b>5A · WHOOP Band screen:</b> Battery hoop + exact <code>More</code> <code>.list</code> toggles and <code>.stepper</code> for 7-day silent alarms and <code>stepTicksPerStep</code>.</div>
+    </div>
+
+    <!-- PHONE M2: DEFAULTS, CUTOFFS & ZONES -->
+    <div class="col">
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="content">
+          <div class="back">‹ More</div>
+          <div class="title" style="font-size:24px"><small>AppDefaultsStore</small>Defaults &amp; Cutoffs</div>
+
+          <div class="card section list">
+            <div class="label">Default meal times (retroactive guard)</div>
+            <div class="li" style="margin-top:4px">Breakfast / Brunch<span style="color:var(--green);font-weight:600">09:00 · 12:30 ›</span></div>
+            <div class="li">Lunch / Pre-workout<span style="color:var(--green);font-weight:600">13:30 · 17:30 ›</span></div>
+            <div class="li">Dinner<span style="color:var(--green);font-weight:600">20:00 ›</span></div>
+          </div>
+
+          <div class="card section list">
+            <div class="label">Pre-sleep &amp; sleep need rules</div>
+            <div class="li" style="margin-top:4px">Meal-to-sleep warn<div class="stepper"><b>−</b><em>3.0h</em><b>+</b></div></div>
+            <div class="li">Caffeine cutoff<span style="color:var(--green);font-weight:600">100 mg · 12:00 ›</span></div>
+            <div class="li">Sleep (Rest / Lift / Endur)<span style="color:var(--green);font-weight:600">7.0 / 7.5 / 8.0h ›</span></div>
+            <div class="li">Target daily wake<span style="color:var(--green);font-weight:600">07:00 ›</span></div>
+          </div>
+
+          <div class="card section list">
+            <div class="head"><div class="label">Heart rate zones</div><span class="chip green" style="margin:0">Karvonen · 194 max</span></div>
+            <div class="li" style="margin-top:4px">Zone 2 aerobic band<span style="color:var(--green);font-weight:600">110 – 140 bpm ›</span></div>
+            <div class="li">Manual 5-zone bounds<span style="color:var(--green);font-weight:600">112·134·154·172·185 ›</span></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><i></i>Workout</div><div class="tab"><i></i>Body</div><div class="tab"><i></i>Diet</div><div class="tab"><i></i>Progress</div><div class="tab on"><i></i>More</div>
+        </div>
+      </div>
+      <div class="cap"><b>5B · Defaults &amp; Cutoffs:</b> Uses the exact <code>More</code> settings table style (<code>.card.list</code>, <code>.li</code>, <code>.stepper</code>) — zero visual divergence from the rest of the app.</div>
+    </div>
+
   </div>
 </div>
 
 <script>
-  function filterSection(id, el) {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.arch-card').forEach(c => c.classList.remove('active'));
-    if (el) el.classList.add('active');
-    document.querySelectorAll('.studio-section').forEach(sec => {
-      if (id === 'all' || sec.id === id) {
-        sec.classList.remove('hidden');
-      } else {
-        sec.classList.add('hidden');
-      }
+  function concentricHoop(outerPct, innerPct, mainText, subText, innerColor) {
+    const size = 176, s1 = 10, s2 = 12;
+    const r1 = (size - s1) / 2;
+    const r2 = r1 - 17;
+    const c1 = 2 * Math.PI * r1, c2 = 2 * Math.PI * r2;
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' +
+      '<circle cx="' + (size/2) + '" cy="' + (size/2) + '" r="' + r1 + '" fill="none" stroke="#232a26" stroke-width="' + s1 + '"/>' +
+      '<circle cx="' + (size/2) + '" cy="' + (size/2) + '" r="' + r1 + '" fill="none" stroke="#8af0bd" stroke-width="' + s1 + '" stroke-linecap="round" stroke-dasharray="' + (c1 * outerPct) + ' ' + c1 + '" transform="rotate(-90 ' + (size/2) + ' ' + (size/2) + ')"/>' +
+      '<circle cx="' + (size/2) + '" cy="' + (size/2) + '" r="' + r2 + '" fill="none" stroke="#232a26" stroke-width="' + s2 + '"/>' +
+      '<circle cx="' + (size/2) + '" cy="' + (size/2) + '" r="' + r2 + '" fill="none" stroke="' + innerColor + '" stroke-width="' + s2 + '" stroke-linecap="round" stroke-dasharray="' + (c2 * innerPct) + ' ' + c2 + '" transform="rotate(-90 ' + (size/2) + ' ' + (size/2) + ')"/>' +
+      '<text x="50%" y="48%" text-anchor="middle" fill="#f2f5f3" font-weight="800" font-size="34">' + mainText + '</text>' +
+      '<text x="50%" y="64%" text-anchor="middle" fill="#8a9690" font-weight="600" font-size="12">' + subText + '</text>' +
+      '</svg>';
+  }
+
+  function filterSec(id, btn) {
+    document.querySelectorAll('.nav-pills button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    document.querySelectorAll('.sec-group').forEach(g => {
+      g.classList.toggle('hide', id !== 'all' && g.id !== id);
     });
   }
 
-  function toggleSheet(id, show) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (show) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  function switchReadiness(mode, btn) {
+    btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    const hoop = document.getElementById('rec-main-hoop');
+    const pill = document.getElementById('rec-pill');
+    const title = document.getElementById('rec-title');
+    const desc = document.getElementById('rec-desc');
+    if (mode === 'green') {
+      hoop.innerHTML = ring(0.82, 108, 10, '82%', 'readiness', '#2ee887');
+      pill.className = 'pill green'; pill.textContent = 'Normal strain';
+      title.textContent = 'Optimal recovery';
+      desc.textContent = 'Autonomic +0.9σ vs 28d self-excluded baseline. Morning pin locked.';
+    } else {
+      hoop.innerHTML = ring(0.29, 108, 10, '29%', 'override', '#f5c542');
+      pill.className = 'pill amber'; pill.textContent = 'Keep normal strain';
+      title.textContent = 'Red · Late-meal override';
+      desc.textContent = '1st Red day aligns with 2.1h meal-to-sleep gap (yesterday Strain 9.4). Deload only at 3+ Red days.';
     }
   }
 
-  function setHiitMode(mode, btn) {
+  function switchHiit(mode, btn) {
     btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('on'));
     btn.classList.add('on');
-    const pill = document.getElementById('hiit-phase-pill');
-    const big = document.getElementById('hiit-big-readout');
-    const sub = document.getElementById('hiit-sub-readout');
-    const b1l = document.getElementById('hiit-box1-lbl');
-    const b1v = document.getElementById('hiit-box1-val');
-    const b2l = document.getElementById('hiit-box2-lbl');
-    const b2v = document.getElementById('hiit-box2-val');
-
+    const box = document.getElementById('hiit-concentric');
+    const cap = document.getElementById('hiit-caption');
+    const l1 = document.getElementById('hb1-lbl'), v1 = document.getElementById('hb1-val');
+    const l2 = document.getElementById('hb2-lbl'), v2 = document.getElementById('hb2-val');
     if (mode === 'hr') {
-      pill.textContent = '🔥 PUSH TO UPPER TARGET (≥ 172 BPM)';
-      big.innerHTML = '169 <span style="font-size:18px; color:var(--muted); font-weight:600;">BPM</span>';
-      sub.innerHTML = '3 bpm away → Strap fires <b>Double Haptic Pulse (0x13)</b> & flips to Recovery';
-      b1l.textContent = 'Upper Push Target'; b1v.textContent = '172 BPM';
-      b2l.textContent = 'Lower Recovery Target'; b2v.textContent = '130 BPM';
+      box.innerHTML = concentricHoop(0.75, 0.94, '169', 'target ≥172 bpm', '#f5c542');
+      cap.innerHTML = 'Push to <b style="color:var(--amber)">172 bpm</b> → strap buzzes double pulse &amp; flips to recovery (10s hysteresis)';
+      l1.textContent = 'Upper Push'; v1.innerHTML = '172<small>bpm</small>';
+      l2.textContent = 'Recover To'; v2.innerHTML = '130<small>bpm</small>';
     } else {
-      pill.textContent = '⏱️ WORK INTERVAL · NORWEGIAN 4×4';
-      big.innerHTML = '02:14 <span style="font-size:18px; color:var(--muted); font-weight:600;">LEFT</span>';
-      sub.innerHTML = 'Live HR <b>176 bpm (91%)</b> · Strap buzzes <b>0x13</b> at 00:00 → 3:00 Active Rest';
-      b1l.textContent = 'Work Duration'; b1v.textContent = '240 sec';
-      b2l.textContent = 'Rest Duration'; b2v.textContent = '180 sec';
+      box.innerHTML = concentricHoop(0.75, 0.56, '02:14', '176 bpm · Z5', '#2ee887');
+      cap.innerHTML = 'Norwegian 4×4 work bout · strap buzzes <b>0x13</b> at 00:00 → 3:00 active rest';
+      l1.textContent = 'Work'; v1.innerHTML = '240<small>s</small>';
+      l2.textContent = 'Rest'; v2.innerHTML = '180<small>s</small>';
     }
   }
 
-  function setRecDemo(state, btn) {
+  let lateMeal = false;
+  function flipDinnerHoop() {
+    lateMeal = !lateMeal;
+    const chip = document.getElementById('diet-time-chip');
+    const badge = document.getElementById('diet-gap-badge');
+    const hoop = document.getElementById('diet-gap-hoop');
+    const title = document.getElementById('diet-gap-title');
+    const sub = document.getElementById('diet-gap-sub');
+    if (!lateMeal) {
+      chip.className = 'chip green'; chip.textContent = '18:30 ✎';
+      badge.className = 'chip green'; badge.textContent = '4–6h Optimal';
+      hoop.innerHTML = ring(0.90, 58, 6, '4.5h', 'gap', '#2ee887');
+      title.textContent = '4.5 h before 23:00 bed';
+      sub.textContent = 'Last meal carbs: 65 g · GH pulse & RHR protected';
+    } else {
+      chip.className = 'chip amber'; chip.textContent = '21:30 ✎';
+      badge.className = 'chip red'; badge.textContent = '<3h Warning';
+      hoop.innerHTML = ring(0.32, 58, 6, '1.5h', 'late', '#ff6b6b');
+      title.textContent = '1.5 h before 23:00 bed';
+      sub.textContent = '65 g late carbs <3h before sleep onset blunts GH & raises early RHR';
+    }
+  }
+
+  function switchModeHoop(mode, btn) {
     btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('on'));
     btn.classList.add('on');
-    const card = document.getElementById('rec-hero-card');
-    const score = document.getElementById('rec-score-txt');
-    const pill = document.getElementById('rec-Context-pill');
-    const exp = document.getElementById('rec-explain-txt');
-    const hrv = document.getElementById('rec-hrv-val');
-    const rhr = document.getElementById('rec-rhr-val');
-
-    if (state === 'green') {
-      card.className = 'card highlight';
-      score.innerHTML = '82% <span style="font-size:15px; font-weight:700; color:var(--green);">Optimal Readiness</span>';
-      pill.className = 'pill green';
-      pill.textContent = 'Normal Strain OK';
-      exp.textContent = 'Autonomic axis (0.70 weight) +0.9σ above your self-excluded 28-day median.';
-      hrv.textContent = '64 ms ↑';
-      rhr.textContent = '48 bpm ↓';
-    } else {
-      card.className = 'card amber-hl';
-      score.innerHTML = '29% <span style="font-size:15px; font-weight:700; color:var(--amber);">Red · Override Active</span>';
-      pill.className = 'pill amber';
-      pill.textContent = 'Keep Normal Strain ✓';
-      exp.innerHTML = '<b>Context Override:</b> 1st Red day aligns with <b>2.1h late meal</b> (not overload; yesterday Strain 9.4). Deload only triggers at 3+ consecutive Red days.';
-      hrv.textContent = '43 ms ↓';
-      rhr.textContent = '54 bpm ↑';
-    }
-  }
-
-  let dinnerLate = false;
-  function toggleDinnerTime() {
-    dinnerLate = !dinnerLate;
-    const pill = document.getElementById('dinner-time-pill');
-    const card = document.getElementById('meal-sleep-card');
-    const status = document.getElementById('gap-status-pill');
-    const head = document.getElementById('gap-headline');
-    const sub = document.getElementById('gap-sub');
-
-    if (!dinnerLate) {
-      pill.className = 'pill green';
-      pill.textContent = '🕡 18:30 ✎';
-      card.className = 'card highlight';
-      status.className = 'pill green';
-      status.textContent = 'Optimal 4–6h Window ✓';
-      head.innerHTML = 'Last Meal → Bed: 4h 30m <span style="font-size:12px; color:var(--muted); font-weight:600;">(65g carbs)</span>';
-      sub.textContent = 'Dinner 18:30 vs Target Bedtime 23:00 — protects nocturnal RHR & GH pulse.';
-    } else {
-      pill.className = 'pill amber';
-      pill.textContent = '🕤 21:30 ✎';
-      card.className = 'card red-hl';
-      status.className = 'pill red';
-      status.textContent = '< 3h Warning';
-      head.innerHTML = 'Last Meal → Bed: 1h 30m <span style="font-size:12px; color:var(--amber); font-weight:600;">(65g late carbs)</span>';
-      sub.textContent = 'Dinner 21:30 is < 3.0h before 23:00 sleep onset — elevates early-night RHR & blunts GH pulse.';
-    }
-  }
-
-  function setCoachMode(mode, btn) {
-    btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('on'));
-    btn.classList.add('on');
-    const kicker = document.getElementById('coach-mode-kicker');
-    const badge = document.getElementById('coach-mode-badge');
-    const head = document.getElementById('coach-mode-headline');
-    const body = document.getElementById('coach-mode-body');
-    const extra = document.getElementById('coach-mode-extra');
-
+    const hoop = document.getElementById('mode-hero-hoop');
+    const kicker = document.getElementById('mode-kicker');
+    const title = document.getElementById('mode-title');
+    const sub = document.getElementById('mode-sub');
     if (mode === 'health') {
-      kicker.textContent = 'Layer 2 · General Health Baseline';
-      badge.className = 'pill green'; badge.textContent = '80 / 20 Split';
-      head.textContent = 'Zone 2 Base: 175 / 150 min floor ✓';
-      body.innerHTML = 'Building toward 300 min/wk @ <b>110–140 bpm</b>. Zero Gray-Zone (&gt;140 bpm) drifts this week. Weekly progression +4.2% (≤ +5% cap ✓).';
-      extra.innerHTML = '<b>1 Hard : 2 Easy Spacing:</b> ✓ Respected · Next hard interval slot: Tomorrow AM';
+      hoop.innerHTML = ring(1.0, 84, 8, '175m', 'Z2 wk', '#2ee887');
+      kicker.textContent = 'General Health · 80/20 Split';
+      title.textContent = '175 / 150m Zone 2';
+      sub.textContent = '110–140 bpm · 0 gray-zone drifts · +4.2% wk/wk (≤5% cap ✓)';
     } else if (mode === 'vo2') {
-      kicker.textContent = 'Mode A · Maximizing VO2 Max (90d Block)';
-      badge.className = 'pill amber'; badge.textContent = '60 / 30 / 10 Split';
-      head.textContent = '>85% HRmax: 52 / 50 min weekly target ✓';
-      body.innerHTML = 'Limiter: <b>Anaerobic Battery</b> (60% easy / 30% anaerobic intervals / 10% aerobic). Total cardio: <b>5.4 / 7.0 h ceiling</b> (protects lean mass).';
-      extra.innerHTML = '<b>True Max HR:</b> 194 bpm (1-Mile Trial) · Retest 10K @ ≤150 bpm in <b>5 weeks</b>';
+      hoop.innerHTML = ring(1.0, 84, 8, '52m', '>85%', '#ffc53d');
+      kicker.textContent = 'Maximizing VO2 Max · 60/30/10';
+      title.textContent = '52 / 50m >85% HRmax';
+      sub.textContent = 'Anaerobic Battery limiter · 5.4 / 7.0 h weekly cap · Max HR 194';
     } else if (mode === 'hrv') {
-      kicker.textContent = 'Mode B · Maximizing HRV';
-      badge.className = 'pill purple'; badge.textContent = 'Gray-Zone Exempt ✓';
-      head.textContent = '4-Day Post-Endurance Rebound · Day 2';
-      body.innerHTML = 'Weekly <b>2h 10m Zone 3–5 Long Run</b> completed Sun (Gray-Zone warning suppressed). Day 1 showed expected <b>-39% HRV drop</b>.';
-      extra.innerHTML = '<b>Today (Day 2):</b> 50m Easy Zone 1–2 Flush · Days 3–4: HRV supercompensation window';
+      hoop.innerHTML = ring(0.50, 84, 8, 'D2', 'of 4d', '#8af0bd');
+      kicker.textContent = 'Maximizing HRV · Gray-Zone Exempt';
+      title.textContent = 'Day 2 · 50m Z1–2 Flush';
+      sub.textContent = '2h10m Z3–5 long run Sun (-39% D1 HRV drop confirmed) · Rebound D3–4';
     } else {
-      kicker.textContent = 'Mode C · Reducing RHR';
-      badge.className = 'pill blue'; badge.textContent = 'Wk 2 · 1.10× Microcycle';
-      head.textContent = 'Today (8,420 steps) → 25 min @ 110–130 bpm';
-      body.innerHTML = 'Step-adjusted prescription: &lt;5k→40m · <b>5k–10k→25m</b> · &gt;10k→0m (+30m secondary day). Strict Zone 2 ceiling lowered to <b>130 bpm</b>.';
-      extra.innerHTML = '<b>Strict Noon Caffeine:</b> ≤100mg before 12:00 ✓ · Next week (Wk 3): <b>-50% Zone 2 Deload</b>';
+      hoop.innerHTML = ring(0.62, 84, 8, '25m', 'today', '#2ee887');
+      kicker.textContent = 'Reducing RHR · Wk 2 (1.10×)';
+      title.textContent = '8,420 steps → 25m Z2';
+      sub.textContent = 'Strict 110–130 bpm cap · Noon caffeine ≤100mg ✓ · Wk 3: -50% deload';
     }
   }
+
+  window.drawCharts = function () {
+    document.getElementById('hiit-concentric').innerHTML = concentricHoop(0.75, 0.94, '169', 'target ≥172 bpm', '#f5c542');
+    document.getElementById('diet-gap-hoop').innerHTML = ring(0.90, 58, 6, '4.5h', 'gap', '#2ee887');
+    document.getElementById('mode-hero-hoop').innerHTML = ring(1.0, 84, 8, '175m', 'Z2 wk', '#2ee887');
+    lineChart('ctlchart',
+      [{ vals: [41, 42, 43, 44, 45, 46.2], color: '#2ee887' },
+       { vals: [39, 44, 46, 43, 41, 42.1], color: '#8af0bd', dash: true, hollow: true }],
+      320, 125, { area: true, xlabels: SESSIONS, padY: 3 });
+  };
 </script>
 </body>
 </html>
