@@ -188,6 +188,92 @@ public enum WhoopSubstrateSchema {
             reading_id TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_ecg_raw_packet_strap ON ecg_raw_packet(strap_seconds);
+
+        CREATE TABLE IF NOT EXISTS baselines (
+            key TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS metric_series (
+            date TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value REAL,
+            PRIMARY KEY (date, key)
+        );
+
+        CREATE TABLE IF NOT EXISTS day_result (
+            day_id TEXT NOT NULL,
+            algo_version INTEGER NOT NULL,
+            payload_json TEXT NOT NULL,
+            window_json TEXT NOT NULL DEFAULT '{}',
+            computed_at INTEGER NOT NULL,
+            finalized INTEGER NOT NULL DEFAULT 0,
+            rhr REAL,
+            rmssd REAL,
+            readiness REAL,
+            skipped INTEGER NOT NULL DEFAULT 0,
+            partial INTEGER NOT NULL DEFAULT 0,
+            imported INTEGER NOT NULL DEFAULT 0,
+            source TEXT,
+            device_family TEXT,
+            PRIMARY KEY (day_id, algo_version)
+        );
+
+        CREATE TABLE IF NOT EXISTS cycle_log (
+            date TEXT PRIMARY KEY,
+            kind TEXT NOT NULL,
+            note TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS workout_suggestions (
+            id TEXT PRIMARY KEY,
+            date TEXT NOT NULL,
+            start_ts INTEGER NOT NULL,
+            end_ts INTEGER NOT NULL,
+            avg_bpm INTEGER,
+            peak_bpm INTEGER,
+            duration_min INTEGER,
+            sport TEXT,
+            dismissed INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS sleep_override (
+            day_id TEXT PRIMARY KEY,
+            onset_ts INTEGER NOT NULL,
+            offset_ts INTEGER NOT NULL,
+            source TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            note TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS sleep_nap (
+            day_id TEXT NOT NULL,
+            start_ts INTEGER NOT NULL,
+            end_ts INTEGER NOT NULL,
+            source TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            payload_json TEXT,
+            PRIMARY KEY (day_id, start_ts)
+        );
+
+        CREATE TABLE IF NOT EXISTS activity_suggestions (
+            id TEXT PRIMARY KEY,
+            kind TEXT NOT NULL,
+            day_id TEXT NOT NULL,
+            start_ts INTEGER NOT NULL,
+            end_ts INTEGER NOT NULL,
+            detection_start INTEGER NOT NULL,
+            detection_end INTEGER NOT NULL,
+            details_json TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            revision INTEGER NOT NULL DEFAULT 0,
+            linked_id TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS activity_pending ON activity_suggestions(status, start_ts);
         """
 
     public static func apply(to db: Database) throws {
@@ -212,6 +298,25 @@ public enum WhoopSubstrateSchema {
         let rrCols = Set(try db.query("PRAGMA table_info(decoded_rr)").map { $0.text("name") })
         if !rrCols.contains("beat_ts_ms") {
             try db.execute("ALTER TABLE decoded_rr ADD COLUMN beat_ts_ms INTEGER")
+        }
+
+        let ovCols = Set(try db.query("PRAGMA table_info(sleep_override)").map { $0.text("name") })
+        if !ovCols.contains("note") {
+            try db.execute("ALTER TABLE sleep_override ADD COLUMN note TEXT")
+        }
+
+        let drCols = Set(try db.query("PRAGMA table_info(day_result)").map { $0.text("name") })
+        for (col, spec) in [
+            ("source", "TEXT"),
+            ("device_family", "TEXT"),
+            ("window_json", "TEXT NOT NULL DEFAULT '{}'"),
+            ("rhr", "REAL"),
+            ("rmssd", "REAL"),
+            ("readiness", "REAL"),
+            ("skipped", "INTEGER NOT NULL DEFAULT 0"),
+            ("imported", "INTEGER NOT NULL DEFAULT 0"),
+        ] where !drCols.contains(col) {
+            try db.execute("ALTER TABLE day_result ADD COLUMN \(col) \(spec)")
         }
     }
 }
