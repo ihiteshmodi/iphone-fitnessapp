@@ -83,6 +83,7 @@ let package = Package(
                 "whoop/substrate/whoop-substrate.feature",
                 "whoop/diagnostics/whoop-diagnostics.feature",
                 "whoop/analytics/whoop-core-analytics.feature",
+                "whoop/longevity/whoop-longevity-and-steps.feature",
                 "insights/check-in/check-in.feature",
                 "insights/training-rules/training-rules.feature",
                 "supplements/supplement-library/supplement-library.feature",
