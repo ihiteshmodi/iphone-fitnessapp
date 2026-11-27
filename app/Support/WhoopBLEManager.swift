@@ -346,6 +346,17 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
         if !enabled { liveHrBpm = nil }
     }
 
+    public var activeBandProfile: WhoopBandProfile {
+        UserDefaults.standard.string(forKey: Self.savedProfileKey) == "gen4" ? .gen4 : .gen5
+    }
+
+    @discardableResult
+    public func sendRawCommandFrame(_ frame: [UInt8]) -> Bool {
+        guard let char = cmdToStrapChar, let p = activePeripheral else { return false }
+        writeFrame(frame, to: char, on: p)
+        return true
+    }
+
     public func sendBackgroundHighFreqPrompt() {
         guard let char = cmdToStrapChar, let p = activePeripheral, var coord = coordinator else { return }
         if let frame = coord.buildHighFreqSyncPrompt() {

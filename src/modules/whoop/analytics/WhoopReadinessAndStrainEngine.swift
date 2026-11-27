@@ -60,6 +60,12 @@ public struct WhoopTrainingZones: Equatable, Sendable {
     /// 5 ascending BPM bounds: [Z1_floor, Z2_floor, Z3_floor, Z4_floor, Z5_floor], with maxHr ceiling.
     public let boundsBpm: [Int]
     public let maxHrBpm: Int
+
+    public init(source: String, boundsBpm: [Int], maxHrBpm: Int) {
+        self.source = source
+        self.boundsBpm = boundsBpm
+        self.maxHrBpm = maxHrBpm
+    }
 }
 
 public struct WhoopDailyEnergyResult: Equatable, Sendable {

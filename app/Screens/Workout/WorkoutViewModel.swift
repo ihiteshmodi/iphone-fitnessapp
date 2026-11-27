@@ -7,6 +7,7 @@ final class WorkoutViewModel: ObservableObject {
     @Published private(set) var days: [PlanDay] = []
     @Published private(set) var selectedDayId: Int?
     @Published private(set) var workout: Workout?
+    @Published private(set) var exerciseHrById: [Int: ExerciseHeartRateSummary] = [:]
     @Published var errorMessage: String?
     /// Kept only while the app is open: a fresh launch always starts on All.
     @Published var filter: WorkoutFilter = .all
@@ -42,6 +43,33 @@ final class WorkoutViewModel: ObservableObject {
     // MARK: Header
 
     private static let weekdayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    var today: ISODate { services.clock.today() }
+
+    func refreshExerciseHr(whoopDb: Database?) {
+        guard let whoopDb else {
+            exerciseHrById = [:]
+            return
+        }
+        let setsToday = (try? services.logSets.sets(on: today)) ?? []
+        let tsList = setsToday.compactMap(\.loggedAtTs)
+        guard let minTs = tsList.min(), let maxTs = tsList.max() else {
+            exerciseHrById = [:]
+            return
+        }
+        let rows = (try? whoopDb.query(
+            "SELECT rec_ts, hr FROM decoded_onehz WHERE rec_ts BETWEEN ? AND ? AND hr IS NOT NULL ORDER BY rec_ts ASC",
+            [.int(minTs - 60), .int(maxTs + 120)]
+        )) ?? []
+        let hrSamples: [(tsSec: Int64, bpm: Int)] = rows.compactMap { r in
+            guard let ts = r.optionalInt64("rec_ts") else { return nil }
+            let b = WhoopSubstrateGates.plausibleHrOrZero(r.optionalInt("hr"))
+            return b > 0 ? (ts, b) : nil
+        }
+        let zones = WhoopReadinessAndStrainEngine.trainingZones(ageYears: 30)
+        let summaries = WorkoutSessionService.correlateExerciseHeartRates(sets: setsToday, hrSamples: hrSamples, zones: zones)
+        exerciseHrById = Dictionary(uniqueKeysWithValues: summaries.map { ($0.exerciseId, $0) })
+    }
 
     /// "Sunday, 25 Oct"
     var dateCaption: String {

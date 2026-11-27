@@ -20,6 +20,7 @@ struct WorkoutDayScreen: View {
                     WorkoutDayPicker(days: vm.days, selectedId: vm.selectedDayId, onSelect: select, onAdd: addDay)
                     if vm.workout != nil {
                         WorkoutHeroCard(vm: vm)
+                        WorkoutWhoopLiveBar(today: vm.today)
                         if vm.exercises.isEmpty {
                             emptyState
                         } else {
@@ -48,7 +49,10 @@ struct WorkoutDayScreen: View {
                 ExerciseDetailView(exerciseId: route.exerciseId, dayId: route.dayId)
             }
         }
-        .task(id: session.revision) { vm.reload(preferredDayId: storedDayId) }
+        .task(id: session.revision) {
+            vm.reload(preferredDayId: storedDayId)
+            vm.refreshExerciseHr(whoopDb: session.whoop.db)
+        }
         .sheet(isPresented: $showingEditor, onDismiss: { session.didChange() }) {
             if let dayId = vm.selectedDayId {
                 NavigationStack { EditPlanView(focusDayId: dayId) }
@@ -274,6 +278,12 @@ private struct WorkoutExerciseCard: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 Text(vm.meta(exercise)).font(.system(size: 12)).foregroundColor(Theme.muted).lineLimit(1)
+                if let hr = vm.exerciseHrById[exercise.exerciseId], let avg = hr.avgHr, let peak = hr.peakHr {
+                    Text("♥ Avg \(avg) / Peak \(peak) bpm")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Theme.green)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
             SparklineView(values: exercise.sparkline, width: 38, height: 26)
