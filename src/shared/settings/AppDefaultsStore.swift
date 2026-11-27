@@ -60,6 +60,18 @@ public struct HiitPreset: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+public enum WhoopAlarmMode: String, CaseIterable, Codable, Equatable, Sendable {
+    case exact = "exact"
+    case smart = "smart"
+
+    public var title: String {
+        switch self {
+        case .exact: return "Normal (Exact)"
+        case .smart: return "Smart Wake"
+        }
+    }
+}
+
 public struct WhoopAlarmDaySchedule: Identifiable, Codable, Equatable, Sendable {
     public var id: Int { weekday }
     /// ISO weekday: 1 = Monday ... 7 = Sunday.
@@ -69,19 +81,39 @@ public struct WhoopAlarmDaySchedule: Identifiable, Codable, Equatable, Sendable 
     public var enabled: Bool
     public var smartWindowMinutes: Int
 
-    public init(weekday: Int, hour: Int, minute: Int, enabled: Bool, smartWindowMinutes: Int = 0) {
+    public var mode: WhoopAlarmMode {
+        get { smartWindowMinutes > 0 ? .smart : .exact }
+        set {
+            switch newValue {
+            case .exact:
+                smartWindowMinutes = 0
+            case .smart:
+                if smartWindowMinutes <= 0 { smartWindowMinutes = 15 }
+            }
+        }
+    }
+
+    public init(weekday: Int, hour: Int, minute: Int, enabled: Bool, mode: WhoopAlarmMode? = nil, smartWindowMinutes: Int = 0) {
         self.weekday = min(7, max(1, weekday))
         self.hour = min(23, max(0, hour))
         self.minute = min(59, max(0, minute))
         self.enabled = enabled
-        self.smartWindowMinutes = min(60, max(0, smartWindowMinutes))
+        let clampedWindow = min(60, max(0, smartWindowMinutes))
+        if let mode {
+            switch mode {
+            case .exact: self.smartWindowMinutes = 0
+            case .smart: self.smartWindowMinutes = clampedWindow > 0 ? clampedWindow : 15
+            }
+        } else {
+            self.smartWindowMinutes = clampedWindow
+        }
     }
 
     public var formattedHm: String { String(format: "%02d:%02d", hour, minute) }
 }
 
 /// Converts phone wall-clock alarm targets into the WHOOP strap's own RTC frame (`strapEpoch = wallEpoch - driftSec`)
-/// and builds canonical `0x42` (`SET_ALARM_TIME`), `0x43` (`GET_ALARM_TIME`), and `0x45` (`DISABLE_ALARM`) packets.
+/// and builds canonical `0x42` (`SET_ALARM_TIME`), `0x43` (`GET_ALARM_TIME`), `0x45` (`DISABLE_ALARM`), and Smart-Wake `0x60` packets.
 public enum WhoopSilentAlarmCommands {
     public static func strapAlarmEpochMs(wallAlarmEpochSec: Int64, strapClockDriftSec: Double) -> Int64 {
         let driftRoundedSec = strapClockDriftSec.isFinite ? Int64(strapClockDriftSec.rounded()) : 0
@@ -102,13 +134,22 @@ public enum WhoopSilentAlarmCommands {
         return WhoopCommands.cmdSetAlarmGen4Rev1(seq: seq, epochMs: strapMs)
     }
 
+    /// Spec §2.4: Gen5 `getAlarmTime` (`0x43`) uses `[0x04, id=1]`, Gen4 uses `[0x01]`.
     public static func buildGetAlarmFrame(seq: UInt8 = 1, slot: UInt8 = 1, profile: WhoopBandProfile = .gen5) -> [UInt8] {
-        let payload: [UInt8] = profile.isGen5 ? [0x02, slot] : [0x01]
+        let payload: [UInt8] = profile.isGen5 ? [0x04, slot] : [0x01]
         return WhoopCommands.buildCommand(seq: seq, opcode: WhoopCmd.getAlarmTime, payload: payload, profile: profile)
     }
 
     public static func buildDisableAlarmFrame(seq: UInt8 = 1, slot: UInt8? = nil, profile: WhoopBandProfile = .gen5) -> [UInt8] {
         WhoopCommands.cmdDisableAlarm(seq: seq, slot: slot, profile: profile)
+    }
+
+    /// Spec §2.3.5: Smart-wake window arms `ENTER_HIGH_FREQ_SYNC (0x60)` at `intervalSeconds = 61 s` (Gen5 rejects `<= 60 s`)
+    /// so the phone monitors light sleep staging inside `[wake - smartWindow, wake]` and triggers wrist haptics at light sleep!
+    public static func buildSmartWakePollFrame(seq: UInt8 = 2, smartWindowMinutes: Int, profile: WhoopBandProfile = .gen5) throws -> [UInt8]? {
+        guard smartWindowMinutes > 0 else { return nil }
+        let durSec = min(7200, max(300, smartWindowMinutes * 60 + 600))
+        return try WhoopCommands.enterHighFreqSync(seq: seq, intervalSeconds: 61, durationSeconds: durSec, profile: profile)
     }
 }
 

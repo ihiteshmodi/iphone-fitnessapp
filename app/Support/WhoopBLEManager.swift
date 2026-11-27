@@ -26,10 +26,17 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
     @Published public private(set) var serialNumber: String?
     @Published public private(set) var isMaverick = false
     @Published public private(set) var liveHrBpm: Int?
+    @Published public private(set) var liveRrMs: [Int] = []
+    @Published public private(set) var liveSessionHrSamples: [(tsSec: Int64, bpm: Int)] = []
     @Published public private(set) var batteryPct: Double?
     @Published public private(set) var charging: Bool?
     @Published public private(set) var wristOn: Bool?
     @Published public private(set) var offloadActive = false
+    @Published public private(set) var syncProgress = WhoopSyncProgressState()
+    @Published public private(set) var strapClockDriftSec: Double = 0
+    @Published public private(set) var lastAlarmStatusText: String?
+    @Published public private(set) var batteryHistoryRows: [WhoopBatteryRow] = []
+    @Published public private(set) var autoDerivationRevision = 0
     @Published public private(set) var lastSyncNote = "Not synced this session"
     @Published public private(set) var faultWarning: String?
     @Published public private(set) var substrateSummary: WhoopSubstrateSummary?
@@ -123,6 +130,10 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
             store = opened
             substrateSummary = try opened?.summary()
             sqliteInspection = try opened?.inspect(limit: 5)
+            batteryHistoryRows = (try? opened?.batteryHistory(limit: 40)) ?? []
+            if let latest = substrateSummary?.latestRecTs {
+                syncProgress.frontierTs = Int64(latest)
+            }
             if let pct = substrateSummary?.latestBatteryPct { batteryPct = pct }
             if let chg = substrateSummary?.latestCharging { charging = chg }
         } catch {
@@ -138,6 +149,10 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
         } else if let store {
             substrateSummary = try? store.summary()
             sqliteInspection = try? store.inspect(limit: 5)
+            batteryHistoryRows = (try? store.batteryHistory(limit: 40)) ?? []
+            if let latest = substrateSummary?.latestRecTs {
+                syncProgress.frontierTs = max(syncProgress.frontierTs ?? 0, Int64(latest))
+            }
         }
     }
 
@@ -328,14 +343,64 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
             connectButtonTapped()
             return
         }
+        coord.seedFrontier(latestRecTs: substrateSummary?.latestRecTs)
         let frame = coord.buildManualBackfillRequest()
         coordinator = coord
+        syncProgress = coord.syncProgress
         writeFrame(frame, to: char, on: p)
-        lastSyncNote = "Sent 0x16 SEND_HISTORICAL_DATA"
+        lastSyncNote = coord.syncProgress.statusText()
     }
 
     public func triggerManualSync() {
         forceHistoryDrain()
+    }
+
+    @discardableResult
+    public func triggerVibrationTest(loops: UInt8 = 1) -> Bool {
+        if let char = cmdToStrapChar, let p = activePeripheral, var coord = coordinator {
+            let frame = coord.buildBuzzRequest(pattern: 2, loops: loops)
+            coordinator = coord
+            writeFrame(frame, to: char, on: p)
+            lastSyncNote = "Sent haptic vibration test (\(activeBandProfile.isGen5 ? "0x13" : "0x4F"))"
+            return true
+        }
+        let fallback = WhoopCommands.cmdBuzz(seq: 1, pattern: 2, overallLoop: loops, profile: activeBandProfile)
+        return sendRawCommandFrame(fallback)
+    }
+
+    @discardableResult
+    public func restartStrapConfirmed() -> Bool {
+        guard let char = cmdToStrapChar, let p = activePeripheral, var coord = coordinator,
+              let frame = try? coord.buildRestartStrapRequest(userConfirmed: true) else {
+            lastSyncNote = "Connect WHOOP band first to send 0x1D restart"
+            return false
+        }
+        coordinator = coord
+        manualDisconnect = false
+        writeFrame(frame, to: char, on: p)
+        lastSyncNote = "Sent 0x1D Restart Band — StandingConnect armed for clean reboot"
+        return true
+    }
+
+    @discardableResult
+    public func readStrapAlarm() -> Bool {
+        if let char = cmdToStrapChar, let p = activePeripheral, var coord = coordinator {
+            let frame = coord.buildGetAlarmRequest(slot: 1)
+            coordinator = coord
+            writeFrame(frame, to: char, on: p)
+            lastAlarmStatusText = "Requested 0x43 GET_ALARM_TIME from strap…"
+            return true
+        }
+        lastAlarmStatusText = "Band offline — connect strap to read armed 0x43 alarm"
+        return false
+    }
+
+    @discardableResult
+    public func disableStrapAlarm() -> Bool {
+        let frame = WhoopSilentAlarmCommands.buildDisableAlarmFrame(profile: activeBandProfile)
+        let sent = sendRawCommandFrame(frame)
+        lastAlarmStatusText = sent ? "Disarmed strap alarm (0x45 DISABLE_ALARM)" : "Saved disarmed state locally (connect strap to send 0x45)"
+        return sent
     }
 
     public func toggleLiveHeartRate(_ enabled: Bool) {
@@ -702,10 +767,12 @@ extension WhoopBLEManager: CBPeripheralDelegate {
             if self.pendingSubscribeCount > 0 { self.pendingSubscribeCount -= 1 }
             if self.pendingSubscribeCount == 0, let cmdChar = self.cmdToStrapChar, var coord = self.coordinator {
                 self.phase = .settingUp
+                coord.seedFrontier(latestRecTs: self.substrateSummary?.latestRecTs)
                 let bootFrames = coord.onLinkReady()
                 self.coordinator = coord
                 self.handshake = coord.handshakeTelemetry
                 self.burst = coord.burstTelemetry
+                self.syncProgress = coord.syncProgress
                 for f in bootFrames {
                     self.writeFrame(f, to: cmdChar, on: peripheral)
                 }
@@ -736,8 +803,30 @@ extension WhoopBLEManager: CBPeripheralDelegate {
                 if let pct = coord.batteryPct { self.batteryPct = pct }
                 if let chg = coord.charging { self.charging = chg }
                 if let w = coord.wristOn { self.wristOn = w }
+                self.strapClockDriftSec = coord.strapClockDriftSec
                 self.offloadActive = coord.offloadActive
-                if let hr = out.liveHr { self.liveHrBpm = hr.hrBpm }
+                self.syncProgress = coord.syncProgress
+                if let alAct = coord.lastAlarmActive {
+                    if alAct, let alEp = coord.lastAlarmEpoch {
+                        self.lastAlarmStatusText = "Armed on strap: \(WhoopSyncProgressState.formatLocalTime(Int64(alEp)))"
+                    } else {
+                        self.lastAlarmStatusText = "Strap alarm disarmed"
+                    }
+                }
+                if let hr = out.liveHr {
+                    self.liveHrBpm = hr.hrBpm
+                    if !hr.rrMs.isEmpty {
+                        self.liveRrMs.append(contentsOf: hr.rrMs)
+                        if self.liveRrMs.count > 240 {
+                            self.liveRrMs.removeFirst(self.liveRrMs.count - 240)
+                        }
+                    }
+                    let ts = hr.tsEpoch > 0 ? Int64(hr.tsEpoch) : Int64(nowMs / 1000)
+                    self.liveSessionHrSamples.append((tsSec: ts, bpm: hr.hrBpm))
+                    if self.liveSessionHrSamples.count > 10_800 {
+                        self.liveSessionHrSamples.removeFirst(self.liveSessionHrSamples.count - 10_800)
+                    }
+                }
 
                 if coord.corruptionTripped {
                     self.faultWarning = "High BLE frame corruption (>20%). Reconnecting cleanly…"
@@ -751,15 +840,27 @@ extension WhoopBLEManager: CBPeripheralDelegate {
                     }
                 }
                 if out.historyCompleted || !out.txFrames.isEmpty {
+                    if out.historyCompleted {
+                        try? store.runAutomaticWakeDerivation()
+                        self.autoDerivationRevision += 1
+                    }
                     self.substrateSummary = try? store.summary()
                     self.sqliteInspection = try? store.inspect(limit: 5)
+                    self.batteryHistoryRows = (try? store.batteryHistory(limit: 40)) ?? []
+                    if let latest = self.substrateSummary?.latestRecTs {
+                        coord.seedFrontier(latestRecTs: latest)
+                        self.coordinator = coord
+                        self.syncProgress = coord.syncProgress
+                    }
                     if out.historyCompleted {
-                        self.lastSyncNote = "HISTORY_COMPLETE · \(self.substrateSummary?.oneHzCount ?? 0) 1 Hz rows"
+                        self.lastSyncNote = self.syncProgress.statusText()
                     } else if coord.burstTelemetry.lastAckWasNack == false {
-                        self.lastSyncNote = "Committed burst · ACK 0x17 OK (\(self.substrateSummary?.oneHzCount ?? 0) rows)"
+                        self.lastSyncNote = self.syncProgress.statusText()
                     } else if coord.burstTelemetry.lastAckWasNack == true {
                         self.lastSyncNote = "Burst rejected · NACK 0x17 (\(coord.burstTelemetry.lastAckVerdict))"
                     }
+                } else if coord.syncProgress.isSyncing && coord.syncProgress.recordsSyncedThisSession % 25 == 0 {
+                    self.lastSyncNote = coord.syncProgress.statusText()
                 }
             } catch {
                 self.faultWarning = error.localizedDescription

@@ -508,6 +508,195 @@ public final class WhoopStore {
             lastAppSyncAtSec: lastAppSync)
     }
 
+    public func batteryHistory(limit: Int = 40) throws -> [WhoopBatteryRow] {
+        let rows = try db.query("""
+            SELECT device_id, ts, battery_pct, charging, wrist_on, millivolts, charge_units, source
+            FROM band_battery
+            WHERE battery_pct IS NOT NULL
+            ORDER BY ts DESC
+            LIMIT ?
+            """, [.int(Int64(max(1, limit)))])
+        return rows.reversed().map { r in
+            WhoopBatteryRow(
+                deviceID: r.optionalText("device_id") ?? "",
+                ts: r.int("ts"),
+                batteryPct: r.optionalDouble("battery_pct"),
+                charging: r.optionalInt("charging").map { $0 != 0 },
+                wristOn: r.optionalInt("wrist_on").map { $0 != 0 },
+                millivolts: r.optionalInt("millivolts"),
+                chargeUnits: r.optionalInt("charge_units"),
+                source: r.optionalText("source") ?? "band"
+            )
+        }
+    }
+
+    /// Stages `[onsetSec, offsetSec]` directly from `decoded_onehz` + `decoded_rr` using the 4-class cardiorespiratory stager.
+    public func stageSleepFromSubstrate(onsetSec: Int64, offsetSec: Int64, sleepSource: String = "override") throws -> WhoopSleepSegmentation? {
+        let inBed = Int(offsetSec - onsetSec)
+        guard inBed >= 1800 && inBed <= 64_800 else { return nil }
+        let oneHzRows = try db.query("""
+            SELECT rec_ts, hr, ax, ay, az, band_sleep_state
+            FROM decoded_onehz
+            WHERE rec_ts >= ? AND rec_ts < ?
+            ORDER BY rec_ts ASC
+            """, [.int(onsetSec), .int(offsetSec)])
+        guard !oneHzRows.isEmpty else { return nil }
+
+        var ax = [Double?](repeating: nil, count: inBed)
+        var ay = [Double?](repeating: nil, count: inBed)
+        var az = [Double?](repeating: nil, count: inBed)
+        var hr = [Int](repeating: 0, count: inBed)
+        var sleepState = [Int?](repeating: nil, count: inBed)
+
+        for r in oneHzRows {
+            let idx = Int(Int64(r.int("rec_ts")) - onsetSec)
+            guard idx >= 0 && idx < inBed else { continue }
+            ax[idx] = r.optionalDouble("ax")
+            ay[idx] = r.optionalDouble("ay")
+            az[idx] = r.optionalDouble("az")
+            hr[idx] = r.optionalInt("hr") ?? 0
+            sleepState[idx] = r.optionalInt("band_sleep_state")
+        }
+
+        let rrRows = try db.query("""
+            SELECT COALESCE(beat_ts_ms, rr_ts_ms) AS b_ms, rr_ms
+            FROM decoded_rr
+            WHERE rec_ts >= ? AND rec_ts < ?
+            ORDER BY rec_ts ASC, beat_index ASC
+            """, [.int(onsetSec), .int(offsetSec)])
+        var rrMs: [Double] = []
+        var rrTsMs: [Int64] = []
+        for r in rrRows {
+            if let v = r.optionalInt("rr_ms"), let b = r.optionalInt64("b_ms") {
+                rrMs.append(Double(v))
+                rrTsMs.append(b)
+            }
+        }
+
+        var trimSec: Int? = nil
+        var effOffset = offsetSec
+        if sleepSource == "auto" {
+            let trimmed = WhoopSleepAndNapEngine.bandTrimmedOffsetSec(startSec: onsetSec, endSec: offsetSec, bandStates: sleepState)
+            if trimmed.trimmedEndSec < offsetSec {
+                trimSec = trimmed.trimmedSec ?? Int(offsetSec - trimmed.trimmedEndSec)
+                effOffset = trimmed.trimmedEndSec
+            }
+        }
+        let effLen = Int(effOffset - onsetSec)
+        return WhoopSleepAndNapEngine.stageSleepWindow(
+            onsetSec: onsetSec,
+            offsetSec: effOffset,
+            bandOffsetTrimSec: trimSec,
+            sleepSource: sleepSource,
+            ax: Array(ax.prefix(effLen)),
+            ay: Array(ay.prefix(effLen)),
+            az: Array(az.prefix(effLen)),
+            hr: Array(hr.prefix(effLen)),
+            rrMs: rrMs,
+            rrTsMs: rrTsMs
+        )
+    }
+
+    /// Runs automatic model derivations (`HRV`, `RHR`, `Sleep`, `Strain`, `Readiness`, `Auto-Workouts`, `Naps`) upon wake sync completion.
+    public func runAutomaticWakeDerivation(
+        ageYears: Double = 30.0,
+        isFemale: Bool = false,
+        stepTicksPerStep: Double = 1.0,
+        calendar: Calendar = .current
+    ) throws {
+        guard let latestSec = try summary().latestRecTs else { return }
+        let latestDate = Date(timeIntervalSince1970: TimeInterval(latestSec))
+        let comps = calendar.dateComponents([.year, .month, .day], from: latestDate)
+        let dayStr = String(format: "%04d-%02d-%02d", comps.year ?? 2026, comps.month ?? 1, comps.day ?? 1)
+        guard let iso = ISODate(dayStr),
+              let bounds = WhoopSubstrateGates.calendarDayBounds(for: iso, calendar: calendar) else { return }
+
+        let analyticsStore = WhoopAnalyticsStore(db)
+        let stepRes = try WhoopStepsEngine.countStepsFromDatabase(
+            whoopDb: db, startSec: bounds.dayStartSec, endSec: bounds.dayEndSec, stepTicksPerStep: stepTicksPerStep
+        )
+        if stepRes.steps > 0 {
+            try db.execute("INSERT OR REPLACE INTO metric_series (date, key, value) VALUES (?, 'steps', ?)",
+                           [.text(dayStr), .double(Double(stepRes.steps))])
+        }
+
+        // Day waking HR -> Strain + Auto-Workout & Nap proposal detection
+        let dayRows = try db.query("""
+            SELECT rec_ts, hr, ax, ay, az, dyn_accel_g
+            FROM decoded_onehz
+            WHERE rec_ts >= ? AND rec_ts < ?
+            ORDER BY rec_ts ASC
+            """, [.int(bounds.dayStartSec), .int(bounds.dayEndSec)])
+        guard !dayRows.isEmpty else { return }
+
+        var tsArr: [Int64] = []
+        var hrArr: [Int] = []
+        var axArr: [Double?] = []
+        var ayArr: [Double?] = []
+        var azArr: [Double?] = []
+        var motArr: [Double?] = []
+        var byMin: [Int64: [Int]] = [:]
+
+        for r in dayRows {
+            let ts = Int64(r.int("rec_ts"))
+            let h = r.optionalInt("hr") ?? 0
+            tsArr.append(ts)
+            hrArr.append(h)
+            axArr.append(r.optionalDouble("ax"))
+            ayArr.append(r.optionalDouble("ay"))
+            azArr.append(r.optionalDouble("az"))
+            motArr.append(r.optionalDouble("dyn_accel_g"))
+            let pHr = WhoopSubstrateGates.plausibleHrOrZero(h)
+            if pHr > 0 { byMin[ts / 60, default: []].append(pHr) }
+        }
+
+        let rhrRecent = try db.query("SELECT value FROM metric_series WHERE key = 'rhr' AND date <= ? ORDER BY date DESC LIMIT 1", [.text(dayStr)])
+            .first?.optionalDouble("value") ?? 54.0
+        let maxHr = WhoopReadinessAndStrainEngine.estimatedTanakaMaxHr(ageYears: ageYears)
+
+        if !byMin.isEmpty {
+            let wakeMins = byMin.values.map { Double($0.reduce(0, +)) / Double($0.count) }
+            if let strainRes = WhoopReadinessAndStrainEngine.computeDailyStrain(
+                wakeMinuteHr: wakeMins, rhr: rhrRecent, maxHr: maxHr, isFemale: isFemale,
+                priorQuietHrr: [0.12, 0.12, 0.12], sessionMaxStrain: nil
+            ) {
+                try db.execute("INSERT OR REPLACE INTO metric_series (date, key, value) VALUES (?, 'strain', ?)",
+                               [.text(dayStr), .double(strainRes.strain)])
+                try db.execute("INSERT OR REPLACE INTO metric_series (date, key, value) VALUES (?, 'trimp', ?)",
+                               [.text(dayStr), .double(strainRes.grossTrimp)])
+            }
+        }
+
+        // Queue any newly auto-detected workout bouts
+        let detectedWorkouts = WhoopAutoWorkoutDetector.detect(
+            dayId: dayStr, tsSec: tsArr, hr: hrArr, motionIntensityG: motArr,
+            rhr: Int(rhrRecent.rounded()), maxHr: Int(maxHr.rounded())
+        )
+        if !detectedWorkouts.isEmpty {
+            try WhoopAutoWorkoutDetector.queueProposals(detectedWorkouts, into: analyticsStore, nowSec: Int64(latestSec))
+        }
+
+        // Queue any newly auto-detected daytime naps
+        let onWrist = hrArr.map { WhoopSubstrateGates.plausibleHrOrZero($0) > 0 }
+        let chg = [Bool](repeating: false, count: tsArr.count)
+        let detectedNaps = WhoopSleepAndNapEngine.detectNaps(
+            tsSec: tsArr, ax: axArr, ay: ayArr, az: azArr, hr: hrArr,
+            onWrist: onWrist, charging: chg,
+            dayStartSec: bounds.dayStartSec, dayEndSec: bounds.dayEndSec,
+            mainSleepUntrimmed: nil, tonightSleepOnsetSec: nil
+        )
+        for nap in detectedNaps {
+            let pid = "nap:\(nap.startSec)"
+            let durMin = max(1, Int((nap.endSec - nap.startSec) / 60))
+            let json = "{\"start\":\(nap.startSec),\"end\":\(nap.endSec),\"duration_min\":\(durMin),\"confidence\":\(String(format: "%.2f", nap.confidence))}"
+            try analyticsStore.upsertProposal(WhoopActivityProposal(
+                id: pid, kind: "nap", dayId: dayStr, startTs: nap.startSec, endTs: nap.endSec,
+                detectionStart: nap.startSec, detectionEnd: nap.endSec,
+                detailsJson: json, status: "pending", revision: 0
+            ), nowSec: Int64(latestSec))
+        }
+    }
+
     private static func hexToData(_ hex: String) -> Data {
         var bytes: [UInt8] = []
         bytes.reserveCapacity(hex.count / 2)

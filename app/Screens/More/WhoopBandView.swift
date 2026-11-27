@@ -17,6 +17,8 @@ struct WhoopBandView: View {
     @State private var mergeNoticeMessage: String?
     @State private var whoopFileToRestore: URL?
     @State private var liveHrEnabled = true
+    @State private var confirmRestartStrap = false
+    @State private var hardwareFeedbackNote: String?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -26,8 +28,11 @@ struct WhoopBandView: View {
                 if let warning = whoop.faultWarning {
                     faultCard(warning)
                 }
+                syncProgressCard
                 syncProvenanceCard
+                hardwareControlsCard
                 WhoopSilentAlarmsSection()
+                batteryHistoryChartCard
                 liveTelemetryCard
                 substrateSummaryCard
                 whoopDatabaseCard
@@ -39,6 +44,24 @@ struct WhoopBandView: View {
         .navigationTitle("WHOOP Band")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { whoop.refreshSummaryAndFiles() }
+        .onChange(of: whoop.autoDerivationRevision) { _ in
+            session.didChange()
+        }
+        .confirmationDialog(
+            "Restart WHOOP strap (0x1D)?",
+            isPresented: $confirmRestartStrap,
+            titleVisibility: .visible
+        ) {
+            Button("Restart Band Now (0x1D)", role: .destructive) {
+                let sent = whoop.restartStrapConfirmed()
+                hardwareFeedbackNote = sent
+                    ? "Sent 0x1D reboot — strap will restart and reconnect automatically via StandingConnect."
+                    : "Band not connected — pair or bring strap in range first."
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Sends user-gated 0x1D REBOOT_STRAP. Flash pages stay intact and StandingConnect re-attaches once reboot completes.")
+        }
         .sheet(item: $shareItem) { item in ShareSheet(items: [item.url]) }
         .whoopFileImporter(isPresented: $isWhoopImporterPresented, errorMessage: $errorMessage) {
             whoopImportedNotice = true
@@ -178,6 +201,119 @@ struct WhoopBandView: View {
                 .foregroundColor(Theme.amber)
         }
         .card()
+    }
+
+    private var syncProgressCard: some View {
+        let sp = whoop.syncProgress
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionLabel("Historical Flash Sync Progress")
+                Spacer()
+                Pill(text: sp.isSyncing ? "Draining 0x2F" : "Auto-derive on wake", tone: sp.isSyncing ? .amber : .green)
+            }
+
+            Text(sp.statusText())
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundColor(Theme.text)
+                .accessibilityIdentifier("whoop-sync-progress-status")
+
+            GeometryReader { proxy in
+                let fillFrac = sp.isSyncing ? max(0.05, sp.progress) : (sp.frontierTs != nil ? 1.0 : 0.0)
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.line)
+                    Capsule()
+                        .fill(sp.isSyncing ? Theme.gold : Theme.green)
+                        .frame(width: proxy.size.width * fillFrac)
+                }
+            }
+            .frame(height: 8)
+
+            HStack {
+                Text("Sub-second ts_subsec + beat_ts_ms verified before 0x17 ACK")
+                    .font(.system(size: 11))
+                    .foregroundColor(Theme.muted)
+                Spacer()
+                if sp.recordsSyncedThisSession > 0 {
+                    Text("+\(sp.recordsSyncedThisSession) rows")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Theme.green)
+                }
+            }
+        }
+        .card()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("whoop-sync-progress-card")
+    }
+
+    private var hardwareControlsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                SectionLabel("Hardware Controls & Haptic Test")
+                Spacer()
+                Pill(text: whoop.activeBandProfile.isGen5 ? "Gen5 0x13 / 0x1D" : "Gen4 0x4F / 0x1D", tone: .grey)
+            }
+
+            HStack(spacing: 10) {
+                Button("Vibration Test") {
+                    let sent = whoop.triggerVibrationTest(loops: 2)
+                    hardwareFeedbackNote = sent
+                        ? "Triggered wrist haptic motor test (\(whoop.activeBandProfile.isGen5 ? "0x13 Maverick" : "0x4F"))."
+                        : "Band offline — connect strap above to feel haptic vibration."
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .accessibilityIdentifier("whoop-vibration-test-button")
+
+                Button("Restart Band") {
+                    confirmRestartStrap = true
+                }
+                .buttonStyle(PrimaryButtonStyle(ghost: true))
+                .accessibilityIdentifier("whoop-restart-band-button")
+            }
+
+            if let hardwareFeedbackNote {
+                Text(hardwareFeedbackNote)
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.green)
+            }
+        }
+        .card()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("whoop-hardware-controls-card")
+    }
+
+    private var batteryHistoryChartCard: some View {
+        let rows = whoop.batteryHistoryRows
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionLabel("Battery Drain & Charging History")
+                Spacer()
+                if let pct = whoop.batteryPct {
+                    Pill(text: String(format: "%.0f%%%@", pct, whoop.charging == true ? " ⚡" : ""), tone: pct >= 25 ? .green : .amber)
+                }
+            }
+
+            if rows.count >= 2 {
+                let pts: [ChartPoint] = rows.suffix(20).map { r in
+                    ChartPoint(label: Self.shortDate(r.ts), value: r.batteryPct ?? 0, series: "Battery %")
+                }
+                TrendChart(points: pts, height: 118, seriesColors: ["Battery %": Theme.green])
+                let chgEvents = rows.filter { $0.charging == true }.count
+                Text("\(rows.count) logged battery telemetry samples · \(chgEvents) charging event(s)")
+                    .font(.system(size: 11.5))
+                    .foregroundColor(Theme.muted)
+            } else if let single = rows.first, let pct = single.batteryPct {
+                Text("Latest logged battery: \(String(format: "%.1f%%", pct)) (\(Self.dateTime(single.ts)))\(single.charging == true ? " · Charging ⚡" : ""). Drain curve populates as additional syncs/events arrive.")
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.muted)
+            } else {
+                Text("Battery percentage & charging events (Event 3 / 0x91 GET_HELLO) log automatically to band_battery on every connection.")
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.muted)
+            }
+        }
+        .card()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("whoop-battery-chart-card")
     }
 
     private var syncProvenanceCard: some View {

@@ -18,6 +18,81 @@ public struct WhoopCoordinatorOutput: Equatable, Sendable {
     }
 }
 
+public struct WhoopSyncProgressState: Equatable, Sendable {
+    public var isSyncing: Bool
+    public var windowStartTs: Int64?
+    public var windowEndTs: Int64?
+    public var syncedUpToTs: Int64?
+    public var frontierTs: Int64?
+    public var rangeNewestTs: Int64?
+    public var recordsSyncedThisSession: Int
+    public var burstPacketsReceived: Int
+    public var burstPacketsExpected: Int?
+
+    public init(
+        isSyncing: Bool = false,
+        windowStartTs: Int64? = nil,
+        windowEndTs: Int64? = nil,
+        syncedUpToTs: Int64? = nil,
+        frontierTs: Int64? = nil,
+        rangeNewestTs: Int64? = nil,
+        recordsSyncedThisSession: Int = 0,
+        burstPacketsReceived: Int = 0,
+        burstPacketsExpected: Int? = nil
+    ) {
+        self.isSyncing = isSyncing
+        self.windowStartTs = windowStartTs
+        self.windowEndTs = windowEndTs
+        self.syncedUpToTs = syncedUpToTs
+        self.frontierTs = frontierTs
+        self.rangeNewestTs = rangeNewestTs
+        self.recordsSyncedThisSession = recordsSyncedThisSession
+        self.burstPacketsReceived = burstPacketsReceived
+        self.burstPacketsExpected = burstPacketsExpected
+    }
+
+    public var progress: Double {
+        if isSyncing {
+            guard let cur = syncedUpToTs else { return 0.0 }
+            guard let start = windowStartTs, let end = windowEndTs, start < end else { return 1.0 }
+            let frac = Double(cur - start) / Double(max(1, end - start))
+            return min(1.0, max(0.0, frac))
+        }
+        return 0.0
+    }
+
+    public var pendingHoursOnStrap: Double? {
+        guard let newest = rangeNewestTs, let front = frontierTs, (newest - front) > 300 else { return nil }
+        return Double(newest - front) / 3600.0
+    }
+
+    public func statusText(calendar: Calendar = .current) -> String {
+        if isSyncing {
+            if let upTo = syncedUpToTs {
+                let pct = Int((progress * 100.0).rounded())
+                return "Syncing · Up to \(Self.formatLocalTime(upTo, calendar: calendar)) (\(pct)%)"
+            }
+            return "Checking strap flash backlog…"
+        }
+        if let front = frontierTs, front > 0 {
+            let base = "Synced up to \(Self.formatLocalTime(front, calendar: calendar))"
+            if let pending = pendingHoursOnStrap {
+                return "\(base) · \(String(format: "%.1f", pending))h pending on strap"
+            }
+            return base
+        }
+        return "Idle · Ready to sync"
+    }
+
+    public static func formatLocalTime(_ epochSec: Int64, calendar: Calendar = .current) -> String {
+        let f = DateFormatter()
+        f.calendar = calendar
+        f.timeZone = calendar.timeZone
+        f.dateFormat = "dd MMM, hh:mm a"
+        return f.string(from: Date(timeIntervalSince1970: TimeInterval(epochSec)))
+    }
+}
+
 public struct WhoopSessionCoordinator: Sendable {
     public static let fineClockDriftSeconds = 5
 
@@ -31,6 +106,10 @@ public struct WhoopSessionCoordinator: Sendable {
     public private(set) var batteryPct: Double?
     public private(set) var charging: Bool?
     public private(set) var wristOn: Bool?
+    public private(set) var strapClockDriftSec: Double = 0
+    public private(set) var lastAlarmEpoch: Int?
+    public private(set) var lastAlarmActive: Bool?
+    public private(set) var syncProgress = WhoopSyncProgressState()
     public private(set) var offloadActive = false
     public private(set) var corruptionTripped = false
     public private(set) var lastDataRange: WhoopDataRangeInfo?
@@ -88,7 +167,18 @@ public struct WhoopSessionCoordinator: Sendable {
     }
 
     public mutating func buildManualBackfillRequest() -> [UInt8] {
-        WhoopCommands.cmdSendHistorical(seq: seq.nextSync(), profile: profile)
+        syncProgress.isSyncing = true
+        syncProgress.recordsSyncedThisSession = 0
+        syncProgress.burstPacketsReceived = 0
+        syncProgress.burstPacketsExpected = nil
+        if let dr = lastDataRange {
+            let old = Int64(dr.rangeOldest ?? 0)
+            let front = syncProgress.frontierTs ?? 0
+            syncProgress.windowStartTs = max(front, old) > 0 ? max(front, old) : nil
+            syncProgress.windowEndTs = dr.rangeNewest.map(Int64.init)
+            syncProgress.rangeNewestTs = dr.rangeNewest.map(Int64.init)
+        }
+        return WhoopCommands.cmdSendHistorical(seq: seq.nextSync(), profile: profile)
     }
 
     public mutating func buildRealtimeHrToggle(on: Bool) -> [UInt8] {
@@ -103,7 +193,26 @@ public struct WhoopSessionCoordinator: Sendable {
         try? WhoopCommands.enterHighFreqSync(seq: seq.nextLive(), intervalSeconds: 120, durationSeconds: 7200, profile: profile)
     }
 
+    public mutating func buildBuzzRequest(pattern: UInt8 = 2, loops: UInt8 = 1) -> [UInt8] {
+        WhoopCommands.cmdBuzz(seq: seq.nextLive(), pattern: pattern, overallLoop: loops, profile: profile)
+    }
+
+    public mutating func buildRestartStrapRequest(userConfirmed: Bool) throws -> [UInt8] {
+        try WhoopCommands.cmdRestartStrap(seq: seq.nextLive(), profile: profile, userConfirmed: userConfirmed)
+    }
+
+    public mutating func buildGetAlarmRequest(slot: UInt8 = 1) -> [UInt8] {
+        WhoopSilentAlarmCommands.buildGetAlarmFrame(seq: seq.nextLive(), slot: slot, profile: profile)
+    }
+
+    public mutating func seedFrontier(latestRecTs: Int?) {
+        if let ts = latestRecTs, ts > 0 {
+            syncProgress.frontierTs = max(syncProgress.frontierTs ?? 0, Int64(ts))
+        }
+    }
+
     public mutating func discardActiveBurstOnDisconnect() {
+        syncProgress.isSyncing = false
         if offloadActive {
             trimGuard.discardOpenChunk()
             offloadActive = false
@@ -213,12 +322,26 @@ public struct WhoopSessionCoordinator: Sendable {
 
     private mutating func beginBurst(nowMs: Int64) {
         offloadActive = true
+        syncProgress.isSyncing = true
+        syncProgress.burstPacketsReceived = 0
         burstStats.beginBurst()
         trimGuard.beginBurst()
         droppedBeforeBurst = recordGate.dropped
         droppedBelowFloorBeforeBurst = recordGate.droppedBelowFloor
         gateDropArchivesThisBurst = 0
         pendingBatch = WhoopSyncBatch(deviceID: deviceID, capturedAtMs: nowMs)
+    }
+
+    private mutating func noteDecodedTimestamp(_ tsEpoch: Int) {
+        let ts64 = Int64(tsEpoch)
+        if ts64 > 0 {
+            if syncProgress.windowStartTs == nil {
+                syncProgress.windowStartTs = syncProgress.frontierTs ?? ts64
+            }
+            syncProgress.syncedUpToTs = max(syncProgress.syncedUpToTs ?? 0, ts64)
+            syncProgress.recordsSyncedThisSession += 1
+        }
+        syncProgress.burstPacketsReceived = burstStats.totalTrafficPacketCount
     }
 
     private mutating func ingestHistoricalFrame(_ inner: [UInt8], nowMs: Int64, wallNow: Int) {
@@ -230,6 +353,7 @@ public struct WhoopSessionCoordinator: Sendable {
             case .v18(let sample):
                 if recordGate.admit(sample.unix, wallNow: wallNow, sessionOldestUnix: oldest, sessionNewestUnix: newest) {
                     pendingBatch?.gen5Samples.append(sample)
+                    noteDecodedTimestamp(sample.unix)
                 } else {
                     gateDropArchivesThisBurst += 1
                     pendingBatch?.archives.append(WhoopRawArchiveRow(
@@ -239,6 +363,7 @@ public struct WhoopSessionCoordinator: Sendable {
             case .ecgRaw(let ecg):
                 if recordGate.admit(ecg.strapSeconds, wallNow: wallNow, sessionOldestUnix: oldest, sessionNewestUnix: newest) {
                     pendingBatch?.ecgRawPackets.append(ecg)
+                    noteDecodedTimestamp(ecg.strapSeconds)
                 } else {
                     gateDropArchivesThisBurst += 1
                     pendingBatch?.archives.append(WhoopRawArchiveRow(
@@ -258,6 +383,7 @@ public struct WhoopSessionCoordinator: Sendable {
             if inner.count >= WhoopR10Lite.minLength, let r10 = WhoopGen4Decoder.decodeR10Lite(inner) {
                 if recordGate.admit(r10.tsEpoch, wallNow: wallNow, sessionOldestUnix: oldest, sessionNewestUnix: newest) {
                     pendingBatch?.gen4R10Records.append(r10)
+                    noteDecodedTimestamp(r10.tsEpoch)
                 } else {
                     gateDropArchivesThisBurst += 1
                     pendingBatch?.archives.append(WhoopRawArchiveRow(
@@ -267,6 +393,7 @@ public struct WhoopSessionCoordinator: Sendable {
             } else if let r24 = WhoopGen4Decoder.decodeFirmwareAwareR24(inner), r24.histVersion != 25 {
                 if recordGate.admit(r24.tsEpoch, wallNow: wallNow, sessionOldestUnix: oldest, sessionNewestUnix: newest) {
                     pendingBatch?.gen4Records.append(r24)
+                    noteDecodedTimestamp(r24.tsEpoch)
                 } else {
                     gateDropArchivesThisBurst += 1
                     pendingBatch?.archives.append(WhoopRawArchiveRow(
@@ -286,6 +413,9 @@ public struct WhoopSessionCoordinator: Sendable {
         var tx: [[UInt8]] = []
         if let pct = resp.batteryPct { batteryPct = pct }
 
+        if let alEpoch = resp.alarmEpoch { lastAlarmEpoch = alEpoch }
+        if let alAct = resp.alarmActive { lastAlarmActive = alAct }
+
         if let g5 = resp.gen5Hello {
             isMaverick = g5.isMaverick
             if g5.isMaverick {
@@ -301,6 +431,9 @@ public struct WhoopSessionCoordinator: Sendable {
             if let pct = g5.batteryPct { batteryPct = pct }
             charging = g5.charging
             wristOn = g5.wristOn
+            if g5.tsSeconds > 0, WhoopClockPolicy.acceptsClockRead(deviceClock: g5.tsSeconds, wallNow: wallNow) {
+                strapClockDriftSec = Double(wallNow - g5.tsSeconds)
+            }
 
             let battBatch = WhoopSyncBatch(
                 deviceID: deviceID,
@@ -321,6 +454,7 @@ public struct WhoopSessionCoordinator: Sendable {
                (WhoopClockPolicy.shouldSetClock(deviceClock: g5.tsSeconds, wallNow: wallNow)
                 || abs(wallNow - g5.tsSeconds) > Self.fineClockDriftSeconds) {
                 tx.append(WhoopCommands.cmdSetClock(seq: seq.nextLive(), epochMs: nowMs, profile: .gen5))
+                strapClockDriftSec = 0
             }
 
             tx.append(WhoopCommands.cmdGetDataRange(seq: seq.nextLive(), profile: .gen5))
@@ -333,14 +467,23 @@ public struct WhoopSessionCoordinator: Sendable {
         }
 
         if let clock = resp.clockEpoch,
-           WhoopClockPolicy.acceptsClockRead(deviceClock: clock, wallNow: wallNow),
-           (WhoopClockPolicy.shouldSetClock(deviceClock: clock, wallNow: wallNow)
-            || abs(wallNow - clock) > Self.fineClockDriftSeconds) {
-            tx.append(WhoopCommands.cmdSetClock(seq: seq.nextLive(), epochMs: nowMs, profile: profile))
+           WhoopClockPolicy.acceptsClockRead(deviceClock: clock, wallNow: wallNow) {
+            strapClockDriftSec = Double(wallNow - clock)
+            if WhoopClockPolicy.shouldSetClock(deviceClock: clock, wallNow: wallNow)
+                || abs(wallNow - clock) > Self.fineClockDriftSeconds {
+                tx.append(WhoopCommands.cmdSetClock(seq: seq.nextLive(), epochMs: nowMs, profile: profile))
+                strapClockDriftSec = 0
+            }
         }
 
         if let dr = resp.dataRange {
             lastDataRange = dr
+            syncProgress.rangeNewestTs = dr.rangeNewest.map(Int64.init)
+            if let old = dr.rangeOldest {
+                let front = syncProgress.frontierTs ?? 0
+                syncProgress.windowStartTs = max(front, Int64(old))
+            }
+            syncProgress.windowEndTs = dr.rangeNewest.map(Int64.init)
             let blBatch = WhoopSyncBatch(
                 deviceID: deviceID,
                 backlogRows: [WhoopBacklogRow(
@@ -350,6 +493,7 @@ public struct WhoopSessionCoordinator: Sendable {
                 capturedAtMs: nowMs)
             try store.commitSyncBatch(blBatch)
             if dr.used > 0 && !offloadActive {
+                syncProgress.isSyncing = true
                 tx.append(WhoopCommands.cmdSendHistorical(seq: seq.nextSync(), profile: profile))
             }
         }
@@ -435,6 +579,10 @@ public struct WhoopSessionCoordinator: Sendable {
 
             offloadActive = false
             pendingBatch = nil
+            syncProgress.burstPacketsExpected = meta.expectedPacketCount
+            if let up = syncProgress.syncedUpToTs {
+                syncProgress.frontierTs = max(syncProgress.frontierTs ?? 0, up)
+            }
             lastAckVerdict = WhoopTrimAckVerdict.send.rawValue
             lastAckWasNack = false
             lastAckTokenHex = tokenHex
@@ -445,6 +593,10 @@ public struct WhoopSessionCoordinator: Sendable {
         case .historyComplete:
             offloadActive = false
             pendingBatch = nil
+            syncProgress.isSyncing = false
+            if let up = syncProgress.syncedUpToTs {
+                syncProgress.frontierTs = max(syncProgress.frontierTs ?? 0, up)
+            }
             return ([], true)
 
         case .unknown:

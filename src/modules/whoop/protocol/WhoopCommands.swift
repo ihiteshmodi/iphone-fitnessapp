@@ -176,6 +176,15 @@ public enum WhoopCommands {
         return buildCommand(seq: seq, opcode: WhoopCmd.runHapticsPattern, payload: [pattern, 0, 0, 0, 0], profile: .gen4)
     }
 
+    public static func cmdStopHaptics(seq: UInt8, profile: WhoopBandProfile = .gen4) -> [UInt8] {
+        buildCommand(seq: seq, opcode: 0x7A, payload: [0x00], profile: profile)
+    }
+
+    /// User-gated safety Restart Band (`0x1D` `rebootStrap`). Blocked unless `userConfirmed == true`.
+    public static func cmdRestartStrap(seq: UInt8, profile: WhoopBandProfile = .gen5, userConfirmed: Bool) throws -> [UInt8] {
+        try guardedCommand(seq: seq, opcode: WhoopCmd.rebootStrap, payload: [0x00], profile: profile, allowDangerous: userConfirmed)
+    }
+
     public static func enterHighFreqSync(seq: UInt8, intervalSeconds: Int, durationSeconds: Int,
                                          profile: WhoopBandProfile = .gen4) throws -> [UInt8] {
         guard (0...0xFFFF).contains(intervalSeconds), (0...0xFFFF).contains(durationSeconds) else {

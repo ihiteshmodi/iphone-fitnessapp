@@ -18,22 +18,34 @@ struct WhoopSilentAlarmsSection: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    SectionLabel("7-day silent haptic alarms (0x42)")
+                    SectionLabel("7-day silent haptic alarms (0x42 / 0x43 / 0x45)")
                     Spacer()
-                    Pill(text: "RTC synced", tone: .green)
+                    Pill(text: "Exact + Smart", tone: .green)
                 }
+                Text("Tap any day's wake time to switch between Normal (Exact) wake and Smart Wake (light-sleep window).")
+                    .font(.system(size: 11.5))
+                    .foregroundColor(Theme.muted)
+
                 ForEach(schedules) { item in
-                    HStack {
+                    HStack(spacing: 8) {
                         Text(Self.weekdayLabels[max(0, min(6, item.weekday - 1))])
                             .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
-                            .frame(width: 44, alignment: .leading)
-                        Button(item.formattedHm) { editingDay = item }
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(item.enabled ? Theme.green : Theme.muted)
-                        if item.smartWindowMinutes > 0 {
-                            Text("(\(item.smartWindowMinutes)m smart)")
-                                .font(.system(size: 11)).foregroundColor(Theme.muted)
+                            .frame(width: 40, alignment: .leading)
+                        Button {
+                            editingDay = item
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(item.formattedHm)
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(item.enabled ? Theme.green : Theme.muted)
+                                Pill(
+                                    text: item.mode == .smart ? "Smart \(item.smartWindowMinutes)m" : "Normal",
+                                    tone: item.mode == .smart ? .amber : .grey
+                                )
+                            }
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("whoop-alarm-day-\(item.weekday)")
                         Spacer()
                         Toggle("", isOn: Binding(
                             get: { item.enabled },
@@ -56,8 +68,33 @@ struct WhoopSilentAlarmsSection: View {
                 .buttonStyle(PrimaryButtonStyle())
                 .accessibilityIdentifier("whoop-push-alarm-button")
 
-                if let syncBanner {
-                    Text(syncBanner).font(.system(size: 12)).foregroundColor(Theme.green)
+                HStack(spacing: 8) {
+                    Button("Read (0x43)") {
+                        _ = whoop.readStrapAlarm()
+                        syncBanner = whoop.lastAlarmStatusText
+                    }
+                    .buttonStyle(CompactButtonStyle(ghost: true))
+                    .accessibilityIdentifier("whoop-read-alarm-button")
+
+                    Button("Disable (0x45)") {
+                        _ = whoop.disableStrapAlarm()
+                        syncBanner = whoop.lastAlarmStatusText
+                    }
+                    .buttonStyle(CompactButtonStyle(ghost: true))
+                    .accessibilityIdentifier("whoop-disable-alarm-button")
+
+                    Spacer(minLength: 4)
+
+                    Button("Test Buzz") {
+                        let sent = whoop.triggerVibrationTest(loops: 1)
+                        syncBanner = sent ? "Sent wrist haptic buzz test!" : "Band offline — connect strap to test buzz."
+                    }
+                    .buttonStyle(CompactButtonStyle())
+                    .accessibilityIdentifier("whoop-alarm-test-buzz-button")
+                }
+
+                if let status = whoop.lastAlarmStatusText ?? syncBanner {
+                    Text(status).font(.system(size: 12)).foregroundColor(Theme.green)
                 }
             }
             .card()
@@ -95,7 +132,14 @@ struct WhoopSilentAlarmsSection: View {
         var loaded = (try? services.appDefaults.alarmSchedules()) ?? []
         if loaded.count < 7 {
             for wd in 1...7 where !loaded.contains(where: { $0.weekday == wd }) {
-                let def = WhoopAlarmDaySchedule(weekday: wd, hour: 7, minute: 0, enabled: wd <= 5, smartWindowMinutes: 15)
+                let def = WhoopAlarmDaySchedule(
+                    weekday: wd,
+                    hour: 7,
+                    minute: 0,
+                    enabled: wd <= 5,
+                    mode: wd <= 5 ? .exact : .smart,
+                    smartWindowMinutes: wd <= 5 ? 0 : 15
+                )
                 try? services.appDefaults.upsertAlarmSchedule(def)
                 loaded.append(def)
             }
@@ -116,9 +160,7 @@ struct WhoopSilentAlarmsSection: View {
 
     private func pushNextAlarmToStrap() {
         guard let enabledFirst = schedules.first(where: \.enabled) else {
-            if let disFrame = Optional(WhoopSilentAlarmCommands.buildDisableAlarmFrame(profile: whoop.activeBandProfile)) {
-                _ = whoop.sendRawCommandFrame(disFrame)
-            }
+            _ = whoop.disableStrapAlarm()
             syncBanner = "All alarms off — sent 0x45 DISABLE_ALARM."
             return
         }
@@ -130,11 +172,21 @@ struct WhoopSilentAlarmsSection: View {
         if target <= Date() { target = target.addingTimeInterval(86_400) }
         if let frame = try? WhoopSilentAlarmCommands.buildSetAlarmFrame(
             wallAlarmEpochSec: Int64(target.timeIntervalSince1970),
-            strapClockDriftSec: 0,
+            strapClockDriftSec: whoop.strapClockDriftSec,
             profile: whoop.activeBandProfile
         ) {
             let sent = whoop.sendRawCommandFrame(frame)
-            syncBanner = sent ? "Sent 0x42 alarm (\(enabledFirst.formattedHm)) to strap." : "Saved schedule (\(enabledFirst.formattedHm)); connect strap to push 0x42."
+            if enabledFirst.mode == .smart,
+               let pollFrame = try? WhoopSilentAlarmCommands.buildSmartWakePollFrame(
+                   smartWindowMinutes: enabledFirst.smartWindowMinutes,
+                   profile: whoop.activeBandProfile
+               ) {
+                _ = whoop.sendRawCommandFrame(pollFrame)
+            }
+            let modeLabel = enabledFirst.mode == .smart ? "Smart \(enabledFirst.smartWindowMinutes)m" : "Normal Exact"
+            syncBanner = sent
+                ? "Sent 0x42 \(modeLabel) alarm (\(enabledFirst.formattedHm), RTC drift \(Int(whoop.strapClockDriftSec.rounded()))s)."
+                : "Saved \(modeLabel) schedule (\(enabledFirst.formattedHm)); connect strap to push 0x42."
         }
     }
 }
@@ -144,13 +196,37 @@ struct AlarmDayEditorSheet: View {
     let store: AppDefaultsStore
     @Environment(\.dismiss) private var dismiss
     @State private var timeDate = Date()
+    @State private var mode: WhoopAlarmMode = .exact
     @State private var smartWindow = 15
 
     var body: some View {
         NavigationStack {
             Form {
-                DatePicker("Wake time", selection: $timeDate, displayedComponents: .hourAndMinute)
-                Stepper("Smart window: \(smartWindow) min", value: $smartWindow, in: 0...60, step: 5)
+                Section("Alarm Mode (OpenStrap Edge compatible)") {
+                    Picker("Mode", selection: $mode) {
+                        ForEach(WhoopAlarmMode.allCases, id: \.rawValue) { m in
+                            Text(m.title).tag(m)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("whoop-alarm-mode-picker")
+
+                    if mode == .exact {
+                        Text("Normal (Exact): buzzes strictly at your target wake time in the strap's RTC clock frame.")
+                            .font(.system(size: 12)).foregroundColor(Theme.muted)
+                    } else {
+                        Text("Smart Wake: arms 61s high-frequency sync (0x60) inside your window to wake you in light sleep before the latest time.")
+                            .font(.system(size: 12)).foregroundColor(Theme.muted)
+                    }
+                }
+
+                Section(mode == .smart ? "Latest wake time & window" : "Exact wake time") {
+                    DatePicker("Wake time", selection: $timeDate, displayedComponents: .hourAndMinute)
+                    if mode == .smart {
+                        Stepper("Smart window: \(smartWindow) min", value: $smartWindow, in: 5...60, step: 5)
+                            .accessibilityIdentifier("whoop-alarm-smart-window-stepper")
+                    }
+                }
             }
             .navigationTitle("Edit Alarm")
             .navigationBarTitleDisplayMode(.inline)
@@ -164,10 +240,12 @@ struct AlarmDayEditorSheet: View {
                             hour: comps.hour ?? 7,
                             minute: comps.minute ?? 0,
                             enabled: schedule.enabled,
-                            smartWindowMinutes: smartWindow
+                            mode: mode,
+                            smartWindowMinutes: mode == .smart ? max(5, smartWindow) : 0
                         ))
                         dismiss()
                     }
+                    .accessibilityIdentifier("whoop-alarm-save-button")
                 }
             }
             .onAppear {
@@ -175,7 +253,8 @@ struct AlarmDayEditorSheet: View {
                 comps.hour = schedule.hour
                 comps.minute = schedule.minute
                 timeDate = Calendar.current.date(from: comps) ?? Date()
-                smartWindow = schedule.smartWindowMinutes
+                mode = schedule.mode
+                smartWindow = schedule.smartWindowMinutes > 0 ? schedule.smartWindowMinutes : 15
             }
         }
     }
