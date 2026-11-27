@@ -139,11 +139,28 @@ struct MoreTabView: View {
     private var whoopBackupCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("WHOOP Telemetry Database")
-            if let s = whoop.substrateSummary {
-                Text("\(Format.grouped(Double(s.oneHzCount))) 1 Hz rows · \(Format.grouped(Double(s.rrCount))) RR beats")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Theme.text)
-                    .accessibilityIdentifier("more-whoop-summary")
+            if let s = whoop.substrateSummary, s.oneHzCount > 0 {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(Format.grouped(Double(s.oneHzCount))) 1 Hz rows · \(Format.grouped(Double(s.rrCount))) RR beats")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Theme.text)
+                    if let latest = s.latestRecTs {
+                        Text("Data through \(WhoopBandView.dateTime(latest)) (\(WhoopBandView.relativeAgo(latest)))")
+                            .font(.system(size: 12))
+                            .foregroundColor(Theme.green)
+                    }
+                    if s.importedBaselineOneHzCount > 0 {
+                        Text("+\(Format.grouped(Double(s.appSyncedOneHzCount))) synced in app · \(Format.grouped(Double(s.importedBaselineOneHzCount))) imported history")
+                            .font(.system(size: 12))
+                            .foregroundColor(Theme.muted)
+                    } else if s.appSyncedOneHzCount > 0 {
+                        Text("+\(Format.grouped(Double(s.appSyncedOneHzCount))) rows synced directly in this app")
+                            .font(.system(size: 12))
+                            .foregroundColor(Theme.muted)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("more-whoop-summary")
             } else {
                 Text("Separate whoop.sqlite substrate (keeps fitness.sqlite fast & lightweight).")
                     .font(.system(size: 13))

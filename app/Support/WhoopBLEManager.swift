@@ -181,6 +181,22 @@ public final class WhoopBLEManager: NSObject, ObservableObject {
         openExistingStoreIfAvailable()
     }
 
+    public func mergeWhoopDatabase(from url: URL) throws -> WhoopMergeResult {
+        guard let fileService else { throw ValidationError("App data folder unavailable") }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
+        if store == nil {
+            store = try fileService.openOrCreateLiveStore()
+        }
+        guard let store else { throw ValidationError("Could not open whoop.sqlite") }
+        let nowSec = Int64(Date().timeIntervalSince1970)
+        let res = try fileService.mergeDatabase(from: url, into: store, nowSec: nowSec)
+        substrateSummary = try? store.summary()
+        sqliteInspection = try? store.inspect(limit: 5)
+        return res
+    }
+
     public func exportWhoopDatabase() throws -> URL {
         guard let fileService else { throw ValidationError("App data folder unavailable") }
         if store == nil { openExistingStoreIfAvailable() }

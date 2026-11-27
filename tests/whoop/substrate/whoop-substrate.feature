@@ -16,3 +16,8 @@ Feature: WHOOP SQLite substrate (whoop.sqlite), atomic pre-ACK commit, and OpenS
     Given openstrap_export_1795700891234.db
     When WhoopDatabaseFileService validates and opens/imports it
     Then summary telemetry reports the exact row counts, latest battery, and latest sync cursor, and exporting writes a clean dated whoop-YYYY-MM-DD.sqlite snapshot
+
+  Scenario: Sync provenance separates live app-synced rows from imported/merged OpenStrap history without overwriting newer BLE syncs
+    Given a live WhoopStore that synced 2 live 1 Hz seconds (rec_ts 1795750966..1795750967) directly over BLE
+    When an older OpenStrap database containing historical second 1795100000 and overlapping second 1795750966 (with an older value) is merged via mergeDatabase
+    Then live second 1795750966 keeps the newer BLE-synced row, historical second 1795100000 is added cleanly, importedBaselineRows records 1 added historical row, appSyncedOneHzRows remains 2, lastAppSyncAtSec reflects the BLE sync timestamp, and strap_trim preserves the live strap cursor

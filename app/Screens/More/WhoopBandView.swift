@@ -12,7 +12,9 @@ struct WhoopBandView: View {
 
     @State private var shareItem: WhoopShareItem?
     @State private var isWhoopImporterPresented = false
+    @State private var isWhoopMergePresented = false
     @State private var whoopImportedNotice = false
+    @State private var mergeNoticeMessage: String?
     @State private var whoopFileToRestore: URL?
     @State private var liveHrEnabled = true
     @State private var errorMessage: String?
@@ -24,6 +26,7 @@ struct WhoopBandView: View {
                 if let warning = whoop.faultWarning {
                     faultCard(warning)
                 }
+                syncProvenanceCard
                 liveTelemetryCard
                 substrateSummaryCard
                 whoopDatabaseCard
@@ -39,13 +42,22 @@ struct WhoopBandView: View {
         .whoopFileImporter(isPresented: $isWhoopImporterPresented, errorMessage: $errorMessage) {
             whoopImportedNotice = true
         }
+        .whoopMergeFileImporter(isPresented: $isWhoopMergePresented, errorMessage: $errorMessage) { res in
+            mergeNoticeMessage = "Merged +\(Format.grouped(Double(res.addedOneHzRows))) historical 1 Hz rows and +\(Format.grouped(Double(res.addedRrRows))) RR beats without overwriting your live BLE syncs."
+        }
         .confirmationDialog(
-            "Replace WHOOP database with this file?",
+            "Import or merge this WHOOP file?",
             isPresented: Binding(get: { whoopFileToRestore != nil }, set: { if !$0 { whoopFileToRestore = nil } }),
             titleVisibility: .visible,
             presenting: whoopFileToRestore
         ) { url in
-            Button("Replace with \(url.lastPathComponent)", role: .destructive) {
+            Button("Merge older history from \(url.lastPathComponent)") {
+                run {
+                    let res = try whoop.mergeWhoopDatabase(from: url)
+                    mergeNoticeMessage = "Merged +\(Format.grouped(Double(res.addedOneHzRows))) historical 1 Hz rows and +\(Format.grouped(Double(res.addedRrRows))) RR beats."
+                }
+            }
+            Button("Replace entire DB with \(url.lastPathComponent)", role: .destructive) {
                 run {
                     try whoop.importWhoopDatabase(from: url)
                     whoopImportedNotice = true
@@ -53,12 +65,17 @@ struct WhoopBandView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { _ in
-            Text("A backup of your previous whoop.sqlite is saved in Backups/. Your fitness.sqlite workout/diet/labs database is untouched.")
+            Text("Merge keeps all newer BLE rows synced by this app and fills in older OpenStrap history. Replace swaps the whole whoop.sqlite file (saving a backup first).")
         }
         .alert("WHOOP database imported", isPresented: $whoopImportedNotice) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("OpenStrap / WHOOP telemetry substrate loaded into whoop.sqlite.")
+        }
+        .alert("OpenStrap history merged", isPresented: Binding(get: { mergeNoticeMessage != nil }, set: { if !$0 { mergeNoticeMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(mergeNoticeMessage ?? "")
         }
         .errorAlert($errorMessage)
     }
@@ -162,6 +179,48 @@ struct WhoopBandView: View {
         .card()
     }
 
+    private var syncProvenanceCard: some View {
+        let s = whoop.substrateSummary
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionLabel("Sync Freshness & Provenance")
+                Spacer()
+                if let syncSec = s?.lastAppSyncAtSec {
+                    Pill(text: Self.isToday(syncSec) ? "Synced today" : "Synced", tone: .green)
+                } else if (s?.oneHzCount ?? 0) > 0 {
+                    Pill(text: "Imported DB", tone: .amber)
+                } else {
+                    Pill(text: "No data yet", tone: .grey)
+                }
+            }
+
+            if let s, s.oneHzCount > 0 {
+                VStack(spacing: 6) {
+                    if let latest = s.latestRecTs {
+                        summaryRow("Data through", "\(Self.dateTime(latest)) (\(Self.relativeAgo(latest)))")
+                    }
+                    if let syncSec = s.lastAppSyncAtSec {
+                        summaryRow("Last BLE sync here", Self.dateTime(syncSec))
+                    } else {
+                        summaryRow("Last BLE sync here", "Not synced in this app yet")
+                    }
+                    summaryRow("Synced by this app", "+\(Format.grouped(Double(s.appSyncedOneHzCount))) 1 Hz rows (\(Self.durationText(seconds: s.appSyncedOneHzCount)))")
+                    if s.importedBaselineOneHzCount > 0 {
+                        let baseEnd = s.importedBaselineMaxRecTs.map { " · through \(Self.shortDate($0))" } ?? ""
+                        summaryRow("Imported / merged history", "\(Format.grouped(Double(s.importedBaselineOneHzCount))) rows\(baseEnd)")
+                    }
+                }
+            } else {
+                Text("Connect your WHOOP band above — every 1 Hz burst synced by this app and any merged OpenStrap history are tracked separately here.")
+                    .font(.system(size: 13))
+                    .foregroundColor(Theme.muted)
+            }
+        }
+        .card()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("whoop-sync-provenance-card")
+    }
+
     private var liveTelemetryCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Strap Telemetry")
@@ -204,19 +263,25 @@ struct WhoopBandView: View {
                     summaryRow("Raw archive frames", Format.grouped(Double(s.rawArchiveCount)))
                     summaryRow("Live step windows", Format.grouped(Double(s.liveCoverageCount)))
                     if let oldest = s.oldestRecTs, let newest = s.latestRecTs {
-                        summaryRow("Recorded span", "\(Self.shortDate(oldest)) → \(Self.shortDate(newest))")
-                    }
-                    if let trim = s.strapTrimHex {
-                        summaryRow("Trim cursor", trim)
-                    }
+
+                Button("Merge older OpenStrap history (.db / .sqlite)") {
+                    isWhoopMergePresented = true
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("whoop-substrate-summary")
-            } else {
-                Text("No whoop.sqlite loaded yet. Sync a band or load your OpenStrap database below.")
-                    .font(.system(size: 13))
-                    .foregroundColor(Theme.muted)
-                    .accessibilityIdentifier("whoop-substrate-empty")
+                .buttonStyle(PrimaryButtonStyle(ghost: true))
+                .accessibilityIdentifier("merge-whoop-database-button")
+            }
+
+            Button(whoop.hasWhoopDatabase ? "Replace WHOOP database (.db / .sqlite)" : "Import OpenStrap / WHOOP database (.db / .sqlite)") {
+                isWhoopImporterPresented = true
+            }
+            .buttonStyle(PrimaryButtonStyle(ghost: true))
+            .accessibilityIdentifier("import-whoop-database-button")
+
+            if !whoop.foundWhoopFiles.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    SectionLabel("WHOOP files in Documents")
+                    ForEach(whoop.foundWhoopFiles, id: \.self) { url in
+                        Button("Merge / tyIdentifier("whoop-substrate-empty")
             }
         }
         .card()
@@ -311,6 +376,33 @@ struct WhoopBandView: View {
         }
     }
 
+
+    static func dateTime(_ epochSec: Int) -> String {
+        let d = Date(timeIntervalSince1970: TimeInterval(epochSec))
+        let f = DateFormatter()
+        f.dateFormat = "dd MMM, HH:mm"
+        return f.string(from: d)
+    }
+
+    static func isToday(_ epochSec: Int) -> Bool {
+        Calendar.current.isDateInToday(Date(timeIntervalSince1970: TimeInterval(epochSec)))
+    }
+
+    static func relativeAgo(_ epochSec: Int) -> String {
+        let delta = max(0, Int(Date().timeIntervalSince1970) - epochSec)
+        if delta < 90 { return "just now" }
+        if delta < 3600 { return "\(delta / 60)m ago" }
+        if delta < 86_400 { return "\(delta / 3600)h ago" }
+        return "\(delta / 86_400)d ago"
+    }
+
+    static func durationText(seconds: Int) -> String {
+        if seconds < 60 { return "\(seconds)s" }
+        if seconds < 3600 { return "\(seconds / 60)m" }
+        let h = Double(seconds) / 3600.0
+        if h < 48 { return String(format: "%.1fh", h) }
+        return String(format: "%.1fd", h / 24.0)
+    }
     private static func shortDate(_ epochSec: Int) -> String {
         let d = Date(timeIntervalSince1970: TimeInterval(epochSec))
         let f = DateFormatter()

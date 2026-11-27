@@ -109,4 +109,71 @@ final class WhoopSubstrateTests: XCTestCase {
         XCTAssertEqual(exportedURL.lastPathComponent, "whoop-2026-11-26.sqlite")
         XCTAssertTrue(FileManager.default.fileExists(atPath: exportedURL.path))
     }
+
+    func testProvenanceTracksLiveAppSyncedRowsAndNonDestructivelyMergesOpenStrapHistoryWithoutOverwritingLiveRows() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("whoop-merge-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fileSvc = WhoopDatabaseFileService(location: AppDatabaseLocation(directory: tempDir))
+        let liveStore = try fileSvc.openOrCreateLiveStore()
+
+        // 1. Sync 2 live seconds (1795750966 with HR 72, 1795750967 with HR 74) directly in FitnessApp
+        func makeV18(ts: UInt32, counter: UInt8, hr: UInt8, rr: Int) throws -> WhoopGen5HistorySample {
+            var b = [UInt8](repeating: 0, count: 112)
+            b[0] = WhoopPacketType.historicalData
+            b[1] = 18
+            b[3] = counter
+            b[7] = UInt8(ts & 0xFF); b[8] = UInt8((ts >> 8) & 0xFF)
+            b[9] = UInt8((ts >> 16) & 0xFF); b[10] = UInt8((ts >> 24) & 0xFF)
+            b[11] = 0x00; b[12] = 0x40
+            b[14] = hr
+            b[15] = 1
+            b[16] = UInt8(rr & 0xFF); b[17] = UInt8((rr >> 8) & 0xFF)
+            return try XCTUnwrap(WhoopGen5Decoder.decodeV18(b))
+        }
+
+        let live1 = try makeV18(ts: 1_795_750_966, counter: 201, hr: 72, rr: 830)
+        let live2 = try makeV18(ts: 1_795_750_967, counter: 202, hr: 74, rr: 810)
+        try liveStore.commitSyncBatch(WhoopSyncBatch(
+            deviceID: "",
+            gen5Samples: [live1, live2],
+            trimTokenHex: "c1be00000a000000",
+            capturedAtMs: 1_795_751_000_000))
+
+        let preMergeSummary = try liveStore.summary()
+        XCTAssertEqual(preMergeSummary.oneHzCount, 2)
+        XCTAssertEqual(preMergeSummary.appSyncedOneHzCount, 2)
+        XCTAssertEqual(preMergeSummary.importedBaselineOneHzCount, 0)
+        XCTAssertEqual(preMergeSummary.lastAppSyncAtSec, 1_795_751_000)
+
+        // 2. Build an external historical DB with older second 1795100000 (HR 58) + overlapping second 1795750966 (stale HR 60)
+        let extPath = tempDir.appendingPathComponent("openstrap-old.db")
+        do {
+            let extStore = try WhoopStore(try Database(path: extPath.path))
+            let histOld = try makeV18(ts: 1_795_100_000, counter: 10, hr: 58, rr: 1020)
+            let histOverlapStale = try makeV18(ts: 1_795_750_966, counter: 99, hr: 60, rr: 999)
+            try extStore.commitSyncBatch(WhoopSyncBatch(
+                deviceID: "",
+                gen5Samples: [histOld, histOverlapStale],
+                trimTokenHex: "0000000000000001",
+                capturedAtMs: 1_795_100_010_000))
+        }
+
+        // 3. Non-destructively merge external history into liveStore
+        let mergeRes = try fileSvc.mergeDatabase(from: extPath, into: liveStore, nowSec: 1_795_751_100)
+        XCTAssertEqual(mergeRes.addedOneHzRows, 1, "Only the non-overlapping historical second is inserted")
+        XCTAssertEqual(mergeRes.addedRrRows, 1)
+
+        // Verify overlapping live second 1795750966 kept live HR 72 (not overwritten by stale 60!) and live strap_trim stayed intact
+        let keptHr = try liveStore.db.query("SELECT hr FROM decoded_onehz WHERE rec_ts = 1795750966").first?.int("hr")
+        XCTAssertEqual(keptHr, 72)
+
+        let postSummary = try liveStore.summary()
+        XCTAssertEqual(postSummary.oneHzCount, 3)
+        XCTAssertEqual(postSummary.appSyncedOneHzCount, 2)
+        XCTAssertEqual(postSummary.importedBaselineOneHzCount, 1)
+        XCTAssertEqual(postSummary.importedBaselineMaxRecTs, 1_795_750_966)
+        XCTAssertEqual(postSummary.strapTrimHex, "c1be00000a000000")
+    }
 }

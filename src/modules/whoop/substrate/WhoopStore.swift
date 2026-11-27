@@ -152,10 +152,16 @@ public struct WhoopSubstrateSummary: Equatable, Sendable {
     public let strapTrimHex: String?
     public let latestBatteryPct: Double?
     public let latestCharging: Bool?
+    public var importedBaselineOneHzCount: Int
+    public var importedBaselineMaxRecTs: Int?
+    public var appSyncedOneHzCount: Int
+    public var lastAppSyncAtSec: Int?
 
     public init(oneHzCount: Int, rrCount: Int, rawArchiveCount: Int, liveCoverageCount: Int,
                 oldestRecTs: Int?, latestRecTs: Int?, latestCounter: Int?,
-                strapTrimHex: String?, latestBatteryPct: Double?, latestCharging: Bool?) {
+                strapTrimHex: String?, latestBatteryPct: Double?, latestCharging: Bool?,
+                importedBaselineOneHzCount: Int = 0, importedBaselineMaxRecTs: Int? = nil,
+                appSyncedOneHzCount: Int = 0, lastAppSyncAtSec: Int? = nil) {
         self.oneHzCount = oneHzCount
         self.rrCount = rrCount
         self.rawArchiveCount = rawArchiveCount
@@ -166,6 +172,22 @@ public struct WhoopSubstrateSummary: Equatable, Sendable {
         self.strapTrimHex = strapTrimHex
         self.latestBatteryPct = latestBatteryPct
         self.latestCharging = latestCharging
+        self.importedBaselineOneHzCount = importedBaselineOneHzCount
+        self.importedBaselineMaxRecTs = importedBaselineMaxRecTs
+        self.appSyncedOneHzCount = appSyncedOneHzCount
+        self.lastAppSyncAtSec = lastAppSyncAtSec
+    }
+}
+
+public struct WhoopMergeResult: Equatable, Sendable {
+    public let addedOneHzRows: Int
+    public let addedRrRows: Int
+    public let addedArchiveRows: Int
+
+    public init(addedOneHzRows: Int = 0, addedRrRows: Int = 0, addedArchiveRows: Int = 0) {
+        self.addedOneHzRows = addedOneHzRows
+        self.addedRrRows = addedRrRows
+        self.addedArchiveRows = addedArchiveRows
     }
 }
 
@@ -213,6 +235,8 @@ public final class WhoopStore {
             try db.execute("PRAGMA synchronous = FULL")
         }
         let updatedSec = Int64(batch.capturedAtMs / 1000)
+
+        let beforeOneHz = try count("decoded_onehz")
 
         try db.transaction {
             var maxCounter: Int64?
@@ -420,6 +444,14 @@ public final class WhoopStore {
             if let trimHex = batch.trimTokenHex {
                 try upsertCursor(name: "strap_trim", value: trimHex, updatedAt: updatedSec)
             }
+
+            let afterOneHz = try count("decoded_onehz")
+            let netAdded = max(0, afterOneHz - beforeOneHz)
+            if netAdded > 0 || !batch.gen4Records.isEmpty || !batch.gen4R10Records.isEmpty || !batch.gen5Samples.isEmpty {
+                let prevAppSynced = Int(try cursorValue("fitnessapp_synced_onehz") ?? "") ?? 0
+                try upsertCursor(name: "fitnessapp_synced_onehz", value: String(prevAppSynced + netAdded), updatedAt: updatedSec)
+                try upsertCursor(name: "fitnessapp_last_sync_at", value: String(updatedSec), updatedAt: updatedSec)
+            }
         }
     }
 
@@ -449,6 +481,11 @@ public final class WhoopStore {
         let rawArchiveCount = try count("raw_archive_frames")
         let liveCoverageCount = try count("live_coverage")
         let strapTrim = try cursorValue("strap_trim")
+        let importedBase = Int(try cursorValue("imported_baseline_onehz") ?? "") ?? 0
+        let importedMaxTs = (try cursorValue("imported_baseline_max_ts")).flatMap(Int.init)
+        let explicitAppSynced = (try cursorValue("fitnessapp_synced_onehz")).flatMap(Int.init)
+        let appSynced = explicitAppSynced ?? max(0, oneHzCount - importedBase)
+        let lastAppSync = (try cursorValue("fitnessapp_last_sync_at")).flatMap(Int.init)
         let battRow = try db.query("""
             SELECT battery_pct, charging FROM band_battery
             WHERE battery_pct IS NOT NULL
@@ -464,7 +501,11 @@ public final class WhoopStore {
             latestCounter: oneHzCount > 0 ? oneHzRow?.optionalInt("max_c") : nil,
             strapTrimHex: strapTrim,
             latestBatteryPct: battRow?.optionalDouble("battery_pct"),
-            latestCharging: battRow?.optionalInt("charging").map { $0 != 0 })
+            latestCharging: battRow?.optionalInt("charging").map { $0 != 0 },
+            importedBaselineOneHzCount: importedBase,
+            importedBaselineMaxRecTs: importedMaxTs,
+            appSyncedOneHzCount: appSynced,
+            lastAppSyncAtSec: lastAppSync)
     }
 
     private static func hexToData(_ hex: String) -> Data {
@@ -524,7 +565,17 @@ public struct WhoopDatabaseFileService {
         do {
             try fm.copyItem(at: source, to: staged)
             try validate(fileAt: staged)
-            _ = try WhoopStore(try Database(path: staged.path))
+            let stagedStore = try WhoopStore(try Database(path: staged.path))
+            if (try stagedStore.cursorValue("fitnessapp_synced_onehz")) == nil,
+               (try stagedStore.cursorValue("imported_baseline_onehz")) == nil {
+                let totalRows = try stagedStore.count("decoded_onehz")
+                let maxRecTs = try stagedStore.db.query("SELECT MAX(rec_ts) AS m FROM decoded_onehz").first?.optionalInt("m")
+                let stamp = Int64(Date().timeIntervalSince1970)
+                try stagedStore.upsertCursor(name: "imported_baseline_onehz", value: String(totalRows), updatedAt: stamp)
+                if let maxRecTs {
+                    try stagedStore.upsertCursor(name: "imported_baseline_max_ts", value: String(maxRecTs), updatedAt: stamp)
+                }
+            }
             if exists {
                 if let today {
                     try fm.createDirectory(at: location.backupsDirectory, withIntermediateDirectories: true)
@@ -584,5 +635,126 @@ public struct WhoopDatabaseFileService {
             }
         }
         return candidates.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// Non-destructively merges historical OpenStrap / WHOOP records from `source` into `liveStore` using `INSERT OR IGNORE`
+    /// so live BLE rows and `strap_trim` cursor in `liveStore` always win on overlap.
+    public func mergeDatabase(from source: URL, into liveStore: WhoopStore, nowSec: Int64) throws -> WhoopMergeResult {
+        try validate(fileAt: source)
+        let fm = FileManager.default
+        try fm.createDirectory(at: location.directory, withIntermediateDirectories: true)
+        let staged = location.directory.appendingPathComponent(".whoop-merge-\(UUID().uuidString).tmp")
+        defer {
+            try? fm.removeItem(at: staged)
+            for suffix in ["-wal", "-shm", "-journal"] {
+                try? fm.removeItem(atPath: staged.path + suffix)
+            }
+        }
+        try fm.copyItem(at: source, to: staged)
+        do {
+            let upgraded = try WhoopStore(try Database(path: staged.path))
+            _ = upgraded
+        }
+
+        let beforeOneHz = try liveStore.count("decoded_onehz")
+        let beforeRr = try liveStore.count("decoded_rr")
+        let beforeArchive = try liveStore.count("raw_archive_frames")
+
+        try liveStore.db.execute("ATTACH DATABASE ? AS ext_hist", [.text(staged.path)])
+        var detached = false
+        defer {
+            if !detached { try? liveStore.db.execute("DETACH DATABASE ext_hist") }
+        }
+
+        let extMaxTs = try liveStore.db.query("SELECT MAX(rec_ts) AS m FROM ext_hist.decoded_onehz").first?.optionalInt("m")
+
+        try liveStore.db.transaction {
+            try liveStore.db.execute("""
+                INSERT OR IGNORE INTO decoded_onehz (
+                    device_id, ts_ms, rec_ts, counter, hr, ax, ay, az,
+                    spo2_red_raw, spo2_ir_raw, skin_temp_raw, step_count, step_cadence, activity_class,
+                    skin_temp_c, on_wrist, hr_valid, hr_alt, ambient_raw, device_family, source,
+                    temp_ch2_c, temp_ch3_c, signal_quality_logvar, dyn_accel_g, ts_subsec, band_sleep_state
+                )
+                SELECT
+                    device_id, ts_ms, rec_ts, counter, hr, ax, ay, az,
+                    spo2_red_raw, spo2_ir_raw, skin_temp_raw, step_count, step_cadence, activity_class,
+                    skin_temp_c, on_wrist, hr_valid, hr_alt, ambient_raw, device_family, source,
+                    temp_ch2_c, temp_ch3_c, signal_quality_logvar, dyn_accel_g, ts_subsec, band_sleep_state
+                FROM ext_hist.decoded_onehz
+                """)
+
+            try liveStore.db.execute("""
+                INSERT OR IGNORE INTO decoded_rr (
+                    device_id, ts_ms, rec_ts, beat_index, rr_ts_ms, rr_ms, device_family, source, beat_ts_ms
+                )
+                SELECT r.device_id, r.ts_ms, r.rec_ts, r.beat_index, r.rr_ts_ms, r.rr_ms, r.device_family, r.source, r.beat_ts_ms
+                FROM ext_hist.decoded_rr r
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM decoded_rr existing
+                    WHERE existing.device_id = r.device_id AND existing.ts_ms = r.ts_ms
+                )
+                """)
+
+            try liveStore.db.execute("""
+                INSERT OR IGNORE INTO raw_archive_frames (
+                    device_id, hash, counter, packet_type, rec_ts, captured_at, reason, hex, frame
+                )
+                SELECT device_id, hash, counter, packet_type, rec_ts, captured_at, reason, hex, frame
+                FROM ext_hist.raw_archive_frames
+                """)
+
+            try liveStore.db.execute("""
+                INSERT OR IGNORE INTO band_battery (
+                    device_id, ts, battery_pct, charging, wrist_on, millivolts, charge_units, source
+                )
+                SELECT device_id, ts, battery_pct, charging, wrist_on, millivolts, charge_units, source
+                FROM ext_hist.band_battery
+                """)
+
+            try liveStore.db.execute("""
+                INSERT OR IGNORE INTO band_backlog (
+                    device_id, ts, written, used, capacity, trim_page, wrap_count, free_records, device_family
+                )
+                SELECT device_id, ts, written, used, capacity, trim_page, wrap_count, free_records, device_family
+                FROM ext_hist.band_backlog
+                """)
+
+            try liveStore.db.execute("""
+                INSERT OR IGNORE INTO band_events (
+                    device_id, hex, event_id, name, ts, payload_json, captured_at
+                )
+                SELECT device_id, hex, event_id, name, ts, payload_json, captured_at
+                FROM ext_hist.band_events
+                """)
+
+            try liveStore.db.execute("""
+                INSERT OR IGNORE INTO live_coverage (start_ts, end_ts, steps, day, source, device_id)
+                SELECT c.start_ts, c.end_ts, c.steps, c.day, c.source, c.device_id
+                FROM ext_hist.live_coverage c
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM live_coverage existing
+                    WHERE existing.device_id = c.device_id AND existing.start_ts = c.start_ts
+                )
+                """)
+        }
+
+        try liveStore.db.execute("DETACH DATABASE ext_hist")
+        detached = true
+
+        let addedOneHz = max(0, (try liveStore.count("decoded_onehz")) - beforeOneHz)
+        let addedRr = max(0, (try liveStore.count("decoded_rr")) - beforeRr)
+        let addedArchive = max(0, (try liveStore.count("raw_archive_frames")) - beforeArchive)
+
+        let prevImported = Int(try liveStore.cursorValue("imported_baseline_onehz") ?? "") ?? 0
+        try liveStore.upsertCursor(name: "imported_baseline_onehz", value: String(prevImported + addedOneHz), updatedAt: nowSec)
+        if let extMaxTs {
+            let prevMax = Int(try liveStore.cursorValue("imported_baseline_max_ts") ?? "") ?? 0
+            if extMaxTs > prevMax {
+                try liveStore.upsertCursor(name: "imported_baseline_max_ts", value: String(extMaxTs), updatedAt: nowSec)
+            }
+        }
+
+        return WhoopMergeResult(addedOneHzRows: addedOneHz, addedRrRows: addedRr, addedArchiveRows: addedArchive)
     }
 }

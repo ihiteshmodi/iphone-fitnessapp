@@ -59,6 +59,30 @@ private struct WhoopFileImporterModifier: ViewModifier {
     }
 }
 
+private struct WhoopMergeFileImporterModifier: ViewModifier {
+    @EnvironmentObject private var whoop: WhoopBLEManager
+    @Binding var isPresented: Bool
+    @Binding var errorMessage: String?
+    let onMerged: (WhoopMergeResult) -> Void
+
+    func body(content: Content) -> some View {
+        content.fileImporter(isPresented: $isPresented, allowedContentTypes: DataImportTypes.allowed, allowsMultipleSelection: false) { result in
+            switch result {
+            case .failure(let error):
+                errorMessage = MoreErrorText.message(for: error)
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                do {
+                    let res = try whoop.mergeWhoopDatabase(from: url)
+                    onMerged(res)
+                } catch {
+                    errorMessage = MoreErrorText.message(for: error)
+                }
+            }
+        }
+    }
+}
+
 extension View {
     /// Single-file picker that imports the chosen database through the session; failures go to `errorMessage`.
     func dataFileImporter(isPresented: Binding<Bool>, errorMessage: Binding<String?>, onImported: @escaping () -> Void = {}) -> some View {
@@ -68,5 +92,10 @@ extension View {
     /// Single-file picker that imports an OpenStrap `.db` or `whoop-*.sqlite` file into `Documents/whoop.sqlite`.
     func whoopFileImporter(isPresented: Binding<Bool>, errorMessage: Binding<String?>, onImported: @escaping () -> Void = {}) -> some View {
         modifier(WhoopFileImporterModifier(isPresented: isPresented, errorMessage: errorMessage, onImported: onImported))
+    }
+
+    /// Single-file picker that non-destructively merges historical OpenStrap `.db` / `.sqlite` rows into `Documents/whoop.sqlite`.
+    func whoopMergeFileImporter(isPresented: Binding<Bool>, errorMessage: Binding<String?>, onMerged: @escaping (WhoopMergeResult) -> Void) -> some View {
+        modifier(WhoopMergeFileImporterModifier(isPresented: isPresented, errorMessage: errorMessage, onMerged: onMerged))
     }
 }
