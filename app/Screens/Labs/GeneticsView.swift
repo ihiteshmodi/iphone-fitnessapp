@@ -390,11 +390,9 @@ struct GeneticsView: View {
         }
     }
 
-    private func load() {
-        do {
-            screenVM = try GeneticsPresenter.screen(
-                catalogue: catalogue, db: services.db, today: services.clock.today(),
-                search: search, quickFilter: quickFilter
+    private func shortGenotype(_ raw: String) -> String {
+        if let paren = raw.firstIndex(of: "("), paren > raw.startIndex {
+            let prefix = raw[..<paren].trimmingCharacters(in: .whitespaces)
             if !prefix.isEmpty && prefix.count <= 26 { return prefix }
         }
         return raw.count > 26 ? String(raw.prefix(24)) + "…" : raw
@@ -412,7 +410,9 @@ struct GeneticsView: View {
 
     private func load() {
         do {
-            screenVM = try GeneticsPresenter.screen(catalogue: catalogue, db: services.db, today: services.clock.today())
+            screenVM = try GeneticsPresenter.screen(
+                catalogue: catalogue, db: services.db, today: services.clock.today(),
+                search: search, quickFilter: quickFilter)
         } catch {
             errorMessage = error.localizedDescription
         }
